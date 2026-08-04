@@ -41,9 +41,9 @@ jobs:
       
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
-        with:
-          version: '6.6.3'
-          arch: 'win64_msvc2019_64'
+      with:
+  version: '6.5.3'
+  arch: 'win64_msvc2019_64'
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
