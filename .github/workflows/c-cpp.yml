@@ -34,16 +34,16 @@ jobs:
           name: NeonLauncher-Linux-x64
           path: build/NeonLauncherApp
 
-  build-windows:
+   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
-      with:
-  version: '6.5.3'
-  arch: 'win64_msvc2019_64'
+        with:
+          version: '6.5.3'
+          arch: 'win64_msvc2019_64'
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -52,12 +52,12 @@ jobs:
         run: cmake --build build --config Release
 
       - name: Deploy Qt Dependencies
-  run: windeployqt --release build/Release/NeonLauncherApp.exe --qmldir src/ui/qml
+        run: windeployqt --release build/Release/NeonLauncherApp.exe --qmldir src/ui/qml
 
-   - name: Copy QML files
-  run: |
-    mkdir -p build/Release/qml
-    cp -r src/ui/qml/* build/Release/qml/
+      - name: Copy QML files
+        run: |
+          mkdir -p build/Release/qml
+          cp -r src/ui/qml/* build/Release/qml/
 
       - name: Upload Windows Build Artifact
         uses: actions/upload-artifact@v4
