@@ -52,10 +52,16 @@ jobs:
         run: cmake --build build --config Release
 
       - name: Deploy Qt Dependencies
-        run: windeployqt --release build/Release/NeonLauncherApp.exe
+        run: windeployqt --release build/Release/NeonLauncherApp.exe --qmldir qml
+
+      - name: Copy QML files
+        run: |
+          mkdir -p build/Release/qml/NeonLauncher
+          cp -r qml/NeonLauncher/* build/Release/qml/NeonLauncher/
 
       - name: Upload Windows Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: NeonLauncher-Windows-x64
-          path: build/Release/
+          path: build/Release
+
