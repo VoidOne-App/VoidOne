@@ -1,39 +1,63 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QIcon>
 #include <QDebug>
+
 #include "core/Database.h"
 #include "core/SteamScanner.h"
 #include "core/GameModel.h"
-#include "core/TranslationManager.h"    // ۱. اضافه کردن هدر مدیریت زبان
-#include "core/SaveBackupManager.h"    // ۲. اضافه کردن هدر مدیریت بکاپ سیو
+#include "core/TranslationManager.h"
+#include "core/SaveBackupManager.h"
 
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
 
-    // Initialize Database
+    app.setOrganizationName("NeonStudio");
+    app.setApplicationName("NeonLauncher");
+    app.setApplicationVersion("1.0.2");
+
+    // ۱. مقداردهی پایگاه داده پیشرفته
     if (!Database::initialize()) {
-        qWarning() << "Failed to initialize database!";
+        qCritical() << "Fatal: Could not initialize local SQLite database.";
         return -1;
-    } else {
-        qDebug() << "Database initialized successfully";
     }
 
-    // Create game model
+    // ۲. تعریف متغیرها و کامپوننت‌های اصلی
     GameModel gameModel;
-
-    // Scan Steam games on startup
-    SteamScanner::scanSteamGames();
-
-    // Load games from database into model
-    gameModel.loadGamesFromDatabase();
-
-    // ۳. مقداردهی اولیه سیستم مدیریت زبان و بکاپ
+    SteamScanner steamScanner;
     TranslationManager translationManager;
     SaveBackupManager saveBackupManager;
 
+    // بارگذاری داده‌ها
+    gameModel.loadGamesFromDatabase();
+
+    // اتصال اسکنر استیم به مدل جهت به‌روزرسانی خودکار
+    QObject::connect(&steamScanner, &SteamScanner::scanCompleted, [&gameModel](int count) {
+        qDebug() << "Steam Async Scan Completed. Found:" << count;
+        gameModel.loadGamesFromDatabase();
+    });
+
     QQmlApplicationEngine engine;
+
+    // ۳. اکسپوز مستقیم کامپوننت‌ها به محیط QML
+    engine.rootContext()->setContextProperty("gameModel", &gameModel);
+    engine.rootContext()->setContextProperty("steamScanner", &steamScanner);
+    engine.rootContext()->setContextProperty("trManager", &translationManager);
+    engine.rootContext()->setContextProperty("saveBackupManager", &saveBackupManager);
+
+    QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
+                     &app, []() { QCoreApplication::exit(-1); },
+                     Qt::QueuedConnection);
+
+    engine.loadFromModule("NeonLauncher", "Main");
+
+    if (engine.rootObjects().isEmpty())
+        return -1;
+
+    return app.exec();
+}
 
     // Expose objects to QML (۴. معرفی به محیط QML)
     engine.rootContext()->setContextProperty("gameModel", &gameModel);
