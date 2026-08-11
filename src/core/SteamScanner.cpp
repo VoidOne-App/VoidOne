@@ -3,79 +3,80 @@
 #include <QFile>
 #include <QTextStream>
 #include <QStandardPaths>
-#include <QDebug>
 #include <QRegularExpression>
+#include <QDebug>
 
-QString SteamScanner::getSteamPath() {
+void SteamScannerWorker::doScan() {
+    QVector<GameRecord> games;
+    QString steamPath = "";
+
 #if defined(Q_OS_WIN)
-    // مسیر پیش‌فرض استیم در ویندوز
-    return "C:/Program Files (x86)/Steam";
+    steamPath = "C:/Program Files (x86)/Steam";
 #elif defined(Q_OS_LINUX)
     QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-    QString linuxPath = home + "/.local/share/Steam";
-    if (QDir(linuxPath).exists()) return linuxPath;
-    
-    // مسیر جایگزین در لینوکس (Flatpak)
-    QString flatpakPath = home + "/.var/app/com.valvesoftware.Steam/.local/share/Steam";
-    if (QDir(flatpakPath).exists()) return flatpakPath;
-#endif
-    return "";
-}
-
-QVector<GameInfo> SteamScanner::scanSteamGames() {
-    QVector<GameInfo> games;
-    QString steamPath = getSteamPath();
-    
-    if (steamPath.isEmpty()) {
-        qWarning() << "Steam installation path not found!";
-        return games;
+    steamPath = home + "/.local/share/Steam";
+    if (!QDir(steamPath).exists()) {
+        steamPath = home + "/.var/app/com.valvesoftware.Steam/.local/share/Steam";
     }
+#endif
 
     QString steamappsPath = steamPath + "/steamapps";
     QDir steamappsDir(steamappsPath);
-    
-    if (!steamappsDir.exists()) {
-        qWarning() << "steamapps directory does not exist at:" << steamappsPath;
-        return games;
+
+    if (steamappsDir.exists()) {
+        QStringList filters;
+        filters << "appmanifest_*.acf";
+        QFileInfoList manifestFiles = steamappsDir.entryInfoList(filters, QDir::Files);
+
+        QRegularExpression nameRx("\"name\"\\s+\"([^\"]+)\"");
+        QRegularExpression dirRx("\"installdir\"\\s+\"([^\"]+)\"");
+
+        for (const QFileInfo &fileInfo : manifestFiles) {
+            QFile file(fileInfo.absoluteFilePath());
+            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QString content = file.readAll();
+                file.close();
+
+                auto nameMatch = nameRx.match(content);
+                auto dirMatch = dirRx.match(content);
+
+                if (nameMatch.hasMatch() && dirMatch.hasMatch()) {
+                    GameRecord rec;
+                    rec.name = nameMatch.captured(1);
+                    rec.exePath = steamappsPath + "/common/" + dirMatch.captured(1);
+                    rec.platform = "Steam";
+                    games.append(rec);
+                }
+            }
+        }
     }
 
-    // اسکن فایل‌های مانیفست بازی‌ها (acf)
-    QStringList filters;
-    filters << "appmanifest_*.acf";
-    QFileInfoList manifestFiles = steamappsDir.entryInfoList(filters, QDir::Files);
-
-    for (const QFileInfo &fileInfo : manifestFiles) {
-        QVector<GameInfo> parsedGames = parseManifestFile(fileInfo.absoluteFilePath());
-        games.append(parsedGames);
-    }
-
-    qDebug() << "Total Steam games found:" << games.size();
-    return games;
+    emit scanFinished(games);
 }
 
-QVector<GameInfo> SteamScanner::parseManifestFile(const QString &manifestPath) {
-    QVector<GameInfo> games;
-    QFile file(manifestPath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-        return games;
+SteamScanner::SteamScanner(QObject *parent) : QObject(parent) {
+    SteamScannerWorker *worker = new SteamScannerWorker;
+    worker->moveToThread(&workerThread);
 
-    QTextStream in(&file);
-    QString content = in.readAll();
-    file.close();
+    connect(&workerThread, &QThread::finished, worker, &QObject::deleteLater);
+    connect(worker, &SteamScannerWorker::scanFinished, this, &SteamScanner::handleScanFinished);
+    
+    workerThread.start();
+}
 
-    // استخراج نام بازی از فایل مانیفست با عبارت منظم
-    QRegularExpression nameRx("\"name\"\s+\"([^\"]+)\"");
-    QRegularExpressionMatch nameMatch = nameRx.match(content);
+SteamScanner::~SteamScanner() {
+    workerThread.quit();
+    workerThread.wait();
+}
 
-    QRegularExpression dirRx("\"installdir\"\s+\"([^\"]+)\"");
-    QRegularExpressionMatch dirMatch = dirRx.match(content);
+void SteamScanner::startAsyncScan() {
+    QMetaObject::invokeMethod(&workerThread, [this]() {
+        SteamScannerWorker worker;
+        worker.doScan();
+    });
+}
 
-    if (nameMatch.hasMatch() && dirMatch.hasMatch()) {
-        GameInfo game;
-        game.name = nameMatch.captured(1);
-        game.installDir = dirMatch.captured(1);
-        games.append(game);
-    }
-
-    return games;
+void SteamScanner::handleScanFinished(const QVector<GameRecord>& games) {
+    Database::addGamesBatch(games);
+    emit scanCompleted(games.size());
 }
