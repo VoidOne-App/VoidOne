@@ -15,7 +15,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.5.3'
+          version: '6.11.1'
 
       - name: Install Dependencies (Linux)
         run: |
@@ -39,22 +39,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-     - name: Install Qt
+      - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.6.3'
-          arch: 'win64_msvc2019_64'
+          version: '6.11.1'
+          arch: 'win64_msvc2022_64'
 
       - name: Configure CMake
-        run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build Project
         run: cmake --build build --config Release
 
-- name: Deploy Qt Dependencies
-        run: |
-          windeployqt --release build/Release/NeonLauncherApp.exe --qmldir src/ui/qml
+      - name: Deploy Qt Dependencies
+        run: windeployqt --release build/Release/NeonLauncherApp.exe --qmldir src/ui/qml
 
       - name: Copy QML files
         shell: pwsh
