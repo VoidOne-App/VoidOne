@@ -28,6 +28,11 @@ jobs:
         with:
           node-version: '26'
 
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: 'latest'
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -74,6 +79,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '26'
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: 'latest'
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
