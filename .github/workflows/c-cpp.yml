@@ -82,12 +82,12 @@ jobs:
       - name: Copy QML files to NeonLauncher Module
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path build/Release/qml/NeonLauncher
-          Copy-Item -Recurse -Force src/ui/qml\* build/Release/qml/NeonLauncher\
+          New-Item -ItemType Directory -Force -Path "build/Release/qml/NeonLauncher"
+          Copy-Item -Recurse -Force "src/ui/qml/*" "build/Release/qml/NeonLauncher/"
 
       - name: Package
         shell: pwsh
-        run: Compress-Archive -Path build/Release/* -DestinationPath NeonLauncher-Windows-x64.zip
+        run: Compress-Archive -Path "build/Release/*" -DestinationPath "NeonLauncher-Windows-x64.zip"
 
       - name: Upload Windows Build Artifact
         uses: actions/upload-artifact@v4
@@ -96,12 +96,10 @@ jobs:
           path: NeonLauncher-Windows-x64.zip
           retention-days: 30
 
-      release:
+  release:
     needs: [build-linux, build-windows]
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -109,24 +107,24 @@ jobs:
           path: artifacts
 
       - name: Determine Release Settings
-        id: release_info
+        id: rel_info
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-            echo "prerelease=false" >> $GITHUB_OUTPUT
-            echo "title=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "TAG_NAME=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+            echo "TITLE=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
           else
-            echo "tag_name=nightly-b${{ github.run_number }}" >> $GITHUB_OUTPUT
-            echo "prerelease=true" >> $GITHUB_OUTPUT
-            echo "title=Nightly Build #${{ github.run_number }} (${{ github.sha }})" >> $GITHUB_OUTPUT
+            echo "TAG_NAME=nightly-b${{ github.run_number }}" >> $GITHUB_OUTPUT
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+            echo "TITLE=Nightly Build #${{ github.run_number }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.release_info.outputs.tag_name }}
-          name: ${{ steps.release_info.outputs.title }}
-          prerelease: ${{ steps.release_info.outputs.prerelease == 'true' }}
+          tag_name: ${{ steps.rel_info.outputs.TAG_NAME }}
+          name: ${{ steps.rel_info.outputs.TITLE }}
+          prerelease: ${{ steps.rel_info.outputs.IS_PRERELEASE }}
           files: |
             artifacts/NeonLauncher-Linux-x64/*.zip
             artifacts/NeonLauncher-Windows-x64/*.zip
