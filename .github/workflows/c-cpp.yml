@@ -47,7 +47,7 @@ jobs:
       - name: Package
         run: |
           mkdir -p dist
-          cp build/NeonLauncherApp dist/
+          cp build/bin/NeonLauncherApp dist/
           cd dist && zip -r ../NeonLauncher-Linux-x64.zip .
 
       - name: Upload Linux Build Artifact
@@ -77,17 +77,17 @@ jobs:
         run: cmake --build build --config Release --parallel
 
       - name: Deploy Qt Dependencies
-        run: windeployqt --release --qmldir src/ui/qml build/Release/NeonLauncherApp.exe
+        run: windeployqt --release --qmldir src/ui/qml build/bin/Release/NeonLauncherApp.exe
 
       - name: Copy QML files to NeonLauncher Module
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "build/Release/qml/NeonLauncher"
-          Copy-Item -Recurse -Force "src/ui/qml/*" "build/Release/qml/NeonLauncher/"
+          New-Item -ItemType Directory -Force -Path "build/bin/Release/qml/NeonLauncher"
+          Copy-Item -Recurse -Force "src/ui/qml/*" "build/bin/Release/qml/NeonLauncher/"
 
       - name: Package
         shell: pwsh
-        run: Compress-Archive -Path "build/Release/*" -DestinationPath "NeonLauncher-Windows-x64.zip"
+        run: Compress-Archive -Path "build/bin/Release/*" -DestinationPath "NeonLauncher-Windows-x64.zip"
 
       - name: Upload Windows Build Artifact
         uses: actions/upload-artifact@v4
@@ -114,9 +114,9 @@ jobs:
             echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
             echo "TITLE=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
           else
-            echo "TAG_NAME=nightly-b${{ github.run_number }}" >> $GITHUB_OUTPUT
+            echo "TAG_NAME=nightly-b${{ github.run_number }}.${{ github.run_attempt }}" >> $GITHUB_OUTPUT
             echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
-            echo "TITLE=Nightly Build #${{ github.run_number }}" >> $GITHUB_OUTPUT
+            echo "TITLE=Nightly Build #${{ github.run_number }} (Attempt ${{ github.run_attempt }})" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Release
@@ -129,3 +129,4 @@ jobs:
             artifacts/NeonLauncher-Linux-x64/*.zip
             artifacts/NeonLauncher-Windows-x64/*.zip
           generate_release_notes: true
+          
