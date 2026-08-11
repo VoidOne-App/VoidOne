@@ -52,7 +52,7 @@ jobs:
       - name: Build Project
         run: cmake --build build --config Release
 
-      - name: Deploy Qt Dependencies
+- name: Deploy Qt Dependencies
         run: |
           windeployqt --release build/Release/NeonLauncherApp.exe --qmldir src/ui/qml
 
