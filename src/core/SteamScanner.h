@@ -1,19 +1,36 @@
-#pragma once
+#ifndef STEAMSCANNER_H
+#define STEAMSCANNER_H
 
-#include <QString>
+#include <QObject>
+#include <QThread>
 #include <QVector>
+#include "Database.h"
 
-struct GameInfo {
-    QString name;
-    QString installDir;
-    QString executablePath;
+class SteamScannerWorker : public QObject {
+    Q_OBJECT
+public slots:
+    void doScan();
+signals:
+    void scanFinished(const QVector<GameRecord>& games);
 };
 
-class SteamScanner {
+class SteamScanner : public QObject
+{
+    Q_OBJECT
 public:
-    static QVector<GameInfo> scanSteamGames();
-    static QString getSteamPath();
+    explicit SteamScanner(QObject *parent = nullptr);
+    ~SteamScanner();
+
+    Q_INVOKABLE void startAsyncScan();
+
+signals:
+    void scanCompleted(int foundCount);
+
+private slots:
+    void handleScanFinished(const QVector<GameRecord>& games);
 
 private:
-    static QVector<GameInfo> parseManifestFile(const QString &manifestPath);
+    QThread workerThread;
 };
+
+#endif // STEAMSCANNER_H
