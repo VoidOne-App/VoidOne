@@ -96,7 +96,7 @@ jobs:
           path: NeonLauncher-Windows-x64.zip
           retention-days: 30
 
-  release:
+    release:
     needs: [build-linux, build-windows]
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
@@ -116,12 +116,12 @@ jobs:
             echo "prerelease=false" >> $GITHUB_OUTPUT
             echo "title=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
           else
-            echo "tag_name=nightly" >> $GITHUB_OUTPUT
+            echo "tag_name=nightly-b${{ github.run_number }}" >> $GITHUB_OUTPUT
             echo "prerelease=true" >> $GITHUB_OUTPUT
-            echo "title=Nightly Build (${{ github.sha }})" >> $GITHUB_OUTPUT
+            echo "title=Nightly Build #${{ github.run_number }} (${{ github.sha }})" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create or Update Release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_info.outputs.tag_name }}
