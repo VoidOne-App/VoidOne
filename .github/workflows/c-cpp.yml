@@ -31,7 +31,7 @@ jobs:
       - name: Install Dependencies (Linux)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libgl1-mesa-dev libpulse-dev
+          sudo apt-get install -y build-essential libgl1-mesa-dev libpulse-dev ccache zip
 
       - name: Enable ccache
         uses: hendrikmuhs/ccache-action@v1
@@ -39,12 +39,12 @@ jobs:
           key: linux-${{ github.job }}
 
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build Project
         run: cmake --build build --config Release --parallel
 
-      - name: Package
+      - name: Package Linux
         run: |
           mkdir -p dist
           cp build/bin/NeonLauncherApp dist/
@@ -85,7 +85,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path "build/bin/Release/qml/NeonLauncher"
           Copy-Item -Recurse -Force "src/ui/qml/*" "build/bin/Release/qml/NeonLauncher/"
 
-      - name: Package
+      - name: Package Windows
         shell: pwsh
         run: Compress-Archive -Path "build/bin/Release/*" -DestinationPath "NeonLauncher-Windows-x64.zip"
 
@@ -129,4 +129,3 @@ jobs:
             artifacts/NeonLauncher-Linux-x64/*.zip
             artifacts/NeonLauncher-Windows-x64/*.zip
           generate_release_notes: true
-          
