@@ -1,4 +1,4 @@
-Name: Stable Multi-Platform Build
+name: Stable Multi-Platform Build
 
 on:
   push:
@@ -25,7 +25,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.11.1'
+          version: '6.6.3'
           cache: true
 
       - name: Install Dependencies (Linux)
