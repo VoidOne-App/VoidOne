@@ -1,68 +1,26 @@
-#include "Database.h"
+#ifndef DATABASE_H
+#define DATABASE_H
+
+#include <QString>
+#include <QVariantList>
 #include <QSqlDatabase>
-#include <QSqlQuery>
-#include <QSqlError>
-#include <QDebug>
 
-bool Database::initialize()
+struct GameRecord {
+    int id = -1;
+    QString name;
+    QString exePath;
+    QString iconPath;
+    QString platform;
+};
+
+class Database
 {
-    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
+public:
+    static bool initialize();
+    static bool addGame(const GameRecord& game);
+    static bool addGamesBatch(const QVector<GameRecord>& games);
+    static QVector<GameRecord> getAllGames();
+    static bool removeGame(int id);
+};
 
-    db.setDatabaseName("launcher.db");
-
-    if (!db.open())
-    {
-        qDebug() << "Database failed:" << db.lastError().text();
-        return false;
-    }
-
-    QSqlQuery query;
-
-    if (!query.exec(
-        "CREATE TABLE IF NOT EXISTS games ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "name TEXT,"
-        "exePath TEXT,"
-        "iconPath TEXT"
-        ")"
-    )) {
-        qDebug() << "Failed to create games table:" << query.lastError().text();
-        return false;
-    }
-
-    qDebug() << "Games table created successfully";
-    return true;
-}
-
-void Database::addGame(const QString& name, const QString& exePath, const QString& iconPath)
-{
-    QSqlQuery query;
-    query.prepare("INSERT INTO games (name, exePath, iconPath) VALUES (?, ?, ?)");
-    query.addBindValue(name);
-    query.addBindValue(exePath);
-    query.addBindValue(iconPath);
-    
-    if (!query.exec()) {
-        qDebug() << "Failed to insert game:" << query.lastError().text();
-    } else {
-        qDebug() << "Game added successfully:" << name;
-    }
-}
-
-QStringList Database::getAllGames()
-{
-    QStringList games;
-    QSqlQuery query("SELECT name FROM games");
-    
-    if (!query.exec()) {
-        qDebug() << "Failed to query games:" << query.lastError().text();
-        return games;
-    }
-    
-    while (query.next()) {
-        games << query.value(0).toString();
-    }
-    
-    qDebug() << "Retrieved" << games.size() << "games from database";
-    return games;
-}
+#endif // DATABASE_H
