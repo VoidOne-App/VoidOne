@@ -1,8 +1,9 @@
-#pragma once
+#ifndef TRANSLATIONMANAGER_H
+#define TRANSLATIONMANAGER_H
 
 #include <QObject>
 #include <QString>
-#include <QVariantMap>
+#include <QMap>
 
 class TranslationManager : public QObject {
     Q_OBJECT
@@ -12,17 +13,17 @@ public:
     explicit TranslationManager(QObject *parent = nullptr);
 
     QString currentLanguage() const { return m_currentLanguage; }
-    Q_INVOKABLE void setCurrentLanguage(const QString &lang);
+    void setCurrentLanguage(const QString &lang);
 
-    // تابع اصلی برای دریافت متن ترجمه‌شده بر اساس کلید
-    Q_INVOKABLE QString getText(const QString &key);
+    Q_INVOKABLE QString getText(const QString &key) const;
 
 signals:
     void languageChanged();
 
 private:
-    QString m_currentLanguage = "en"; // زبان پیش‌فرض: انگلیسی
-    QVariantMap m_translationsEn;
-    QVariantMap m_translationsFa;
-    void loadTranslations();
+    QString m_currentLanguage = "en";
+    QMap<QString, QMap<QString, QString>> m_dictionary;
+    void initDictionary();
 };
+
+#endif // TRANSLATIONMANAGER_H
