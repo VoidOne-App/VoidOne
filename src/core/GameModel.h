@@ -2,37 +2,39 @@
 #define GAMEMODEL_H
 
 #include <QAbstractListModel>
-#include <QStringList>
-
-struct GameEntry {
-    QString name;
-    QString exePath;
-    QString iconPath;
-};
+#include <QProcess>
+#include "Database.h"
 
 class GameModel : public QAbstractListModel
 {
     Q_OBJECT
+    Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
 
 public:
+    enum GameRoles {
+        IdRole = Qt::UserRole + 1,
+        NameRole,
+        ExePathRole,
+        IconPathRole,
+        PlatformRole
+    };
+
     explicit GameModel(QObject *parent = nullptr);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    void addGame(const QString &name, const QString &exePath, const QString &iconPath);
-    void loadGamesFromDatabase();
-    void clearGames();
+    Q_INVOKABLE void loadGamesFromDatabase();
+    Q_INVOKABLE bool addNewGame(const QString &name, const QString &exePath, const QString &iconPath);
+    Q_INVOKABLE bool deleteGame(int id, int index);
+    Q_INVOKABLE void launchGame(const QString &exePath);
+
+signals:
+    void countChanged();
 
 private:
-    enum GameRoles {
-        NameRole = Qt::UserRole + 1,
-        ExePathRole,
-        IconPathRole
-    };
-
-    QVector<GameEntry> m_games;
+    QVector<GameRecord> m_games;
 };
 
 #endif // GAMEMODEL_H
