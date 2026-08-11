@@ -1,7 +1,7 @@
 #include "TranslationManager.h"
 
 TranslationManager::TranslationManager(QObject *parent) : QObject(parent) {
-    loadTranslations();
+    initDictionary();
 }
 
 void TranslationManager::setCurrentLanguage(const QString &lang) {
@@ -11,27 +11,25 @@ void TranslationManager::setCurrentLanguage(const QString &lang) {
     }
 }
 
-void TranslationManager::loadTranslations() {
-    // ترجمه‌های انگلیسی
-    m_translationsEn["app_title"] = "Neon Launcher";
-    m_translationsEn["games_scanned"] = "Games Scanned";
-    m_translationsEn["auto_save"] = "Real-Time Auto-Save";
-    m_translationsEn["settings"] = "Settings";
+void TranslationManager::initDictionary() {
+    // English
+    m_dictionary["en"]["app_title"] = "Neon Launcher Pro";
+    m_dictionary["en"]["launch"] = "Play Game";
+    m_dictionary["en"]["scan_steam"] = "Scan Steam Library";
+    m_dictionary["en"]["auto_save"] = "Real-Time Cloud Backup";
+    m_dictionary["en"]["settings"] = "Settings";
 
-    // ترجمه‌های فارسی
-    m_translationsFa["app_title"] = "لانچر نئونی";
-    m_translationsFa["games_scanned"] = "بازی‌های اسکن‌شده";
-    m_translationsFa["auto_save"] = "ذخیره خودکار لحظه‌ای";
-    m_translationsFa["settings"] = "تنظیمات";
+    // Persian
+    m_dictionary["fa"]["app_title"] = "لانچر نئون پرو";
+    m_dictionary["fa"]["launch"] = "اجرای بازی";
+    m_dictionary["fa"]["scan_steam"] = "اسکن کتابخانه استیم";
+    m_dictionary["fa"]["auto_save"] = "پشتیبان‌گیری ابری خودکار";
+    m_dictionary["fa"]["settings"] = "تنظیمات";
 }
 
-QString TranslationManager::getText(const QString &key) {
-    if (m_currentLanguage == "fa") {
-        if (m_translationsFa.contains(key))
-            return m_translationsFa[key].toString();
-    } else {
-        if (m_translationsEn.contains(key))
-            return m_translationsEn[key].toString();
+QString TranslationManager::getText(const QString &key) const {
+    if (m_dictionary.contains(m_currentLanguage) && m_dictionary[m_currentLanguage].contains(key)) {
+        return m_dictionary[m_currentLanguage][key];
     }
-    return key; // اگر کلید پیدا نشد، خود کلید برگردانده شود
+    return key;
 }
