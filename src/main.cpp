@@ -5,15 +5,17 @@
 #include <QTextStream>
 #include <QDateTime>
 
-// Include‌های پروژه
+// Include های پروژه
 #include "TranslationManager.h"
 #include "SaveBackupManager.h"
 #include "SteamScanner.h"
 #include "GameModel.h"
 
-// تابع هدایت لاگ‌ها به فایل
+// تابع ثبت لاگ سفارشی
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
+    Q_UNUSED(context); // رفع هشدار unused parameter
+
     QFile file("debug_log.txt");
     if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
         QTextStream stream(&file);
@@ -31,7 +33,6 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
 
 int main(int argc, char *argv[])
 {
-    // فعال‌سازی Handler لاگ قبل از هر کاری
     qInstallMessageHandler(customMessageHandler);
 
     QGuiApplication app(argc, argv);
@@ -60,14 +61,6 @@ int main(int argc, char *argv[])
 
     if (engine.rootObjects().isEmpty()) {
         qCritical() << "Failed to load Main.qml or root objects list is empty!";
-        return -1;
-    }
-
-    return app.exec();
-}
-    engine.loadFromModule("NeonLauncher", "Main");
-
-    if (engine.rootObjects().isEmpty()) {
         return -1;
     }
 
