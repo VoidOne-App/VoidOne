@@ -4,37 +4,39 @@ import QtQuick.Layouts
 import QtQuick.Effects
 
 ApplicationWindow {
-
+    id: appWindow
     visible: true
-
     width: 1600
     height: 900
-
-    title: "NeonLauncher"
-
+    title: trManager.getText("app_title")
     color: "#090c10"
-
     flags: Qt.Window
 
     property string currentPage: "library"
     property string searchQuery: ""
 
-    RowLayout {
+    // دریافت سیگنال اتمام اسکن استیم از backend
+    Connections {
+        target: steamScanner
+        function onScanCompleted(foundCount) {
+            showNotification(trManager.currentLanguage === "fa" 
+                ? "اسکن کامل شد! " + foundCount + " بازی پیدا شد." 
+                : "Scan complete! Found " + foundCount + " games.")
+        }
+    }
 
+    RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        // Sidebar Navigation
         Sidebar {
             id: sidebar
             Layout.preferredWidth: 250
             Layout.fillHeight: true
-            onPageChanged: currentPage = page
+            onPageChanged: (page) => currentPage = page
         }
 
-        // Main Content Area
         StackLayout {
-
             Layout.fillWidth: true
             Layout.fillHeight: true
 
@@ -47,85 +49,78 @@ ApplicationWindow {
                 }
             }
 
-            // Library Page
+            // صفحه کتابخانه بازی‌ها
             Rectangle {
                 color: "transparent"
 
                 ColumnLayout {
-
                     anchors.fill: parent
                     anchors.margins: 20
                     spacing: 15
 
-                    // Search Bar
+                    // نوار جستجو و اسکن
                     Rectangle {
-
                         Layout.fillWidth: true
                         height: 50
-
                         color: "#111827"
                         radius: 12
                         border.color: "#00ffee"
                         border.width: 1
 
                         RowLayout {
-
                             anchors.fill: parent
                             anchors.margins: 15
                             spacing: 10
 
-                            Image {
-                                source: "qrc:/icons/search.svg"
-                                width: 24
-                                height: 24
-                                fillMode: Image.PreserveAspectFit
+                            Text {
+                                text: "🔍"
+                                font.pixelSize: 18
                             }
 
                             TextField {
-
                                 id: searchField
-
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-
-                                placeholderText: "Search games..."
-                                background: Rectangle {
-                                    color: "transparent"
-                                    border.width: 0
-                                }
-
+                                placeholderText: trManager.currentLanguage === "fa" ? "جستجوی بازی‌ها..." : "Search games..."
+                                background: Rectangle { color: "transparent" }
                                 color: "#00ffee"
                                 placeholderTextColor: "#00ffee80"
                                 font.pixelSize: 14
-
                                 onTextChanged: searchQuery = text
                             }
 
+                            // دکمه اسکن استیم
                             Button {
-                                text: "🔄"
-                                width: 40
-                                height: 40
-                                
+                                text: "🔄 " + trManager.getText("scan_steam")
+                                implicitHeight: 36
                                 background: Rectangle {
-                                    color: "#00ffee"
-                                    opacity: parent.hovered ? 0.2 : 0.1
+                                    color: parent.hovered ? "#00ffee40" : "#00ffee20"
+                                    border.color: "#00ffee"
                                     radius: 8
                                 }
-
-                                onClicked: gameModel.refresh()
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: "#00ffee"
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                onClicked: {
+                                    steamScanner.startAsyncScan()
+                                    showNotification(trManager.currentLanguage === "fa" ? "در حال اسکن کتابخانه استیم..." : "Scanning Steam library...")
+                                }
                             }
                         }
                     }
 
-                    // Filter/Sort Bar
+                    // نوار فیلتر و آمار
                     RowLayout {
-
                         Layout.fillWidth: true
                         height: 40
                         spacing: 10
 
                         ComboBox {
-                            model: ["All Games", "Favorites", "Recent", "A-Z"]
+                            model: [trManager.currentLanguage === "fa" ? "همه بازی‌ها" : "All Games", "Favorites", "Recent"]
                             background: Rectangle {
                                 color: "#111827"
                                 radius: 8
@@ -134,73 +129,59 @@ ApplicationWindow {
                             }
                         }
 
-                        Item {
-                            Layout.fillWidth: true
-                        }
+                        Item { Layout.fillWidth: true }
 
                         Text {
-                            text: gamesGrid.count + " games"
+                            text: gamesGrid.count + (trManager.currentLanguage === "fa" ? " بازی موجود" : " games available")
                             color: "#00ffee"
-                            font.pixelSize: 12
+                            font.pixelSize: 13
                         }
                     }
 
-                    // Games Grid with Caching
+                    // شبکه نمایش بازی‌ها
                     GridView {
-
                         id: gamesGrid
-
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-
-                        cellWidth: 320
-                        cellHeight: 240
-
+                        cellWidth: 300
+                        cellHeight: 220
                         cacheBuffer: 600
-
                         model: gameModel
 
                         delegate: GameCard {
-                            gameName: model.name
-                            gameIcon: model.icon
                             gameId: model.id
+                            gameName: model.name
+                            exePath: model.exePath
+                            iconPath: model.iconPath
+                            platform: model.platform
+                            itemIndex: index
                         }
 
-                        // Loading indicator
                         BusyIndicator {
                             anchors.centerIn: parent
                             running: gamesGrid.count === 0
                             visible: running
                         }
 
-                        // Smooth scrolling
                         flickDeceleration: 3000
                         maximumFlickVelocity: 4000
-
-                        // Scroll bar
-                        ScrollBar.vertical: ScrollBar {
-                            policy: ScrollBar.AsNeeded
-                            background: Rectangle {
-                                color: "#111827"
-                                radius: 4
-                            }
-                        }
+                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                     }
                 }
             }
 
-            // Marketplace Page
+            // Marketplace
             Rectangle {
                 color: "transparent"
                 Text {
                     anchors.centerIn: parent
-                    text: "Coming Soon: Game Marketplace"
+                    text: trManager.currentLanguage === "fa" ? "فروشگاه به زودی..." : "Marketplace Coming Soon"
                     color: "#00ffee"
                     font.pixelSize: 24
                 }
             }
 
-            // Settings Page
+            // تنظیمات
             SettingsPage {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -208,38 +189,38 @@ ApplicationWindow {
         }
     }
 
-    // Game Details Modal
-    GameDetailsModal {
-        id: gameDetailsModal
-        visible: false
-    }
-
-    // Notification System
+    // پنل اعلانات (Toast Notification)
     Rectangle {
         id: notificationPanel
-        x: parent.width - 320
+        x: parent.width - 340
         y: 20
-        width: 300
-        height: 80
+        width: 320
+        height: 70
         color: "#111827"
         radius: 12
         border.color: "#00ffee"
-        border.width: 1
+        border.width: 1.5
         visible: false
         z: 1000
 
-        Text {
-            id: notificationText
+        RowLayout {
             anchors.fill: parent
-            anchors.margins: 15
-            color: "#00ffee"
-            wrapMode: Text.WordWrap
-            verticalAlignment: Text.AlignVCenter
+            anchors.margins: 12
+            spacing: 10
+
+            Text { text: "🔔"; font.pixelSize: 20 }
+            Text {
+                id: notificationText
+                Layout.fillWidth: true
+                color: "#00ffee"
+                wrapMode: Text.WordWrap
+                font.pixelSize: 13
+            }
         }
 
         Timer {
             id: notificationTimer
-            interval: 3000
+            interval: 3500
             onTriggered: notificationPanel.visible = false
         }
     }
