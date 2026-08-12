@@ -1,26 +1,48 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QFile>
+#include <QTextStream>
+#include <QDateTime>
 
-// Include های مربوط به برنامه‌تان
+// Include‌های پروژه
 #include "TranslationManager.h"
 #include "SaveBackupManager.h"
 #include "SteamScanner.h"
 #include "GameModel.h"
 
+// تابع هدایت لاگ‌ها به فایل
+void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+{
+    QFile file("debug_log.txt");
+    if (file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        QTextStream stream(&file);
+        QString typeStr;
+        switch (type) {
+            case QtDebugMsg:    typeStr = "[DEBUG]"; break;
+            case QtWarningMsg:  typeStr = "[WARNING]"; break;
+            case QtCriticalMsg: typeStr = "[CRITICAL]"; break;
+            case QtFatalMsg:    typeStr = "[FATAL]"; break;
+        }
+        stream << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss ") 
+               << typeStr << " " << msg << "\n";
+    }
+}
+
 int main(int argc, char *argv[])
 {
+    // فعال‌سازی Handler لاگ قبل از هر کاری
+    qInstallMessageHandler(customMessageHandler);
+
     QGuiApplication app(argc, argv);
 
     QQmlApplicationEngine engine;
 
-    // تعریف ساختارهای Backend
     TranslationManager translationManager;
     SaveBackupManager saveBackupManager;
     SteamScanner steamScanner;
     GameModel gameModel;
 
-    // تزریق context property‌ها به QML
     engine.rootContext()->setContextProperty("trManager", &translationManager);
     engine.rootContext()->setContextProperty("saveBackupManager", &saveBackupManager);
     engine.rootContext()->setContextProperty("steamScanner", &steamScanner);
@@ -34,6 +56,15 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection
     );
 
+    engine.loadFromModule("NeonLauncher", "Main");
+
+    if (engine.rootObjects().isEmpty()) {
+        qCritical() << "Failed to load Main.qml or root objects list is empty!";
+        return -1;
+    }
+
+    return app.exec();
+}
     engine.loadFromModule("NeonLauncher", "Main");
 
     if (engine.rootObjects().isEmpty()) {
