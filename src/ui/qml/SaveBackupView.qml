@@ -7,9 +7,9 @@ Rectangle {
     color: "#11151b"
     implicitWidth: 600
     implicitHeight: 450
-
-    // Properties for Language Support (پشتیبانی از دو زبان فارسی و انگلیسی)
-    property bool isEnglish: true 
+    radius: 12
+    border.color: "#00ffee30"
+    border.width: 1
 
     ColumnLayout {
         anchors.fill: parent
@@ -18,10 +18,10 @@ Rectangle {
 
         // Header & Language Switcher
         RowLayout {
-            Layout.fillWidth: function() { return true; }
+            Layout.fillWidth: true
             
             Text {
-                text: root.isEnglish ? "💾 Save Backup & Auto-Save" : "💾 پشتیبان‌گیری و ذخیره خودکار سیو"
+                text: "💾 " + (trManager.currentLanguage === "fa" ? "پشتیبان‌گیری و ذخیره خودکار سیو" : "Save Backup & Auto-Save")
                 color: "#00ffee"
                 font.pixelSize: 18
                 font.bold: true
@@ -32,7 +32,7 @@ Rectangle {
 
             // Language Toggle Button
             Button {
-                text: root.isEnglish ? "FA / فارسی" : "EN / English"
+                text: trManager.currentLanguage === "en" ? "FA / فارسی" : "EN / English"
                 background: Rectangle {
                     color: "#00ffee20"
                     border.color: "#00ffee"
@@ -46,7 +46,9 @@ Rectangle {
                     verticalAlignment: Text.AlignVCenter
                     font.bold: true
                 }
-                onClicked: root.isEnglish = !root.isEnglish
+                onClicked: {
+                    trManager.currentLanguage = (trManager.currentLanguage === "en") ? "fa" : "en"
+                }
             }
         }
 
@@ -66,18 +68,19 @@ Rectangle {
 
             // Auto Save Switch Label
             Text {
-                text: root.isEnglish ? "Enable Real-Time Auto-Save:" : "فعال‌سازی ذخیره خودکار لحظه‌ای:"
+                text: trManager.currentLanguage === "fa" ? "فعال‌سازی ذخیره خودکار لحظه‌ای:" : "Enable Real-Time Auto-Save:"
                 color: "#00ffee80"
                 font.pixelSize: 14
             }
 
-            // Custom Switch (تغییر وضعیت خودکار)
+            // Custom Switch
             Switch {
                 id: autoSaveSwitch
                 checked: false
                 onCheckedChanged: {
-                    // اتصال به C++ backend در صورت نیاز
-                    // saveBackupManager.autoSaveEnabled = checked
+                    statusText.text = checked 
+                        ? (trManager.currentLanguage === "fa" ? "وضعیت: ذخیره خودکار فعال شد" : "Status: Auto-save enabled")
+                        : (trManager.currentLanguage === "fa" ? "وضعیت: ذخیره خودکار غیرفعال شد" : "Status: Auto-save disabled")
                 }
                 indicator: Rectangle {
                     implicitWidth: 48
@@ -102,12 +105,12 @@ Rectangle {
 
             // Interval Label
             Text {
-                text: root.isEnglish ? "Interval (Seconds):" : "بازه زمانی (ثانیه):"
+                text: trManager.currentLanguage === "fa" ? "بازه زمانی (ثانیه):" : "Interval (Seconds):"
                 color: "#00ffee80"
                 font.pixelSize: 14
             }
 
-            // Interval SpinBox or TextField for seconds
+            // Interval SpinBox
             SpinBox {
                 id: intervalSpinBox
                 from: 5
@@ -115,9 +118,6 @@ Rectangle {
                 value: 30
                 editable: true
                 Layout.preferredWidth: 120
-                onValueChanged: {
-                    // saveBackupManager.autoSaveIntervalSeconds = value
-                }
             }
         }
 
@@ -132,8 +132,9 @@ Rectangle {
             radius: 8
 
             Text {
+                id: statusText
                 anchors.centerIn: parent
-                text: root.isEnglish ? "Status: Ready for backup monitoring..." : "وضعیت: آماده برای پایش و پشتیبان‌گیری..."
+                text: trManager.currentLanguage === "fa" ? "وضعیت: آماده برای پایش و پشتیبان‌گیری..." : "Status: Ready for backup monitoring..."
                 color: "#00ffee"
                 font.pixelSize: 12
             }
@@ -148,20 +149,20 @@ Rectangle {
                 Layout.fillWidth: true
                 height: 40
                 background: Rectangle {
-                    color: "#00ffee20"
+                    color: parent.pressed ? "#00cccc" : "#00ffee20"
                     border.color: "#00ffee"
                     radius: 8
                 }
                 contentItem: Text {
-                    text: root.isEnglish ? "Create Backup Now" : "ایجاد بکاپ الان"
+                    text: trManager.currentLanguage === "fa" ? "ایجاد بکاپ الان" : "Create Backup Now"
                     color: "#00ffee"
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     font.bold: true
                 }
                 onClicked: {
-                    // فراخوانی تابع C++ برای بکاپ دستی
-                    // saveBackupManager.createBackup(path, dest)
+                    saveBackupManager.createBackup("", "")
+                    statusText.text = trManager.currentLanguage === "fa" ? "وضعیت: بکاپ با موفقیت ایجاد شد" : "Status: Backup created successfully"
                 }
             }
 
@@ -174,13 +175,13 @@ Rectangle {
                     radius: 8
                 }
                 contentItem: Text {
-                    text: root.isEnglish ? "Restore Backup" : "بازگردانی بکاپ"
+                    text: trManager.currentLanguage === "fa" ? "بازگردانی بکاپ" : "Restore Backup"
                     color: "#00ffee80"
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
                 onClicked: {
-                    // فراخوانی تابع بازگردانی
+                    statusText.text = trManager.currentLanguage === "fa" ? "وضعیت: در حال بازگردانی بکاپ..." : "Status: Restoring backup..."
                 }
             }
         }
