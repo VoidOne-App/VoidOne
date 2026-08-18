@@ -13,12 +13,14 @@ on:
 
   workflow_dispatch:
 
-# Prevent duplicate builds for the same ref.
+# ================================================================
+# GLOBAL SETTINGS
+# ================================================================
+
 concurrency:
   group: neonlauncher-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Default: CI only needs to read the repository.
 permissions:
   contents: read
 
@@ -28,11 +30,15 @@ env:
   APP_NAME: NeonLauncher
   EXECUTABLE_NAME: NeonLauncherApp
 
+# ================================================================
+# JOBS
+# ================================================================
+
 jobs:
 
-  # ================================================================
-  # LINUX
-  # ================================================================
+  # ==============================================================
+  # LINUX X64
+  # ==============================================================
 
   build-linux:
     name: Build Linux x64
@@ -43,29 +49,16 @@ jobs:
 
     steps:
 
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
       # Checkout
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Checkout Repository
         uses: actions/checkout@v6
 
-      # ------------------------------------------------------------
-      # Install Qt
-      # ------------------------------------------------------------
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: ${{ env.QT_VERSION }}
-          host: linux
-          target: desktop
-          arch: gcc_64
-          cache: true
-
-      # ------------------------------------------------------------
-      # Dependencies
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Install Dependencies
+      # ----------------------------------------------------------
 
       - name: Install Linux Dependencies
         shell: bash
@@ -84,18 +77,31 @@ jobs:
             libgl1-mesa-dev \
             libpulse-dev
 
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Install Qt
+      # ----------------------------------------------------------
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: gcc_64
+          cache: true
+
+      # ----------------------------------------------------------
       # Configure ccache
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Enable ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: neonlauncher-linux-x64
 
-      # ------------------------------------------------------------
-      # Configure
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Configure CMake
+      # ----------------------------------------------------------
 
       - name: Configure CMake
         shell: bash
@@ -109,9 +115,9 @@ jobs:
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
       # Build
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Build Project
         shell: bash
@@ -122,9 +128,9 @@ jobs:
             --build build \
             --parallel
 
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
       # Verify executable
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Verify Linux Build
         shell: bash
@@ -134,7 +140,7 @@ jobs:
           APP="build/bin/${EXECUTABLE_NAME}"
 
           if [[ ! -f "$APP" ]]; then
-            echo "::error::Linux executable was not found: $APP"
+            echo "::error::Linux executable not found: $APP"
             exit 1
           fi
 
@@ -143,17 +149,24 @@ jobs:
             exit 1
           fi
 
-          echo "Linux executable:"
+          echo "========================================"
+          echo "Linux Build"
+          echo "========================================"
+
           ls -lh "$APP"
 
-      # ------------------------------------------------------------
+          file "$APP"
+
+      # ----------------------------------------------------------
       # Package
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Package Linux
         shell: bash
         run: |
           set -euo pipefail
+
+          rm -rf package
 
           mkdir -p package
 
@@ -169,20 +182,22 @@ jobs:
             "../NeonLauncher-Linux-x64.zip" \
             .
 
-      # ------------------------------------------------------------
-      # Validate archive
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Validate ZIP
+      # ----------------------------------------------------------
 
       - name: Validate Linux Archive
         shell: bash
         run: |
           set -euo pipefail
 
+          test -s NeonLauncher-Linux-x64.zip
+
           unzip -t NeonLauncher-Linux-x64.zip
 
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
       # SHA256
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Generate Linux SHA256
         shell: bash
@@ -193,11 +208,15 @@ jobs:
             NeonLauncher-Linux-x64.zip \
             > NeonLauncher-Linux-x64.zip.sha256
 
+          echo "========================================"
+          echo "Linux SHA256"
+          echo "========================================"
+
           cat NeonLauncher-Linux-x64.zip.sha256
 
-      # ------------------------------------------------------------
-      # Artifact
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Upload Artifact
+      # ----------------------------------------------------------
 
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
@@ -210,9 +229,9 @@ jobs:
           retention-days: 30
 
 
-  # ================================================================
-  # WINDOWS
-  # ================================================================
+  # ==============================================================
+  # WINDOWS X64
+  # ==============================================================
 
   build-windows:
     name: Build Windows x64
@@ -223,16 +242,16 @@ jobs:
 
     steps:
 
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
       # Checkout
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Checkout Repository
         uses: actions/checkout@v6
 
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
       # Install Qt
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -243,33 +262,37 @@ jobs:
           arch: win64_msvc2022_64
           cache: true
 
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
       # Verify Qt
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Verify Qt Installation
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "Qt installation:"
+          Write-Host "========================================"
+          Write-Host "Qt Environment"
+          Write-Host "========================================"
+
+          Write-Host "Qt6_DIR:"
           Write-Host $env:Qt6_DIR
 
-          if (-not $env:Qt6_DIR) {
-            Write-Warning "Qt6_DIR is not set. Searching PATH..."
-          }
+          Write-Host ""
+          Write-Host "CMake:"
+          cmake --version
 
           Write-Host ""
           Write-Host "qmake:"
           Get-Command qmake -ErrorAction SilentlyContinue
 
           Write-Host ""
-          Write-Host "CMake:"
-          cmake --version
+          Write-Host "windeployqt:"
+          Get-Command windeployqt -ErrorAction SilentlyContinue
 
-      # ------------------------------------------------------------
-      # Configure
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Configure CMake
+      # ----------------------------------------------------------
 
       - name: Configure CMake
         shell: pwsh
@@ -282,9 +305,9 @@ jobs:
             -G "Visual Studio 17 2022" `
             -A x64
 
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
       # Build
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Build Project
         shell: pwsh
@@ -296,9 +319,9 @@ jobs:
             --config Release `
             --parallel
 
-      # ------------------------------------------------------------
-      # Locate executable
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Verify executable
+      # ----------------------------------------------------------
 
       - name: Verify Windows Build
         shell: pwsh
@@ -308,7 +331,8 @@ jobs:
           $exe = "build/bin/Release/NeonLauncherApp.exe"
 
           if (-not (Test-Path $exe)) {
-            Write-Host "Expected executable not found."
+
+            Write-Host "Expected executable was not found."
 
             Write-Host ""
             Write-Host "Searching build directory..."
@@ -324,14 +348,16 @@ jobs:
 
           $file = Get-Item $exe
 
-          Write-Host ""
-          Write-Host "Windows executable:"
-          Write-Host $file.FullName
+          Write-Host "========================================"
+          Write-Host "Windows Build"
+          Write-Host "========================================"
+
+          Write-Host "Path: $($file.FullName)"
           Write-Host "Size: $($file.Length) bytes"
 
-      # ------------------------------------------------------------
-      # Deploy Qt
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Deploy Qt Runtime
+      # ----------------------------------------------------------
 
       - name: Deploy Qt Runtime
         shell: pwsh
@@ -341,7 +367,9 @@ jobs:
           $exe = Resolve-Path `
             "build/bin/Release/NeonLauncherApp.exe"
 
-          Write-Host "Deploying Qt runtime..."
+          Write-Host "========================================"
+          Write-Host "Deploying Qt Runtime"
+          Write-Host "========================================"
 
           windeployqt `
             --release `
@@ -349,9 +377,9 @@ jobs:
             --qmldir "src/ui/qml" `
             "$exe"
 
-      # ------------------------------------------------------------
-      # Verify Qt deployment
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Verify Qt Deployment
+      # ----------------------------------------------------------
 
       - name: Verify Windows Deployment
         shell: pwsh
@@ -368,6 +396,10 @@ jobs:
             "Qt6Sql.dll"
           )
 
+          Write-Host "========================================"
+          Write-Host "Qt Deployment Validation"
+          Write-Host "========================================"
+
           foreach ($file in $required) {
 
             $path = Join-Path $root $file
@@ -379,24 +411,21 @@ jobs:
             Write-Host "OK: $file"
           }
 
-      # ------------------------------------------------------------
-      # QML
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Verify QML Module
+      # ----------------------------------------------------------
 
-      - name: Verify QML Module
+      - name: Prepare QML Module
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
           $qmlRoot = "build/bin/Release/qml/NeonLauncher"
 
-          if (-not (Test-Path $qmlRoot)) {
-            Write-Host "Creating QML module directory..."
-            New-Item `
-              -ItemType Directory `
-              -Force `
-              -Path $qmlRoot | Out-Null
-          }
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path $qmlRoot | Out-Null
 
           Copy-Item `
             -Recurse `
@@ -404,16 +433,18 @@ jobs:
             "src/ui/qml/*" `
             $qmlRoot
 
-          Write-Host ""
-          Write-Host "QML files deployed:"
+          Write-Host "========================================"
+          Write-Host "QML Files"
+          Write-Host "========================================"
+
           Get-ChildItem `
             $qmlRoot `
             -Recurse `
             -File
 
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
       # Package
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Package Windows
         shell: pwsh
@@ -431,28 +462,32 @@ jobs:
             -DestinationPath "NeonLauncher-Windows-x64.zip" `
             -CompressionLevel Optimal
 
-      # ------------------------------------------------------------
-      # Validate archive
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Validate ZIP
+      # ----------------------------------------------------------
 
       - name: Validate Windows Archive
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          $archive = Get-Item "NeonLauncher-Windows-x64.zip"
+          $archive = Get-Item `
+            "NeonLauncher-Windows-x64.zip"
 
           if ($archive.Length -le 0) {
             throw "Windows archive is empty."
           }
 
-          Write-Host "Archive:"
-          Write-Host $archive.FullName
+          Write-Host "========================================"
+          Write-Host "Windows Archive"
+          Write-Host "========================================"
+
+          Write-Host "Path: $($archive.FullName)"
           Write-Host "Size: $($archive.Length) bytes"
 
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
       # SHA256
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
 
       - name: Generate Windows SHA256
         shell: pwsh
@@ -470,12 +505,16 @@ jobs:
               "NeonLauncher-Windows-x64.zip.sha256" `
               -Encoding ascii
 
+          Write-Host "========================================"
+          Write-Host "Windows SHA256"
+          Write-Host "========================================"
+
           Get-Content `
             "NeonLauncher-Windows-x64.zip.sha256"
 
-      # ------------------------------------------------------------
-      # Artifact
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Upload Artifact
+      # ----------------------------------------------------------
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
@@ -488,9 +527,9 @@ jobs:
           retention-days: 30
 
 
-  # ================================================================
-  # RELEASE
-  # ================================================================
+  # ==============================================================
+  # GITHUB RELEASE
+  # ==============================================================
 
   release:
     name: Create GitHub Release
@@ -499,6 +538,7 @@ jobs:
       - build-linux
       - build-windows
 
+    # Release فقط برای tagهای v*
     if: startsWith(github.ref, 'refs/tags/v')
 
     runs-on: ubuntu-24.04
@@ -508,9 +548,9 @@ jobs:
 
     steps:
 
-      # ------------------------------------------------------------
-      # Download artifacts
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Download Linux
+      # ----------------------------------------------------------
 
       - name: Download Linux Artifact
         uses: actions/download-artifact@v4
@@ -518,15 +558,19 @@ jobs:
           name: NeonLauncher-Linux-x64
           path: release
 
+      # ----------------------------------------------------------
+      # Download Windows
+      # ----------------------------------------------------------
+
       - name: Download Windows Artifact
         uses: actions/download-artifact@v4
         with:
           name: NeonLauncher-Windows-x64
           path: release
 
-      # ------------------------------------------------------------
-      # Generate combined checksums
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Generate Combined Checksums
+      # ----------------------------------------------------------
 
       - name: Generate SHA256SUMS
         shell: bash
@@ -545,9 +589,9 @@ jobs:
 
           cat SHA256SUMS.txt
 
-      # ------------------------------------------------------------
-      # Verify release files
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Verify Release Files
+      # ----------------------------------------------------------
 
       - name: Verify Release Files
         shell: bash
@@ -557,13 +601,15 @@ jobs:
 
           test -s NeonLauncher-Linux-x64.zip
           test -s NeonLauncher-Windows-x64.zip
+
           test -s NeonLauncher-Linux-x64.zip.sha256
           test -s NeonLauncher-Windows-x64.zip.sha256
+
           test -s SHA256SUMS.txt
 
-      # ------------------------------------------------------------
-      # Create release
-      # ------------------------------------------------------------
+      # ----------------------------------------------------------
+      # Create Release
+      # ----------------------------------------------------------
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -572,159 +618,10 @@ jobs:
           name: NeonLauncher ${{ github.ref_name }}
           generate_release_notes: true
           fail_on_unmatched_files: true
+
           files: |
             release/NeonLauncher-Linux-x64.zip
             release/NeonLauncher-Windows-x64.zip
             release/NeonLauncher-Linux-x64.zip.sha256
             release/NeonLauncher-Windows-x64.zip.sha256
-            release/SHA256SUMS.txt-----------------------------------------
-
-      - name: Package Windows
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Compress-Archive `
-            -Path "build/bin/Release/*" `
-            -DestinationPath "NeonLauncher-Windows-x64.zip" `
-            -CompressionLevel Optimal
-
-      # ----------------------------------------------------------------------
-      # Validate ZIP
-      # ----------------------------------------------------------------------
-
-      - name: Validate Windows Archive
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          $archive = "NeonLauncher-Windows-x64.zip"
-
-          if (!(Test-Path $archive)) {
-            Write-Error "Windows archive was not created."
-            exit 1
-          }
-
-          $size = (Get-Item $archive).Length
-
-          if ($size -le 0) {
-            Write-Error "Windows archive is empty."
-            exit 1
-          }
-
-          Write-Host "Archive:"
-          Get-Item $archive |
-            Format-List Name, Length, FullName
-
-      # ----------------------------------------------------------------------
-      # SHA256
-      # ----------------------------------------------------------------------
-
-      - name: Generate Windows SHA256
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          $hash = (
-            Get-FileHash `
-              "NeonLauncher-Windows-x64.zip" `
-              -Algorithm SHA256
-          ).Hash.ToLower()
-
-          "$hash  NeonLauncher-Windows-x64.zip" |
-            Out-File `
-              "NeonLauncher-Windows-x64.zip.sha256" `
-              -Encoding ascii
-
-          Write-Host "SHA256:"
-          Get-Content NeonLauncher-Windows-x64.zip.sha256
-
-      # ----------------------------------------------------------------------
-      # Artifact
-      # ----------------------------------------------------------------------
-
-      - name: Upload Windows Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NeonLauncher-Windows-x64
-          path: |
-            NeonLauncher-Windows-x64.zip
-            NeonLauncher-Windows-x64.zip.sha256
-          if-no-files-found: error
-          retention-days: 30
-
-
-  # ==========================================================================
-  # RELEASE
-  # ==========================================================================
-
-  release:
-    name: Create GitHub Release
-
-    needs:
-      - build-linux
-      - build-windows
-
-    if: startsWith(github.ref, 'refs/tags/v')
-
-    runs-on: ubuntu-24.04
-
-    permissions:
-      contents: write
-
-    steps:
-
-      # ----------------------------------------------------------------------
-      # Download Artifacts
-      # ----------------------------------------------------------------------
-
-      - name: Download Linux Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: NeonLauncher-Linux-x64
-          path: release
-
-      - name: Download Windows Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: NeonLauncher-Windows-x64
-          path: release
-
-      # ----------------------------------------------------------------------
-      # Generate Combined Checksums
-      # ----------------------------------------------------------------------
-
-      - name: Generate SHA256SUMS
-        shell: bash
-        working-directory: release
-        run: |
-          set -euo pipefail
-
-          cat \
-            NeonLauncher-Linux-x64.zip.sha256 \
-            NeonLauncher-Windows-x64.zip.sha256 \
-            > SHA256SUMS.txt
-
-          echo "========================================"
-          echo "NeonLauncher SHA256 Checksums"
-          echo "========================================"
-
-          cat SHA256SUMS.txt
-
-      # ----------------------------------------------------------------------
-      # Release
-      # ----------------------------------------------------------------------
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: NeonLauncher ${{ github.ref_name }}
-          prerelease: true
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-
-          files: |
-            release/NeonLauncher-Linux-x64.zip
-            release/NeonLauncher-Windows-x64.zip
             release/SHA256SUMS.txt
