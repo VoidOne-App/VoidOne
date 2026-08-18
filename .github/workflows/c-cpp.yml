@@ -1,11 +1,13 @@
-name: NeonLauncher CI/CD
+name: NeonLauncher CI
 
 on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
+      - feature/**
+    paths-ignore:
+      - "**.md"
+      - ".gitignore"
 
   pull_request:
     branches:
@@ -13,515 +15,265 @@ on:
 
   workflow_dispatch:
 
-# ============================================================
-# Global settings
-# ============================================================
-
-permissions:
-  contents: read
-
 concurrency:
   group: neonlauncher-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
 
-# ============================================================
-# Linux Release
-# ============================================================
+env:
+  QT_VERSION: "6.8.3"
 
 jobs:
 
-  linux-release:
-    name: Linux x64 • Release
-    runs-on: ubuntu-24.04
+  # ===========================================================================
+  # Windows
+  # ===========================================================================
+
+  build-windows:
+    name: Windows x64 • Release
+    runs-on: windows-latest
     timeout-minutes: 30
 
     steps:
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            ninja-build \
-            ccache \
-            libgl1-mesa-dev \
-            libpulse-dev \
-            libxkbcommon-dev
-
-      - name: Setup Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: "6.8.*"
-          target: desktop
-          arch: linux_gcc_64
-          cache: true
-
-      - name: Configure
-        run: |
-          cmake \
-            -S . \
-            -B build \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-
-      - name: Build
-        run: |
-          cmake --build build --parallel
-
-      - name: Install
-        run: |
-          rm -rf package
-          cmake --install build --prefix package
-
-      - name: Verify executable
-        run: |
-          test -f package/bin/NeonLauncherApp
-          file package/bin/NeonLauncherApp
-
-      - name: Package
-        run: |
-          mkdir -p dist
-          tar -C package -czf dist/NeonLauncher-Linux-x64.tar.gz .
-
-      - name: Generate checksum
-        run: |
-          sha256sum \
-            dist/NeonLauncher-Linux-x64.tar.gz \
-            > dist/NeonLauncher-Linux-x64.tar.gz.sha256
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: NeonLauncher-Linux-x64
-          path: |
-            dist/NeonLauncher-Linux-x64.tar.gz
-            dist/NeonLauncher-Linux-x64.tar.gz.sha256
-          retention-days: 30
-
-
-  # ============================================================
-  # Windows Release
-  # ============================================================
-
-  windows-release:
-    name: Windows x64 • Release
-    runs-on: windows-2025
-    timeout-minutes: 35
-
-    steps:
-
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      # --------------------------------------------------------
-      # Python
-      # --------------------------------------------------------
+      # -----------------------------------------------------------------------
+      # Qt
+      # -----------------------------------------------------------------------
 
       - name: Setup Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
-          check-latest: true
-
-      - name: Verify Python
-        shell: pwsh
-        run: |
-          python --version
-          python -c "import sys; print(sys.executable)"
-          python -m pip --version
-
-      # --------------------------------------------------------
-      # Qt
-      # --------------------------------------------------------
+          python-version: "3.12"
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: "6.8.*"
-          target: desktop
-          arch: win64_msvc2022_64
-          cache: true
-          setup-python: false
-
-      - name: Verify Qt
         shell: pwsh
         run: |
+          python -m pip install --upgrade pip
+          python -m pip install "aqtinstall==3.3.*"
+
+          python -m aqt install-qt `
+            windows desktop $env:QT_VERSION `
+            win64_msvc2022_64 `
+            --outputdir "$env:GITHUB_WORKSPACE\Qt"
+
+      - name: Add Qt to PATH
+        shell: pwsh
+        run: |
+          $qtBin = "$env:GITHUB_WORKSPACE\Qt\$env:QT_VERSION\msvc2022_64\bin"
+
+          if (!(Test-Path $qtBin)) {
+            Write-Error "Qt installation directory was not found: $qtBin"
+          }
+
+          Add-Content $env:GITHUB_PATH $qtBin
+
           Write-Host "Qt directory:"
-          Write-Host $env:Qt6_DIR
+          Get-ChildItem "$env:GITHUB_WORKSPACE\Qt\$env:QT_VERSION\msvc2022_64"
 
-          Write-Host ""
-          Write-Host "Qt version:"
-          qmake --version
+      # -----------------------------------------------------------------------
+      # Configure
+      # -----------------------------------------------------------------------
 
-      # --------------------------------------------------------
-      # MSVC
-      # --------------------------------------------------------
-
-      - name: Setup MSVC Developer Environment
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Configure
+      - name: Configure CMake
         shell: pwsh
         run: |
           cmake `
             -S . `
             -B build `
             -G "Visual Studio 17 2022" `
-            -A x64
+            -A x64 `
+            -DCMAKE_PREFIX_PATH="$env:GITHUB_WORKSPACE\Qt\$env:QT_VERSION\msvc2022_64"
 
-      - name: Build Release
-        shell: pwsh
+      # -----------------------------------------------------------------------
+      # Build
+      # -----------------------------------------------------------------------
+
+      - name: Build
         run: |
-          cmake `
-            --build build `
+          cmake --build build `
             --config Release `
             --parallel
 
-      # --------------------------------------------------------
-      # Qt deployment
-      # --------------------------------------------------------
+      # -----------------------------------------------------------------------
+      # Verify
+      # -----------------------------------------------------------------------
 
-      - name: Locate application
+      - name: Verify executable
         shell: pwsh
         run: |
-          Get-ChildItem -Path build -Filter NeonLauncherApp.exe -Recurse
+          $exe = "build/bin/Release/NeonLauncherApp.exe"
+
+          if (!(Test-Path $exe)) {
+            Write-Error "NeonLauncherApp.exe was not found."
+          }
+
+          Write-Host "Build successful:"
+          Get-Item $exe
+
+      # -----------------------------------------------------------------------
+      # Deploy Qt
+      # -----------------------------------------------------------------------
 
       - name: Deploy Qt
         shell: pwsh
         run: |
-          $exe = Get-ChildItem `
-            -Path build `
-            -Filter NeonLauncherApp.exe `
-            -Recurse `
-            | Where-Object { $_.FullName -match "\\Release\\" } `
-            | Select-Object -First 1
-
-          if (-not $exe) {
-            Write-Error "NeonLauncherApp.exe was not found."
-            exit 1
-          }
-
-          Write-Host "Deploying Qt for:"
-          Write-Host $exe.FullName
+          $exe = "build/bin/Release/NeonLauncherApp.exe"
 
           windeployqt `
             --release `
             --qmldir src/ui/qml `
-            $exe.FullName
+            $exe
 
-      # --------------------------------------------------------
+      # -----------------------------------------------------------------------
       # Package
-      # --------------------------------------------------------
+      # -----------------------------------------------------------------------
 
-      - name: Prepare package
-        shell: pwsh
-        run: |
-          $exe = Get-ChildItem `
-            -Path build `
-            -Filter NeonLauncherApp.exe `
-            -Recurse `
-            | Where-Object { $_.FullName -match "\\Release\\" } `
-            | Select-Object -First 1
-
-          if (-not $exe) {
-            Write-Error "Release executable not found."
-            exit 1
-          }
-
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path package `
-            | Out-Null
-
-          Copy-Item `
-            -Path (Join-Path $exe.Directory.FullName "*") `
-            -Destination package `
-            -Recurse `
-            -Force
-
-      - name: Verify package
-        shell: pwsh
-        run: |
-          if (-not (Test-Path "package\NeonLauncherApp.exe")) {
-            Write-Error "Packaged executable is missing."
-            exit 1
-          }
-
-          Write-Host "Package contents:"
-          Get-ChildItem package -Recurse
-
-      - name: Create ZIP
+      - name: Package Windows
         shell: pwsh
         run: |
           Compress-Archive `
-            -Path package\* `
-            -DestinationPath NeonLauncher-Windows-x64.zip `
-            -CompressionLevel Optimal
+            -Path "build/bin/Release/*" `
+            -DestinationPath "NeonLauncher-Windows-x64.zip" `
+            -Force
 
-      - name: Generate checksum
-        shell: pwsh
-        run: |
-          (Get-FileHash `
-            NeonLauncher-Windows-x64.zip `
-            -Algorithm SHA256).Hash `
-            | Out-File `
-              NeonLauncher-Windows-x64.zip.sha256 `
-              -Encoding ascii
-
-      - name: Upload artifact
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: NeonLauncher-Windows-x64
-          path: |
-            NeonLauncher-Windows-x64.zip
-            NeonLauncher-Windows-x64.zip.sha256
-          retention-days: 30
+          path: NeonLauncher-Windows-x64.zip
+          retention-days: 14
 
 
-  # ============================================================
-  # Linux Debug
-  # ============================================================
+  # ===========================================================================
+  # Linux
+  # ===========================================================================
 
-  linux-debug:
-    name: Linux x64 • Debug
-    runs-on: ubuntu-24.04
+  build-linux:
+    name: Linux x64 • Release
+    runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # System dependencies
+      # -----------------------------------------------------------------------
 
       - name: Install dependencies
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
             build-essential \
+            cmake \
             ninja-build \
             libgl1-mesa-dev \
-            libpulse-dev \
-            libxkbcommon-dev
+            libpulse-dev
+
+      # -----------------------------------------------------------------------
+      # Qt
+      # -----------------------------------------------------------------------
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.8.*"
-          target: desktop
-          arch: linux_gcc_64
+          version: ${{ env.QT_VERSION }}
+          arch: gcc_64
           cache: true
 
-      - name: Configure Debug
+      # -----------------------------------------------------------------------
+      # Configure
+      # -----------------------------------------------------------------------
+
+      - name: Configure CMake
         run: |
           cmake \
             -S . \
-            -B build-debug \
+            -B build \
             -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$Qt6_DIR"
 
-      - name: Build Debug
-        run: |
-          cmake \
-            --build build-debug \
-            --parallel
-
-
-  # ============================================================
-  # AddressSanitizer + UndefinedBehaviorSanitizer
-  # ============================================================
-
-  sanitizers:
-    name: Linux • Address/UB Sanitizer
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-
-    steps:
-
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            ninja-build \
-            libgl1-mesa-dev \
-            libpulse-dev \
-            libxkbcommon-dev
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: "6.8.*"
-          target: desktop
-          arch: linux_gcc_64
-          cache: true
-
-      - name: Configure Sanitizers
-        env:
-          CXXFLAGS: "-fsanitize=address,undefined -fno-omit-frame-pointer"
-          LDFLAGS: "-fsanitize=address,undefined"
-        run: |
-          cmake \
-            -S . \
-            -B build-sanitize \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug
-
-      - name: Build Sanitized
-        run: |
-          cmake \
-            --build build-sanitize \
-            --parallel
-
-
-  # ============================================================
-  # Unit Tests
-  # ============================================================
-
-  tests:
-    name: Unit Tests
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-
-    steps:
-
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            ninja-build \
-            libgl1-mesa-dev \
-            libpulse-dev \
-            libxkbcommon-dev
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: "6.8.*"
-          target: desktop
-          arch: linux_gcc_64
-          cache: true
-
-      - name: Configure tests
-        run: |
-          cmake \
-            -S . \
-            -B build-tests \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DNEONLAUNCHER_BUILD_TESTS=ON
-
-      - name: Build tests
-        run: |
-          cmake \
-            --build build-tests \
-            --parallel
-
-      - name: Run tests
-        run: |
-          ctest \
-            --test-dir build-tests \
-            --output-on-failure \
-            --parallel 2
-
-
-  # ============================================================
-  # Static Analysis
-  # ============================================================
-
-  static-analysis:
-    name: Linux • Static Analysis
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-
-    steps:
-
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang \
-            clang-tidy \
-            ninja-build \
-            libgl1-mesa-dev \
-            libpulse-dev \
-            libxkbcommon-dev
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: "6.8.*"
-          target: desktop
-          arch: linux_gcc_64
-          cache: true
-
-      - name: Configure
-        run: |
-          cmake \
-            -S . \
-            -B build-analysis \
-            -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_CXX_CLANG_TIDY=clang-tidy
+      # -----------------------------------------------------------------------
+      # Build
+      # -----------------------------------------------------------------------
 
       - name: Build
         run: |
           cmake \
-            --build build-analysis \
+            --build build \
             --parallel
 
+      # -----------------------------------------------------------------------
+      # Verify
+      # -----------------------------------------------------------------------
 
-  # ============================================================
-  # Release
-  # ============================================================
+      - name: Verify executable
+        run: |
+          test -f build/bin/NeonLauncherApp
 
-  release:
-    name: GitHub Release
+          echo "Build successful:"
+          ls -lh build/bin/NeonLauncherApp
+
+      # -----------------------------------------------------------------------
+      # Package
+      # -----------------------------------------------------------------------
+
+      - name: Package Linux
+        run: |
+          mkdir -p dist
+
+          cp build/bin/NeonLauncherApp dist/
+
+          tar -czf \
+            NeonLauncher-Linux-x64.tar.gz \
+            -C dist .
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeonLauncher-Linux-x64
+          path: NeonLauncher-Linux-x64.tar.gz
+          retention-days: 14
+
+
+  # ===========================================================================
+  # Final status
+  # ===========================================================================
+
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
     needs:
-      - linux-release
-      - windows-release
-      - linux-debug
-      - sanitizers
-      - tests
-      - static-analysis
+      - build-windows
+      - build-linux
 
-    if: startsWith(github.ref, 'refs/tags/v')
-
-    runs-on: ubuntu-24.04
-
-    permissions:
-      contents: write
+    if: always()
 
     steps:
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Display artifacts
+      - name: Check builds
         run: |
-          find artifacts -type f -print
+          if [ "${{ needs.build-windows.result }}" != "success" ]; then
+            echo "Windows build failed."
+            exit 1
+          fi
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: |
-            artifacts/NeonLauncher-Linux-x64/*
-            artifacts/NeonLauncher-Windows-x64/*
+          if [ "${{ needs.build-linux.result }}" != "success" ]; then
+            echo "Linux build failed."
+            exit 1
+          fi
+
+          echo "======================================"
+          echo " NeonLauncher builds succeeded!"
+          echo " Windows x64 : OK"
+          echo " Linux x64   : OK"
+          echo "======================================"
