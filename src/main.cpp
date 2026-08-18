@@ -1,6 +1,6 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
-#include <QDebug>
+#include <QMessageBox>
 
 int main(int argc, char *argv[])
 {
@@ -12,10 +12,15 @@ int main(int argc, char *argv[])
         &engine,
         &QQmlApplicationEngine::objectCreationFailed,
         &app,
-        []()
+        [&app]()
         {
-            qCritical() << "NeonLauncher: QML object creation failed.";
-            QCoreApplication::exit(-1);
+            QMessageBox::critical(
+                nullptr,
+                "NeonLauncher",
+                "Failed to load the QML interface."
+            );
+
+            app.exit(-1);
         },
         Qt::QueuedConnection
     );
@@ -24,7 +29,12 @@ int main(int argc, char *argv[])
 
     if (engine.rootObjects().isEmpty())
     {
-        qCritical() << "NeonLauncher: No root QML objects were created.";
+        QMessageBox::critical(
+            nullptr,
+            "NeonLauncher",
+            "No QML root object was created."
+        );
+
         return -1;
     }
 
