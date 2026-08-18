@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.25)
 
 project(NeonLauncher
     VERSION 1.0.2
@@ -41,11 +41,28 @@ option(NEONLAUNCHER_ENABLE_LTO
     OFF
 )
 
+option(NEONLAUNCHER_ENABLE_SANITIZERS
+    "Enable AddressSanitizer and UndefinedBehaviorSanitizer"
+    OFF
+)
+
+# ============================================================================
+# C++ compiler validation
+# ============================================================================
+
+if(NOT CMAKE_CXX_STANDARD EQUAL 23)
+
+    message(FATAL_ERROR
+        "NeonLauncher requires C++23."
+    )
+
+endif()
+
 # ============================================================================
 # Qt
 # ============================================================================
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS
+find_package(Qt6 6.11 REQUIRED COMPONENTS
     Core
     Gui
     Qml
@@ -54,7 +71,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
 )
 
 qt_standard_project_setup(
-    REQUIRES 6.8
+    REQUIRES 6.11
 )
 
 # ============================================================================
@@ -65,7 +82,10 @@ set(PROJECT_SOURCES
 
     src/main.cpp
 
+    # ------------------------------------------------------------------------
     # Core
+    # ------------------------------------------------------------------------
+
     src/core/Database.cpp
     src/core/Database.h
 
@@ -120,6 +140,12 @@ if(WIN32)
             "${APP_ICON_RESOURCE}"
         )
 
+    else()
+
+        message(STATUS
+            "NeonLauncher: Windows icon not found; continuing without custom icon."
+        )
+
     endif()
 
 endif()
@@ -141,6 +167,7 @@ qt_add_qml_module(
     NeonLauncherApp
 
     URI NeonLauncher
+
     VERSION 1.0
 
     QML_FILES
@@ -155,6 +182,7 @@ target_include_directories(
     NeonLauncherApp
 
     PRIVATE
+
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
 )
@@ -167,6 +195,7 @@ target_compile_definitions(
     NeonLauncherApp
 
     PRIVATE
+
         PROJECT_NAME="${PROJECT_NAME}"
         PROJECT_VERSION="${PROJECT_VERSION}"
 )
@@ -179,6 +208,7 @@ target_link_libraries(
     NeonLauncherApp
 
     PRIVATE
+
         Qt6::Core
         Qt6::Gui
         Qt6::Qml
@@ -187,7 +217,7 @@ target_link_libraries(
 )
 
 # ============================================================================
-# Compiler configuration
+# Compiler warnings
 # ============================================================================
 
 if(NEONLAUNCHER_ENABLE_WARNINGS)
@@ -198,10 +228,12 @@ if(NEONLAUNCHER_ENABLE_WARNINGS)
             NeonLauncherApp
 
             PRIVATE
+
                 /W4
                 /permissive-
                 /Zc:__cplusplus
                 /utf-8
+                /EHsc
         )
 
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -210,9 +242,12 @@ if(NEONLAUNCHER_ENABLE_WARNINGS)
             NeonLauncherApp
 
             PRIVATE
+
                 -Wall
                 -Wextra
                 -Wpedantic
+                -Wconversion
+                -Wsign-conversion
         )
 
     endif()
@@ -229,12 +264,52 @@ if(MSVC)
         NeonLauncherApp
 
         PRIVATE
+
             UNICODE
             _UNICODE
             NOMINMAX
             WIN32_LEAN_AND_MEAN
             _SILENCE_STDEXT_ARR_IT_DEPRECATION_WARNINGS
     )
+
+endif()
+
+# ============================================================================
+# Sanitizers
+# ============================================================================
+
+if(NEONLAUNCHER_ENABLE_SANITIZERS)
+
+    if(MSVC)
+
+        message(WARNING
+            "NeonLauncher: sanitizers are not enabled for MSVC in this configuration."
+        )
+
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+
+        target_compile_options(
+            NeonLauncherApp
+
+            PRIVATE
+
+                -fsanitize=address,undefined
+                -fno-omit-frame-pointer
+        )
+
+        target_link_options(
+            NeonLauncherApp
+
+            PRIVATE
+
+                -fsanitize=address,undefined
+        )
+
+        message(STATUS
+            "NeonLauncher: AddressSanitizer + UndefinedBehaviorSanitizer enabled"
+        )
+
+    endif()
 
 endif()
 
@@ -255,7 +330,9 @@ if(NEONLAUNCHER_ENABLE_LTO)
 
         set_property(
             TARGET NeonLauncherApp
-            PROPERTY INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE
+
+            PROPERTY
+                INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE
         )
 
         message(STATUS
@@ -307,7 +384,9 @@ if(WIN32)
         NeonLauncherApp
 
         PROPERTIES
-            WIN32_EXECUTABLE TRUE
+
+            WIN32_EXECUTABLE
+                TRUE
     )
 
 endif()
@@ -323,17 +402,20 @@ install(
         DESTINATION .
 
     RUNTIME
-        DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        DESTINATION
+            "${CMAKE_INSTALL_BINDIR}"
 
     LIBRARY
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        DESTINATION
+            "${CMAKE_INSTALL_LIBDIR}"
 
     ARCHIVE
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        DESTINATION
+            "${CMAKE_INSTALL_LIBDIR}"
 )
 
 # ============================================================================
-# Optional tests
+# Tests
 # ============================================================================
 
 if(NEONLAUNCHER_BUILD_TESTS)
@@ -344,6 +426,14 @@ if(NEONLAUNCHER_BUILD_TESTS)
         "NeonLauncher: test support enabled"
     )
 
+    # ------------------------------------------------------------------------
+    # Future:
+    #
+    # add_subdirectory(tests)
+    #
+    # Tests will be added here when the test suite is implemented.
+    # ------------------------------------------------------------------------
+
 endif()
 
 # ============================================================================
@@ -352,19 +442,20 @@ endif()
 
 message(STATUS "")
 message(STATUS "================================================")
-message(STATUS "             NeonLauncher Configuration")
+message(STATUS "          NeonLauncher Configuration")
 message(STATUS "================================================")
-message(STATUS "Version:       ${PROJECT_VERSION}")
-message(STATUS "C++ Standard:  C++${CMAKE_CXX_STANDARD}")
-message(STATUS "Compiler:      ${CMAKE_CXX_COMPILER_ID}")
-message(STATUS "Compiler Ver:  ${CMAKE_CXX_COMPILER_VERSION}")
-message(STATUS "Qt Version:    ${Qt6_VERSION}")
-message(STATUS "System:        ${CMAKE_SYSTEM_NAME}")
-message(STATUS "Generator:     ${CMAKE_GENERATOR}")
-message(STATUS "Build Type:    ${CMAKE_BUILD_TYPE}")
-message(STATUS "Tests:         ${NEONLAUNCHER_BUILD_TESTS}")
-message(STATUS "Warnings:      ${NEONLAUNCHER_ENABLE_WARNINGS}")
-message(STATUS "LTO:           ${NEONLAUNCHER_ENABLE_LTO}")
+message(STATUS "Version:        ${PROJECT_VERSION}")
+message(STATUS "C++ Standard:   C++${CMAKE_CXX_STANDARD}")
+message(STATUS "Compiler:       ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "Compiler Ver:   ${CMAKE_CXX_COMPILER_VERSION}")
+message(STATUS "Qt Version:     ${Qt6_VERSION}")
+message(STATUS "System:         ${CMAKE_SYSTEM_NAME}")
+message(STATUS "Generator:      ${CMAKE_GENERATOR}")
+message(STATUS "Build Type:     ${CMAKE_BUILD_TYPE}")
+message(STATUS "Tests:          ${NEONLAUNCHER_BUILD_TESTS}")
+message(STATUS "Warnings:       ${NEONLAUNCHER_ENABLE_WARNINGS}")
+message(STATUS "LTO:            ${NEONLAUNCHER_ENABLE_LTO}")
+message(STATUS "Sanitizers:     ${NEONLAUNCHER_ENABLE_SANITIZERS}")
 message(STATUS "================================================")
 message(STATUS "NeonLauncher configuration complete.")
 message(STATUS "")
