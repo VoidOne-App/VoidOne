@@ -36,11 +36,15 @@ jobs:
 
     steps:
 
+      # --------------------------------------------------------
+      # Checkout
+      # --------------------------------------------------------
+
       - name: Checkout
         uses: actions/checkout@v5
 
       # --------------------------------------------------------
-      # Python
+      # Python / aqtinstall
       # --------------------------------------------------------
 
       - name: Setup Python
@@ -48,8 +52,6 @@ jobs:
         with:
           python-version: "3.13"
           check-latest: true
-          cache: pip
-          cache-dependency-path: ""
 
       - name: Install aqtinstall
         shell: pwsh
@@ -79,35 +81,72 @@ jobs:
             --outputdir "$env:GITHUB_WORKSPACE\Qt" `
             --autodesktop
 
-      - name: Set Qt environment
+      - name: Configure Qt environment
         shell: pwsh
         run: |
-          $qtRoot = Join-Path $env:GITHUB_WORKSPACE "Qt\6.11.0\msvc2022_64"
+          $qtRoot = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "Qt\6.11.0\msvc2022_64"
+
+          $qtBin = Join-Path `
+            $qtRoot `
+            "bin"
+
+          $qtCmake = Join-Path `
+            $qtRoot `
+            "lib\cmake\Qt6"
 
           if (-not (Test-Path $qtRoot)) {
-            Write-Error "Qt installation directory was not found: $qtRoot"
+            Write-Error "Qt root was not found: $qtRoot"
             exit 1
           }
 
-          $qtBin = Join-Path $qtRoot "bin"
+          if (-not (Test-Path "$qtCmake\Qt6Config.cmake")) {
+            Write-Error "Qt6Config.cmake was not found: $qtCmake"
+            exit 1
+          }
 
-          "Qt6_DIR=$qtRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "$qtBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          if (-not (Test-Path "$qtBin\qmake.exe")) {
+            Write-Error "qmake.exe was not found: $qtBin"
+            exit 1
+          }
 
-          Write-Host "Qt root: $qtRoot"
-          Write-Host "Qt bin:  $qtBin"
+          "Qt6_DIR=$qtCmake" |
+            Out-File `
+              -FilePath $env:GITHUB_ENV `
+              -Encoding utf8 `
+              -Append
+
+          "Qt_ROOT=$qtRoot" |
+            Out-File `
+              -FilePath $env:GITHUB_ENV `
+              -Encoding utf8 `
+              -Append
+
+          "$qtBin" |
+            Out-File `
+              -FilePath $env:GITHUB_PATH `
+              -Encoding utf8 `
+              -Append
+
+          Write-Host "Qt root:  $qtRoot"
+          Write-Host "Qt CMake: $qtCmake"
+          Write-Host "Qt bin:   $qtBin"
 
       - name: Verify Qt
         shell: pwsh
         run: |
-          Write-Host "Qt6_DIR=$env:Qt6_DIR"
+          Write-Host "Qt6_DIR = $env:Qt6_DIR"
+          Write-Host "Qt_ROOT = $env:Qt_ROOT"
 
-          if (-not (Test-Path "$env:Qt6_DIR\bin\qmake.exe")) {
-            Write-Error "Qt installation is incomplete."
+          qmake --version
+
+          if (-not (Get-Command windeployqt.exe -ErrorAction SilentlyContinue)) {
+            Write-Error "windeployqt.exe was not found."
             exit 1
           }
 
-          qmake --version
+          windeployqt --version
 
       # --------------------------------------------------------
       # MSVC
@@ -135,6 +174,7 @@ jobs:
         shell: pwsh
         run: |
           cmake --version
+          ninja --version
 
       # --------------------------------------------------------
       # Configure
@@ -148,7 +188,13 @@ jobs:
             -B build `
             -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
+            -DCMAKE_CXX_STANDARD=23 `
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON `
+            -DCMAKE_CXX_EXTENSIONS=OFF `
+            -DNEONLAUNCHER_ENABLE_WARNINGS=ON `
+            -DNEONLAUNCHER_ENABLE_LTO=OFF `
+            -DCMAKE_PREFIX_PATH="$env:Qt_ROOT" `
+            -DQt6_DIR="$env:Qt6_DIR"
 
       # --------------------------------------------------------
       # Build
@@ -172,15 +218,15 @@ jobs:
             -Path build `
             -Filter NeonLauncherApp.exe `
             -Recurse `
-            -ErrorAction SilentlyContinue `
-            | Select-Object -First 1
+            -ErrorAction SilentlyContinue |
+            Select-Object -First 1
 
           if (-not $exe) {
             Write-Error "NeonLauncherApp.exe was not found."
             exit 1
           }
 
-          Write-Host "Executable:"
+          Write-Host "Executable found:"
           Write-Host $exe.FullName
 
       # --------------------------------------------------------
@@ -194,15 +240,20 @@ jobs:
             -Path build `
             -Filter NeonLauncherApp.exe `
             -Recurse `
-            | Select-Object -First 1
+            -ErrorAction SilentlyContinue |
+            Select-Object -First 1
 
           if (-not $exe) {
             Write-Error "NeonLauncherApp.exe was not found."
             exit 1
           }
 
+          Write-Host "Deploying Qt:"
+          Write-Host $exe.FullName
+
           windeployqt `
             --release `
+            --compiler-runtime `
             --qmldir "$env:GITHUB_WORKSPACE\src\ui\qml" `
             $exe.FullName
 
@@ -217,18 +268,23 @@ jobs:
             -Path build `
             -Filter NeonLauncherApp.exe `
             -Recurse `
-            | Select-Object -First 1
+            -ErrorAction SilentlyContinue |
+            Select-Object -First 1
 
           if (-not $exe) {
             Write-Error "Release executable was not found."
             exit 1
           }
 
+          if (Test-Path package) {
+            Remove-Item package -Recurse -Force
+          }
+
           New-Item `
             -ItemType Directory `
             -Force `
-            -Path package `
-            | Out-Null
+            -Path package |
+            Out-Null
 
           Copy-Item `
             -Path (Join-Path $exe.Directory.FullName "*") `
@@ -250,8 +306,22 @@ jobs:
             exit 1
           }
 
-          Write-Host "Windows package:"
-          Get-ChildItem package -Recurse
+          Write-Host ""
+          Write-Host "================ PACKAGE ================"
+          Write-Host ""
+
+          Get-ChildItem `
+            package `
+            -Recurse |
+            Select-Object FullName, Length
+
+          Write-Host ""
+          Write-Host "Executable size:"
+          Write-Host (
+            "{0:N2} MB" -f (
+              (Get-Item $exe).Length / 1MB
+            )
+          )
 
       # --------------------------------------------------------
       # Package
@@ -260,6 +330,10 @@ jobs:
       - name: Create Windows ZIP
         shell: pwsh
         run: |
+          if (Test-Path NeonLauncher-Windows-x64.zip) {
+            Remove-Item NeonLauncher-Windows-x64.zip -Force
+          }
+
           Compress-Archive `
             -Path package\* `
             -DestinationPath NeonLauncher-Windows-x64.zip `
@@ -274,13 +348,13 @@ jobs:
         run: |
           (Get-FileHash `
             NeonLauncher-Windows-x64.zip `
-            -Algorithm SHA256).Hash `
-            | Out-File `
+            -Algorithm SHA256).Hash |
+            Out-File `
               NeonLauncher-Windows-x64.zip.sha256 `
               -Encoding ascii
 
       # --------------------------------------------------------
-      # Upload artifact
+      # Upload
       # --------------------------------------------------------
 
       - name: Upload Windows artifact
@@ -310,6 +384,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
             build-essential \
             ninja-build \
@@ -330,6 +405,12 @@ jobs:
           arch: linux_gcc_64
           cache: true
 
+      - name: Verify Qt
+        run: |
+          qmake --version
+          cmake --version
+          ninja --version
+
       # --------------------------------------------------------
       # Configure
       # --------------------------------------------------------
@@ -342,6 +423,10 @@ jobs:
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_STANDARD=23 \
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+            -DCMAKE_CXX_EXTENSIONS=OFF \
+            -DNEONLAUNCHER_ENABLE_WARNINGS=ON \
+            -DNEONLAUNCHER_ENABLE_LTO=OFF \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       # --------------------------------------------------------
@@ -361,6 +446,7 @@ jobs:
       - name: Install
         run: |
           rm -rf package
+
           cmake \
             --install build \
             --prefix package
@@ -372,7 +458,10 @@ jobs:
       - name: Verify executable
         run: |
           test -f package/bin/NeonLauncherApp
+
           file package/bin/NeonLauncherApp
+
+          ls -lh package/bin/NeonLauncherApp
 
       # --------------------------------------------------------
       # Package
@@ -428,6 +517,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
             build-essential \
             ninja-build \
@@ -450,7 +540,9 @@ jobs:
             -B build-debug \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_STANDARD=23
+            -DCMAKE_CXX_STANDARD=23 \
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+            -DCMAKE_CXX_EXTENSIONS=OFF
 
       - name: Build Debug
         run: |
@@ -496,14 +588,48 @@ jobs:
             --outputdir "$env:GITHUB_WORKSPACE\Qt" `
             --autodesktop
 
-      - name: Set Qt environment
+      - name: Configure Qt environment
         shell: pwsh
         run: |
-          $qtRoot = Join-Path $env:GITHUB_WORKSPACE "Qt\6.11.0\msvc2022_64"
-          $qtBin = Join-Path $qtRoot "bin"
+          $qtRoot = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "Qt\6.11.0\msvc2022_64"
 
-          "Qt6_DIR=$qtRoot" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          $qtBin | Out-File $env:GITHUB_PATH -Append -Encoding utf8
+          $qtBin = Join-Path `
+            $qtRoot `
+            "bin"
+
+          $qtCmake = Join-Path `
+            $qtRoot `
+            "lib\cmake\Qt6"
+
+          if (-not (Test-Path "$qtCmake\Qt6Config.cmake")) {
+            Write-Error "Qt6Config.cmake was not found."
+            exit 1
+          }
+
+          "Qt6_DIR=$qtCmake" |
+            Out-File `
+              $env:GITHUB_ENV `
+              -Append `
+              -Encoding utf8
+
+          "Qt_ROOT=$qtRoot" |
+            Out-File `
+              $env:GITHUB_ENV `
+              -Append `
+              -Encoding utf8
+
+          "$qtBin" |
+            Out-File `
+              $env:GITHUB_PATH `
+              -Append `
+              -Encoding utf8
+
+      - name: Verify Qt
+        shell: pwsh
+        run: |
+          qmake --version
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -521,7 +647,13 @@ jobs:
             -B build-debug `
             -G Ninja `
             -DCMAKE_BUILD_TYPE=Debug `
-            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
+            -DCMAKE_CXX_STANDARD=23 `
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON `
+            -DCMAKE_CXX_EXTENSIONS=OFF `
+            -DNEONLAUNCHER_ENABLE_WARNINGS=ON `
+            -DNEONLAUNCHER_ENABLE_LTO=OFF `
+            -DCMAKE_PREFIX_PATH="$env:Qt_ROOT" `
+            -DQt6_DIR="$env:Qt6_DIR"
 
       - name: Build Debug
         shell: pwsh
@@ -548,6 +680,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
             build-essential \
             ninja-build \
@@ -571,6 +704,8 @@ jobs:
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_STANDARD=23 \
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+            -DCMAKE_CXX_EXTENSIONS=OFF \
             -DNEONLAUNCHER_BUILD_TESTS=ON
 
       - name: Build tests
@@ -604,6 +739,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
             build-essential \
             ninja-build \
@@ -629,7 +765,9 @@ jobs:
             -B build-sanitize \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_STANDARD=23
+            -DCMAKE_CXX_STANDARD=23 \
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+            -DCMAKE_CXX_EXTENSIONS=OFF
 
       - name: Build Sanitized
         run: |
@@ -655,6 +793,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
             clang \
             clang-tidy \
@@ -679,6 +818,8 @@ jobs:
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_STANDARD=23 \
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+            -DCMAKE_CXX_EXTENSIONS=OFF \
             -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_CXX_CLANG_TIDY=clang-tidy
 
@@ -695,6 +836,7 @@ jobs:
 
   release:
     name: GitHub Release
+
     needs:
       - windows-release
       - linux-release
@@ -719,6 +861,7 @@ jobs:
           path: artifacts
 
       - name: Display artifacts
+        shell: bash
         run: |
           find artifacts -type f -print
 
