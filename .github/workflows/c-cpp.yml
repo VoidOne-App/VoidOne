@@ -1,4 +1,4 @@
-name: NeonLauncher CI
+name: NeonLauncher CI/CD
 
 on:
   push:
@@ -13,52 +13,52 @@ on:
 
   workflow_dispatch:
 
-# ================================================================
+# ============================================================
 # GLOBAL SETTINGS
-# ================================================================
+# ============================================================
+
+permissions:
+  contents: read
 
 concurrency:
   group: neonlauncher-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-
 env:
-  QT_VERSION: "6.11.1"
-  BUILD_TYPE: Release
   APP_NAME: NeonLauncher
   EXECUTABLE_NAME: NeonLauncherApp
 
-# ================================================================
-# JOBS
-# ================================================================
+  QT_VERSION: "6.11.1"
+  CMAKE_VERSION: "3.31.8"
+
+  BUILD_TYPE: Release
+
+# ============================================================
+# JOB 1 — LINUX RELEASE BUILD
+# ============================================================
 
 jobs:
 
-  # ==============================================================
-  # LINUX X64
-  # ==============================================================
-
-  build-linux:
-    name: Build Linux x64
+  linux-release:
+    name: Linux x64 • Release
 
     runs-on: ubuntu-24.04
-
     timeout-minutes: 30
 
     steps:
 
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
       # Checkout
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
 
-      - name: Checkout Repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      # ----------------------------------------------------------
-      # Install Dependencies
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Dependencies
+      # --------------------------------------------------------
 
       - name: Install Linux Dependencies
         shell: bash
@@ -69,7 +69,6 @@ jobs:
 
           sudo apt-get install -y \
             build-essential \
-            cmake \
             ninja-build \
             ccache \
             zip \
@@ -77,31 +76,38 @@ jobs:
             libgl1-mesa-dev \
             libpulse-dev
 
-      # ----------------------------------------------------------
-      # Install Qt
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Qt
+      # --------------------------------------------------------
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
-          host: linux
-          target: desktop
-          arch: gcc_64
           cache: true
+          cache-key-prefix: neonlauncher-qt-linux
 
-      # ----------------------------------------------------------
-      # Configure ccache
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # CMake
+      # --------------------------------------------------------
 
-      - name: Enable ccache
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: ${{ env.CMAKE_VERSION }}
+
+      # --------------------------------------------------------
+      # ccache
+      # --------------------------------------------------------
+
+      - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: neonlauncher-linux-x64
+          key: neonlauncher-linux-${{ env.QT_VERSION }}
 
-      # ----------------------------------------------------------
-      # Configure CMake
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Configure
+      # --------------------------------------------------------
 
       - name: Configure CMake
         shell: bash
@@ -115,11 +121,11 @@ jobs:
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
       # Build
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
 
-      - name: Build Project
+      - name: Build
         shell: bash
         run: |
           set -euo pipefail
@@ -128,78 +134,85 @@ jobs:
             --build build \
             --parallel
 
-      # ----------------------------------------------------------
-      # Verify executable
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Binary validation
+      # --------------------------------------------------------
 
-      - name: Verify Linux Build
+      - name: Validate Linux Binary
         shell: bash
         run: |
           set -euo pipefail
 
-          APP="build/bin/${EXECUTABLE_NAME}"
+          EXE="build/bin/${EXECUTABLE_NAME}"
 
-          if [[ ! -f "$APP" ]]; then
-            echo "::error::Linux executable not found: $APP"
+          if [[ ! -f "$EXE" ]]; then
+            echo "::error::Linux executable was not created."
             exit 1
           fi
 
-          if [[ ! -x "$APP" ]]; then
+          if [[ ! -x "$EXE" ]]; then
             echo "::error::Linux executable is not executable."
             exit 1
           fi
 
-          echo "========================================"
-          echo "Linux Build"
-          echo "========================================"
+          SIZE=$(stat -c%s "$EXE")
 
-          ls -lh "$APP"
+          if [[ "$SIZE" -le 0 ]]; then
+            echo "::error::Linux executable is empty."
+            exit 1
+          fi
 
-          file "$APP"
+          file "$EXE"
 
-      # ----------------------------------------------------------
+          echo "Linux executable:"
+          ls -lh "$EXE"
+
+      # --------------------------------------------------------
       # Package
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
 
       - name: Package Linux
         shell: bash
         run: |
           set -euo pipefail
 
-          rm -rf package
+          rm -rf dist
 
-          mkdir -p package
+          mkdir -p dist/NeonLauncher
 
           cp \
             "build/bin/${EXECUTABLE_NAME}" \
-            package/
+            "dist/NeonLauncher/"
 
-          cd package
+          cp -r \
+            assets \
+            "dist/NeonLauncher/" \
+            2>/dev/null || true
 
-          zip \
-            -9 \
-            -r \
+          cd dist
+
+          zip -9 -r \
             "../NeonLauncher-Linux-x64.zip" \
-            .
+            NeonLauncher
 
-      # ----------------------------------------------------------
-      # Validate ZIP
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Package validation
+      # --------------------------------------------------------
 
-      - name: Validate Linux Archive
+      - name: Validate Linux Package
         shell: bash
         run: |
           set -euo pipefail
 
-          test -s NeonLauncher-Linux-x64.zip
-
           unzip -t NeonLauncher-Linux-x64.zip
 
-      # ----------------------------------------------------------
-      # SHA256
-      # ----------------------------------------------------------
+          unzip -l NeonLauncher-Linux-x64.zip
 
-      - name: Generate Linux SHA256
+      # --------------------------------------------------------
+      # SHA256
+      # --------------------------------------------------------
+
+      - name: Generate SHA256
         shell: bash
         run: |
           set -euo pipefail
@@ -208,15 +221,11 @@ jobs:
             NeonLauncher-Linux-x64.zip \
             > NeonLauncher-Linux-x64.zip.sha256
 
-          echo "========================================"
-          echo "Linux SHA256"
-          echo "========================================"
-
           cat NeonLauncher-Linux-x64.zip.sha256
 
-      # ----------------------------------------------------------
-      # Upload Artifact
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Artifact
+      # --------------------------------------------------------
 
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
@@ -229,232 +238,203 @@ jobs:
           retention-days: 30
 
 
-  # ==============================================================
-  # WINDOWS X64
-  # ==============================================================
+  # ============================================================
+  # JOB 2 — WINDOWS RELEASE BUILD
+  # ============================================================
 
-  build-windows:
-    name: Build Windows x64
+  windows-release:
+    name: Windows x64 • Release
 
-    runs-on: windows-2025
+    # Explicitly pin VS2022.
+    # windows-latest moved toward VS2026 in 2026.
+    runs-on: windows-2022
 
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
 
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
       # Checkout
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
 
-      - name: Checkout Repository
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      # ----------------------------------------------------------
-      # Install Qt
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Qt
+      # --------------------------------------------------------
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
-          host: windows
-          target: desktop
           arch: win64_msvc2022_64
           cache: true
+          cache-key-prefix: neonlauncher-qt-windows
 
-      # ----------------------------------------------------------
-      # Verify Qt
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # CMake
+      # --------------------------------------------------------
 
-      - name: Verify Qt Installation
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: ${{ env.CMAKE_VERSION }}
+
+      # --------------------------------------------------------
+      # Verify Toolchain
+      # --------------------------------------------------------
+
+      - name: Verify Build Environment
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-
           Write-Host "========================================"
-          Write-Host "Qt Environment"
+          Write-Host "NeonLauncher Build Environment"
           Write-Host "========================================"
 
-          Write-Host "Qt6_DIR:"
-          Write-Host $env:Qt6_DIR
-
-          Write-Host ""
-          Write-Host "CMake:"
           cmake --version
 
           Write-Host ""
-          Write-Host "qmake:"
-          Get-Command qmake -ErrorAction SilentlyContinue
+          Write-Host "Qt:"
+          if ($env:Qt6_DIR) {
+              Write-Host $env:Qt6_DIR
+          }
 
           Write-Host ""
-          Write-Host "windeployqt:"
-          Get-Command windeployqt -ErrorAction SilentlyContinue
+          Write-Host "Compiler:"
+          where.exe cl.exe
 
-      # ----------------------------------------------------------
-      # Configure CMake
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Configure
+      # --------------------------------------------------------
 
       - name: Configure CMake
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-
           cmake `
             -S . `
             -B build `
             -G "Visual Studio 17 2022" `
             -A x64
 
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
       # Build
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
 
-      - name: Build Project
+      - name: Build
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-
           cmake `
             --build build `
             --config Release `
             --parallel
 
-      # ----------------------------------------------------------
-      # Verify executable
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Validate executable
+      # --------------------------------------------------------
 
-      - name: Verify Windows Build
+      - name: Validate Windows Binary
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
 
-          $exe = "build/bin/Release/NeonLauncherApp.exe"
+          $exe = "build/bin/Release/${env:EXECUTABLE_NAME}.exe"
 
-          if (-not (Test-Path $exe)) {
-
-            Write-Host "Expected executable was not found."
-
-            Write-Host ""
-            Write-Host "Searching build directory..."
-
-            Get-ChildItem `
-              -Path build `
-              -Filter "NeonLauncherApp.exe" `
-              -Recurse `
-              -ErrorAction SilentlyContinue
-
-            throw "NeonLauncherApp.exe was not produced."
+          if (!(Test-Path $exe)) {
+              Write-Error "Windows executable was not created: $exe"
+              exit 1
           }
 
           $file = Get-Item $exe
 
-          Write-Host "========================================"
-          Write-Host "Windows Build"
-          Write-Host "========================================"
+          if ($file.Length -le 0) {
+              Write-Error "Windows executable is empty."
+              exit 1
+          }
 
-          Write-Host "Path: $($file.FullName)"
-          Write-Host "Size: $($file.Length) bytes"
+          Write-Host "Executable:"
+          $file | Format-List Name,Length,FullName
 
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
       # Deploy Qt Runtime
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
 
       - name: Deploy Qt Runtime
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
 
-          $exe = Resolve-Path `
-            "build/bin/Release/NeonLauncherApp.exe"
-
-          Write-Host "========================================"
-          Write-Host "Deploying Qt Runtime"
-          Write-Host "========================================"
+          $exe = "build/bin/Release/${env:EXECUTABLE_NAME}.exe"
 
           windeployqt `
             --release `
             --compiler-runtime `
             --qmldir "src/ui/qml" `
+            --verbose 1 `
             "$exe"
 
-      # ----------------------------------------------------------
-      # Verify Qt Deployment
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Validate Qt deployment
+      # --------------------------------------------------------
 
-      - name: Verify Windows Deployment
+      - name: Validate Qt Deployment
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
 
           $root = "build/bin/Release"
 
           $required = @(
-            "NeonLauncherApp.exe",
-            "Qt6Core.dll",
-            "Qt6Gui.dll",
-            "Qt6Quick.dll",
-            "Qt6Sql.dll"
+              "Qt6Core.dll",
+              "Qt6Gui.dll",
+              "Qt6Qml.dll",
+              "Qt6Quick.dll",
+              "Qt6Sql.dll"
           )
-
-          Write-Host "========================================"
-          Write-Host "Qt Deployment Validation"
-          Write-Host "========================================"
 
           foreach ($file in $required) {
 
-            $path = Join-Path $root $file
+              $path = Join-Path $root $file
 
-            if (-not (Test-Path $path)) {
-              throw "Required deployment file is missing: $path"
-            }
+              if (!(Test-Path $path)) {
+                  Write-Error "Missing Qt runtime file: $file"
+                  exit 1
+              }
 
-            Write-Host "OK: $file"
+              Write-Host "OK: $file"
           }
 
-      # ----------------------------------------------------------
-      # Verify QML Module
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # QML module
+      # --------------------------------------------------------
 
-      - name: Prepare QML Module
+      - name: Validate QML Module
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
 
-          $qmlRoot = "build/bin/Release/qml/NeonLauncher"
+          $qmlModule = "build/bin/Release/qml/NeonLauncher"
 
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path $qmlRoot | Out-Null
+          if (!(Test-Path $qmlModule)) {
+              Write-Error "QML module directory missing: $qmlModule"
+              exit 1
+          }
 
-          Copy-Item `
-            -Recurse `
-            -Force `
-            "src/ui/qml/*" `
-            $qmlRoot
-
-          Write-Host "========================================"
-          Write-Host "QML Files"
-          Write-Host "========================================"
+          Write-Host "QML module found."
 
           Get-ChildItem `
-            $qmlRoot `
-            -Recurse `
-            -File
+            $qmlModule `
+            -Recurse |
+            Select-Object FullName
 
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
       # Package
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
 
       - name: Package Windows
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
 
           if (Test-Path "NeonLauncher-Windows-x64.zip") {
-            Remove-Item `
-              "NeonLauncher-Windows-x64.zip" `
-              -Force
+              Remove-Item "NeonLauncher-Windows-x64.zip" -Force
           }
 
           Compress-Archive `
@@ -462,37 +442,46 @@ jobs:
             -DestinationPath "NeonLauncher-Windows-x64.zip" `
             -CompressionLevel Optimal
 
-      # ----------------------------------------------------------
-      # Validate ZIP
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Validate archive
+      # --------------------------------------------------------
 
-      - name: Validate Windows Archive
+      - name: Validate Windows Package
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
 
-          $archive = Get-Item `
-            "NeonLauncher-Windows-x64.zip"
-
-          if ($archive.Length -le 0) {
-            throw "Windows archive is empty."
+          if (!(Test-Path "NeonLauncher-Windows-x64.zip")) {
+              Write-Error "Windows package was not created."
+              exit 1
           }
 
-          Write-Host "========================================"
-          Write-Host "Windows Archive"
-          Write-Host "========================================"
+          $archive = Get-Item "NeonLauncher-Windows-x64.zip"
 
-          Write-Host "Path: $($archive.FullName)"
-          Write-Host "Size: $($archive.Length) bytes"
+          if ($archive.Length -le 0) {
+              Write-Error "Windows package is empty."
+              exit 1
+          }
 
-      # ----------------------------------------------------------
+          Write-Host "Package size:"
+          Write-Host "$($archive.Length) bytes"
+
+          Expand-Archive `
+            -Path $archive.FullName `
+            -DestinationPath package-test `
+            -Force
+
+          if (!(Test-Path "package-test/${env:EXECUTABLE_NAME}.exe")) {
+              Write-Error "Executable missing from final archive."
+              exit 1
+          }
+
+      # --------------------------------------------------------
       # SHA256
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
 
-      - name: Generate Windows SHA256
+      - name: Generate SHA256
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
 
           $hash = (
             Get-FileHash `
@@ -501,20 +490,15 @@ jobs:
           ).Hash.ToLower()
 
           "$hash  NeonLauncher-Windows-x64.zip" |
-            Set-Content `
+            Out-File `
               "NeonLauncher-Windows-x64.zip.sha256" `
               -Encoding ascii
 
-          Write-Host "========================================"
-          Write-Host "Windows SHA256"
-          Write-Host "========================================"
+          Write-Host $hash
 
-          Get-Content `
-            "NeonLauncher-Windows-x64.zip.sha256"
-
-      # ----------------------------------------------------------
-      # Upload Artifact
-      # ----------------------------------------------------------
+      # --------------------------------------------------------
+      # Artifact
+      # --------------------------------------------------------
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
@@ -527,18 +511,287 @@ jobs:
           retention-days: 30
 
 
-  # ==============================================================
-  # GITHUB RELEASE
-  # ==============================================================
+  # ============================================================
+  # JOB 3 — LINUX SANITIZER
+  # ============================================================
 
-  release:
-    name: Create GitHub Release
+  linux-sanitizer:
+    name: Linux • Address/UB Sanitizer
+
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 30
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            build-essential \
+            ninja-build \
+            libgl1-mesa-dev \
+            libpulse-dev
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+          cache-key-prefix: neonlauncher-qt-sanitizer
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: ${{ env.CMAKE_VERSION }}
+
+      - name: Configure Sanitizer Build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cmake \
+            -S . \
+            -B build-sanitizer \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build Sanitizer
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cmake \
+            --build build-sanitizer \
+            --parallel
+
+
+  # ============================================================
+  # JOB 4 — STATIC ANALYSIS
+  # ============================================================
+
+  static-analysis:
+    name: Static Analysis
+
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 20
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            clang \
+            clang-tidy \
+            ninja-build
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+          cache-key-prefix: neonlauncher-qt-analysis
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: ${{ env.CMAKE_VERSION }}
+
+      - name: Configure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cmake \
+            -S . \
+            -B build-analysis \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_CXX_CLANG_TIDY=clang-tidy
+
+      - name: Build with clang-tidy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cmake \
+            --build build-analysis \
+            --parallel
+
+
+  # ============================================================
+  # JOB 5 — UNIT TESTS
+  # ============================================================
+
+  tests:
+    name: Unit Tests
+
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 20
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            build-essential \
+            ninja-build
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+          cache-key-prefix: neonlauncher-qt-tests
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: ${{ env.CMAKE_VERSION }}
+
+      - name: Configure Tests
+        run: |
+          cmake \
+            -S . \
+            -B build-tests \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DNEONLAUNCHER_BUILD_TESTS=ON
+
+      - name: Build Tests
+        run: |
+          cmake \
+            --build build-tests \
+            --parallel
+
+      - name: Run CTest
+        run: |
+          ctest \
+            --test-dir build-tests \
+            --output-on-failure
+
+
+  # ============================================================
+  # JOB 6 — NIGHTLY
+  # ============================================================
+
+  nightly:
+    name: Nightly Release
 
     needs:
-      - build-linux
-      - build-windows
+      - linux-release
+      - windows-release
+      - tests
+      - linux-sanitizer
+      - static-analysis
 
-    # Release فقط برای tagهای v*
+    if: |
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push'
+
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: write
+
+    steps:
+
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: NeonLauncher-Linux-x64
+          path: release
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: NeonLauncher-Windows-x64
+          path: release
+
+      - name: Create Manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > release/manifest.json <<EOF
+          {
+            "application": "NeonLauncher",
+            "channel": "nightly",
+            "commit": "${GITHUB_SHA}",
+            "run": "${GITHUB_RUN_NUMBER}",
+            "qt": "${QT_VERSION}"
+          }
+          EOF
+
+      - name: Create SHA256 Manifest
+        working-directory: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha256sum \
+            *.zip \
+            > SHA256SUMS.txt
+
+          cat SHA256SUMS.txt
+
+      - name: Publish Nightly
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: NeonLauncher Nightly
+          prerelease: true
+          make_latest: false
+          generate_release_notes: false
+          files: |
+            release/*.zip
+            release/*.sha256
+            release/SHA256SUMS.txt
+            release/manifest.json
+
+
+  # ============================================================
+  # JOB 7 — OFFICIAL RELEASE
+  # ============================================================
+
+  release:
+    name: Official Release
+
+    needs:
+      - linux-release
+      - windows-release
+      - tests
+      - linux-sanitizer
+      - static-analysis
+
     if: startsWith(github.ref, 'refs/tags/v')
 
     runs-on: ubuntu-24.04
@@ -548,19 +801,11 @@ jobs:
 
     steps:
 
-      # ----------------------------------------------------------
-      # Download Linux
-      # ----------------------------------------------------------
-
       - name: Download Linux Artifact
         uses: actions/download-artifact@v4
         with:
           name: NeonLauncher-Linux-x64
           path: release
-
-      # ----------------------------------------------------------
-      # Download Windows
-      # ----------------------------------------------------------
 
       - name: Download Windows Artifact
         uses: actions/download-artifact@v4
@@ -568,60 +813,45 @@ jobs:
           name: NeonLauncher-Windows-x64
           path: release
 
-      # ----------------------------------------------------------
-      # Generate Combined Checksums
-      # ----------------------------------------------------------
-
-      - name: Generate SHA256SUMS
+      - name: Create Release Manifest
         shell: bash
-        working-directory: release
         run: |
           set -euo pipefail
 
-          cat \
-            NeonLauncher-Linux-x64.zip.sha256 \
-            NeonLauncher-Windows-x64.zip.sha256 \
-            > SHA256SUMS.txt
+          VERSION="${GITHUB_REF_NAME}"
 
-          echo "========================================"
-          echo "NeonLauncher SHA256"
-          echo "========================================"
+          cat > release/manifest.json <<EOF
+          {
+            "application": "NeonLauncher",
+            "version": "${VERSION}",
+            "channel": "stable",
+            "commit": "${GITHUB_SHA}",
+            "qt": "${QT_VERSION}"
+          }
+          EOF
+
+      - name: Generate Combined Checksums
+        working-directory: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha256sum \
+            *.zip \
+            > SHA256SUMS.txt
 
           cat SHA256SUMS.txt
 
-      # ----------------------------------------------------------
-      # Verify Release Files
-      # ----------------------------------------------------------
-
-      - name: Verify Release Files
-        shell: bash
-        working-directory: release
-        run: |
-          set -euo pipefail
-
-          test -s NeonLauncher-Linux-x64.zip
-          test -s NeonLauncher-Windows-x64.zip
-
-          test -s NeonLauncher-Linux-x64.zip.sha256
-          test -s NeonLauncher-Windows-x64.zip.sha256
-
-          test -s SHA256SUMS.txt
-
-      # ----------------------------------------------------------
-      # Create Release
-      # ----------------------------------------------------------
-
-      - name: Create Release
+      - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: NeonLauncher ${{ github.ref_name }}
+          prerelease: false
           generate_release_notes: true
           fail_on_unmatched_files: true
-
           files: |
-            release/NeonLauncher-Linux-x64.zip
-            release/NeonLauncher-Windows-x64.zip
-            release/NeonLauncher-Linux-x64.zip.sha256
-            release/NeonLauncher-Windows-x64.zip.sha256
+            release/*.zip
+            release/*.sha256
             release/SHA256SUMS.txt
+            release/manifest.json
