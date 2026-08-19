@@ -1,732 +1,285 @@
 #!/usr/bin/env python3
+"""
+VoidOne Autonomous AI CI Repair Engine
+Role: Senior AI Infrastructure & C++/Qt Engineer Agent
+"""
 
-import json
 import os
-import re
-import subprocess
 import sys
+import json
+import subprocess
+import argparse
+import logging
 from pathlib import Path
-
+from typing import Dict, List, Optional, Tuple, Any
 import requests
 
-
-# ============================================================
-# Configuration
-# ============================================================
-
-REPO = Path.cwd()
-
-API_KEY = os.environ.get("GEMINI_API_KEY")
-MODEL = os.environ.get(
-    "GEMINI_MODEL",
-    "gemini-3.1-pro-preview",
+# پیکربندی لاگ‌ها
+logging.basicConfig(
+    level=logging.INFO,
+    format="[VOIDONE-AI-ENGINE] %(asctime)s - %(levelname)s - %(message)s"
 )
+logger = logging.getLogger("VoidOneAIRepair")
 
-API_URL = (
-    f"https://generativelanguage.googleapis.com/"
-    f"v1beta/models/{MODEL}:generateContent"
-)
-
-MAX_CONTEXT_FILE_SIZE = 120_000
-MAX_LOG_SIZE = 80_000
-MAX_DIFF_SIZE = 120_000
-
-
-# ============================================================
-# Safety boundaries
-# ============================================================
-
-DENY_PREFIXES = (
+# مسیرهای حفاظت‌شده - هوش مصنوعی هرگز حق تغییر این فایل‌ها را ندارد
+PROTECTED_PATHS = [
     ".github/",
     ".git/",
     "scripts/ai_repair.py",
-)
+    "scripts/requirements-ai-repair.txt"
+]
 
-ALLOWED_EXTENSIONS = {
-    ".cpp",
-    ".hpp",
-    ".h",
-    ".cc",
-    ".cxx",
-    ".qml",
-    ".js",
-    ".cmake",
-    ".txt",
-}
+class EnvironmentConfig:
+    def __init__(self):
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview").strip()
+        
+        self.local_model_url = os.getenv("LOCAL_MODEL_URL", "http://127.0.0.1:11434/v1").rstrip("/")
+        self.local_model_name = os.getenv("LOCAL_MODEL_NAME", "qwen2.5-coder:7b").strip()
 
-IMPORTANT_FILES = (
-    "CMakeLists.txt",
-    "README.md",
-    "BUILD.md",
-    "TROUBLESHOOTING.md",
-)
+        self.repo_dir = Path(os.getcwd()).resolve()
 
-
-# ============================================================
-# Command helper
-# ============================================================
-
-def run(cmd, check=True, capture=True):
-    print(f"+ {' '.join(cmd)}")
-
-    result = subprocess.run(
-        cmd,
-        cwd=REPO,
-        text=True,
-        capture_output=capture,
-    )
-
-    if check and result.returncode != 0:
-        if capture:
-            if result.stdout:
-                print(result.stdout)
-
-            if result.stderr:
-                print(result.stderr, file=sys.stderr)
-
-        raise RuntimeError(
-            "Command failed with exit code "
-            f"{result.returncode}: {' '.join(cmd)}"
-        )
-
-    return result
-
-
-# ============================================================
-# File helpers
-# ============================================================
-
-def read_text(path: Path) -> str:
+def run_command(cmd: List[str], cwd: Optional[Path] = None, timeout: int = 300) -> Tuple[int, str, str]:
+    """اجرای ایمن دستورات ترمینال همراه با Timeout"""
     try:
-        data = path.read_text(
-            encoding="utf-8",
-            errors="replace",
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=str(cwd) if cwd else None
         )
-    except Exception:
-        return ""
-
-    if len(data) > MAX_CONTEXT_FILE_SIZE:
-        return (
-            data[:MAX_CONTEXT_FILE_SIZE]
-            + "\n...[TRUNCATED]..."
-        )
-
-    return data
-
-
-def normalize_path(path: str) -> str:
-    path = path.strip()
-    path = path.replace("\\", "/")
-
-    while path.startswith("./"):
-        path = path[2:]
-
-    return path
-
-
-def is_denied(path: str) -> bool:
-    path = normalize_path(path)
-
-    return any(
-        path == prefix.rstrip("/")
-        or path.startswith(prefix)
-        for prefix in DENY_PREFIXES
-    )
-
-
-def is_allowed_source(path: str) -> bool:
-    path = normalize_path(path)
-
-    if not path:
-        return False
-
-    if is_denied(path):
-        return False
-
-    suffix = Path(path).suffix.lower()
-
-    return suffix in ALLOWED_EXTENSIONS
-
-
-# ============================================================
-# Repository context
-# ============================================================
-
-def extract_referenced_files(log: str):
-    patterns = [
-        r"(?:^|\s)((?:src|tests|include|qml)/[^\s:'\"]+)",
-        r"(?:^|\s)((?:src|tests|include|qml)/[A-Za-z0-9_./+\-]+\.(?:cpp|hpp|h|cc|cxx|qml|js))",
-    ]
-
-    found = set()
-
-    for pattern in patterns:
-        for match in re.findall(pattern, log):
-            if isinstance(match, tuple):
-                match = match[0]
-
-            path = normalize_path(match)
-
-            # Remove common compiler punctuation.
-            path = path.rstrip("),;:'\"")
-
-            if is_allowed_source(path):
-                found.add(path)
-
-    return sorted(found)
-
-
-def collect_repository_context(log: str) -> str:
-    context = []
-
-    # Important project files.
-    for name in IMPORTANT_FILES:
-        path = REPO / name
-
-        if path.exists() and path.is_file():
-            context.append(
-                f"\n===== {name} =====\n"
-                f"{read_text(path)}"
-            )
-
-    # Files referenced by CI errors.
-    for candidate in extract_referenced_files(log):
-        path = REPO / candidate
-
-        if not path.exists():
-            continue
-
-        if not path.is_file():
-            continue
-
-        if not is_allowed_source(candidate):
-            continue
-
-        context.append(
-            f"\n===== {candidate} =====\n"
-            f"{read_text(path)}"
-        )
-
-    return "\n".join(context)
-
-
-# ============================================================
-# CI log
-# ============================================================
-
-def get_failed_log() -> str:
-    path = REPO / "ci-failure-tail.log"
-
-    if not path.exists():
-        return "No CI failure log was supplied."
-
-    data = read_text(path)
-
-    if len(data) > MAX_LOG_SIZE:
-        data = data[-MAX_LOG_SIZE:]
-
-    return data
-
-
-# ============================================================
-# Prompt
-# ============================================================
-
-def build_prompt(log: str, context: str) -> str:
-    return f"""
-You are the senior repair engineer for the VoidOne project.
-
-PROJECT
--------
-VoidOne is a C++/Qt application.
-
-Known stack:
-- C++
-- Qt 6.8
-- QML
-- CMake
-- Ninja
-- Linux CI
-- Windows CI
-- Unit tests
-- clang-tidy
-- AddressSanitizer
-- UndefinedBehaviorSanitizer
-
-MISSION
--------
-Repair ONE real CI failure.
-
-Your job is to identify the root cause from the supplied CI evidence
-and generate the smallest safe production-quality patch.
-
-STRICT RULES
-------------
-1. Diagnose the actual failure before proposing a change.
-2. Fix the root cause, not merely the visible symptom.
-3. Make the smallest reasonable change.
-4. Do not perform unrelated refactoring.
-5. Do not rewrite complete files unnecessarily.
-6. Do not remove tests.
-7. Do not weaken tests.
-8. Do not disable sanitizers.
-9. Do not disable clang-tidy or static analysis.
-10. Do not modify GitHub Actions workflows.
-11. Do not modify this AI repair agent.
-12. Do not modify files under .github/.
-13. Do not modify files under .git/.
-14. Do not modify scripts/ai_repair.py.
-15. Do not change dependency versions unless the CI evidence clearly
-    proves that dependency resolution is the root cause.
-16. Preserve existing architecture.
-17. Preserve existing coding style.
-18. Preserve Qt/QML behavior.
-19. Never invent APIs, classes, functions, variables, or files.
-20. Only modify files directly required for the fix.
-21. If the evidence is insufficient, return NO_PATCH.
-22. Never generate a patch for an unrelated problem.
-23. The patch must apply cleanly to the supplied repository state.
-24. The patch must be a unified git diff.
-25. Do not include Markdown fences inside the patch field.
-26. Do not include explanatory prose inside the patch field.
-
-IMPORTANT
----------
-The repository state supplied to you is the exact state being repaired.
-
-You must reason from:
-1. CI failure log
-2. Repository context
-3. Existing source code
-
-Do not assume files or APIs that are not present.
-
-FAILED CI LOG
--------------
-{log}
-
-REPOSITORY CONTEXT
-------------------
-{context}
-"""
-
-
-# ============================================================
-# Gemini request
-# ============================================================
-
-def call_gemini(prompt: str) -> dict:
-    if not API_KEY:
-        raise RuntimeError(
-            "GEMINI_API_KEY is not set."
-        )
-
-    schema = {
-        "type": "object",
-        "properties": {
-            "status": {
-                "type": "string",
-                "enum": [
-                    "PATCH",
-                    "NO_PATCH",
-                ],
-                "description": (
-                    "PATCH if a safe repair is supported by "
-                    "the evidence, otherwise NO_PATCH."
-                ),
-            },
-            "reason": {
-                "type": "string",
-                "description": (
-                    "Short technical diagnosis of the CI failure."
-                ),
-            },
-            "patch": {
-                "type": "string",
-                "description": (
-                    "Minimal unified git diff. Empty when status "
-                    "is NO_PATCH."
-                ),
-            },
-        },
-        "required": [
-            "status",
-            "reason",
-            "patch",
-        ],
-        "additionalProperties": False,
-    }
-
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": prompt,
-                    }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "responseSchema": schema,
-            "thinkingConfig": {
-                "thinkingLevel": "high",
-            },
-        },
-    }
-
-    headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": API_KEY,
-    }
-
-    print()
-    print("========================================")
-    print("Calling Gemini")
-    print(f"Model: {MODEL}")
-    print("========================================")
-
-    response = requests.post(
-        API_URL,
-        headers=headers,
-        json=payload,
-        timeout=600,
-    )
-
-    if response.status_code != 200:
-        print("Gemini API response:")
-        print(response.text)
-
-        raise RuntimeError(
-            f"Gemini API request failed: "
-            f"HTTP {response.status_code}"
-        )
-
-    try:
-        body = response.json()
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            "Gemini returned invalid JSON."
-        ) from exc
-
-    try:
-        text = body["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError, TypeError) as exc:
-        print(json.dumps(body, indent=2))
-        raise RuntimeError(
-            "Gemini response did not contain expected content."
-        ) from exc
-
-    try:
-        result = json.loads(text)
-    except json.JSONDecodeError as exc:
-        print("Gemini text:")
-        print(text)
-
-        raise RuntimeError(
-            "Gemini structured output was not valid JSON."
-        ) from exc
-
-    return result
-
-
-# ============================================================
-# Patch extraction
-# ============================================================
-
-def clean_patch(patch: str) -> str:
-    patch = patch.strip()
-
-    # Be tolerant if the model accidentally included fences.
-    if patch.startswith("```"):
-        lines = patch.splitlines()
-
-        if lines and lines[0].strip().startswith("```"):
-            lines = lines[1:]
-
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-
-        patch = "\n".join(lines).strip()
-
-    return patch
-
-
-def validate_patch_text(patch: str):
-    if not patch:
-        raise RuntimeError(
-            "Gemini returned an empty patch."
-        )
-
-    if len(patch) > MAX_DIFF_SIZE:
-        raise RuntimeError(
-            "Gemini patch is unexpectedly large."
-        )
-
-    if "diff --git " not in patch:
-        raise RuntimeError(
-            "Generated output is not a git unified diff."
-        )
-
-    # Basic safety check before git even sees the patch.
-    changed_paths = []
-
-    for line in patch.splitlines():
-        if line.startswith("+++ b/"):
-            changed_paths.append(
-                normalize_path(line[6:])
-            )
-
-        elif line.startswith("--- a/"):
-            changed_paths.append(
-                normalize_path(line[6:])
-            )
-
-    if not changed_paths:
-        raise RuntimeError(
-            "Could not determine files modified by patch."
-        )
-
-    unique_paths = sorted(set(changed_paths))
-
-    print()
-    print("Patch files:")
-
-    for path in unique_paths:
-        print(f"  - {path}")
-
-        if is_denied(path):
-            raise RuntimeError(
-                f"Patch attempts to modify denied path: {path}"
-            )
-
-        if not is_allowed_source(path):
-            raise RuntimeError(
-                f"Patch attempts to modify unsupported file: {path}"
-            )
-
-
-# ============================================================
-# Apply patch safely
-# ============================================================
-
-def apply_patch(patch: str):
-    patch_file = REPO / ".ai-repair.patch"
-
-    try:
-        patch_file.write_text(
-            patch,
-            encoding="utf-8",
-        )
-
-        print()
-        print("========================================")
-        print("Checking patch")
-        print("========================================")
-
-        run(
-            [
-                "git",
-                "apply",
-                "--check",
-                "--whitespace=error",
-                str(patch_file),
-            ]
-        )
-
-        print()
-        print("Patch check passed.")
-
-        run(
-            [
-                "git",
-                "apply",
-                "--whitespace=error",
-                str(patch_file),
-            ]
-        )
-
-    finally:
+        stdout, stderr = proc.communicate(timeout=timeout)
+        return proc.returncode, stdout, stderr
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        return -1, "", f"Command '{' '.join(cmd)}' timed out after {timeout} seconds."
+    except Exception as e:
+        return -1, "", f"Execution error: {str(e)}"
+
+def collect_repo_context(repo_dir: Path, log_tail: str) -> str:
+    """جمع‌آوری فایل‌های کلیدی پروژه و سورس‌کدهایی که در لاگ خطا به آن‌ها اشاره شده است"""
+    context_parts = []
+    
+    # فایل‌های ساختار و بیلد اصلی
+    for core_file in ["CMakeLists.txt", "README.md"]:
+        p = repo_dir / core_file
+        if p.exists() and p.is_file():
+            try:
+                context_parts.append(f"=== File: {core_file} ===\n{p.read_text(encoding='utf-8')[:2000]}")
+            except Exception:
+                pass
+
+    # استخراج فایل‌های منبع C++/Qt اشاره شده در لاگ
+    extensions = {".cpp", ".hpp", ".h", ".cc", ".cxx", ".qml", ".cmake"}
+    mentioned_files = set()
+    
+    for token in log_tail.split():
+        token_clean = token.strip(":'\",()[]")
+        if any(token_clean.endswith(ext) for ext in extensions):
+            target_path = repo_dir / token_clean
+            if target_path.exists() and target_path.is_file():
+                mentioned_files.add(token_clean)
+
+    for rel_path in sorted(mentioned_files):
+        p = repo_dir / rel_path
         try:
-            patch_file.unlink()
-        except FileNotFoundError:
-            pass
+            content = p.read_text(encoding='utf-8')
+            if len(content) > 6000:
+                content = content[:6000] + "\n... [TRUNCATED] ..."
+            context_parts.append(f"=== Source File: {rel_path} ===\n{content}")
+        except Exception as e:
+            logger.warning(f"Could not read source file {rel_path}: {e}")
 
+    return "\n\n".join(context_parts)
 
-# ============================================================
-# Verify resulting tree
-# ============================================================
+class AIInferenceClient:
+    def __init__(self, config: EnvironmentConfig):
+        self.cfg = config
 
-def verify_changes():
-    print()
-    print("========================================")
-    print("Verifying repository changes")
-    print("========================================")
+    def query_gemini_lead(self, failure_log: str, repo_context: str) -> Optional[Dict[str, Any]]:
+        """بررسی خطای CI توسط Lead Engineer (Gemini 3.1 Pro)"""
+        if not self.cfg.gemini_api_key:
+            logger.error("GEMINI_API_KEY is missing!")
+            return None
 
-    result = run(
-        [
-            "git",
-            "status",
-            "--short",
-        ]
-    )
+        endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.cfg.gemini_model}:generateContent?key={self.cfg.gemini_api_key}"
+        
+        prompt = f"""You are the Lead C++/Qt Infrastructure Engineer repairing a broken CI build for VoidOne.
+Analyze the failure log and context. Generate a minimal, production-quality unified diff patch fixing the root cause.
 
-    if not result.stdout.strip():
-        raise RuntimeError(
-            "Patch applied successfully but produced no "
-            "working-tree changes."
-        )
+STRICT CONSTRAINTS:
+1. Fix the ROOT CAUSE, not symptoms.
+2. DO NOT delete unit tests or modify protected files (.github/, scripts/).
+3. Respond strictly with valid JSON matching:
+{{
+  "status": "PATCH", // or "NO_PATCH"
+  "diagnosis": "Detailed root cause analysis",
+  "plan": "Actionable repair steps",
+  "patch": "UNIFIED_DIFF_PATCH_TEXT"
+}}
 
-    print(result.stdout)
+[FAILURE LOG]
+{failure_log}
 
-    diff_check = run(
-        [
-            "git",
-            "diff",
-            "--check",
-        ]
-    )
+[REPOSITORY CONTEXT]
+{repo_context}
+"""
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"responseMimeType": "application/json"}
+        }
 
-    if diff_check.stdout:
-        print(diff_check.stdout)
+        try:
+            res = requests.post(endpoint, json=payload, timeout=90)
+            if res.status_code == 200:
+                raw_text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+                return json.loads(raw_text)
+            else:
+                logger.error(f"Gemini API Error {res.status_code}: {res.text}")
+        except Exception as e:
+            logger.error(f"Gemini Query Failed: {e}")
+        return None
 
-    diff = run(
-        [
-            "git",
-            "diff",
-            "--stat",
-        ]
-    )
+    def query_local_reviewer(self, gemini_plan: Dict[str, Any], failure_log: str) -> Optional[Dict[str, Any]]:
+        """بازبینی مستقل کد توسط Code Reviewer محلی (Qwen2.5-Coder)"""
+        endpoint = f"{self.cfg.local_model_url}/chat/completions"
+        prompt = f"""Review this C++/Qt repair patch for VoidOne:
 
-    if diff.stdout:
-        print(diff.stdout)
+Diagnosis: {gemini_plan.get('diagnosis')}
+Patch Candidate:
+{gemini_plan.get('patch')}
 
-    # Never allow the agent to modify itself or CI files,
-    # even if something unexpected happened.
-    changed = run(
-        [
-            "git",
-            "diff",
-            "--name-only",
-        ]
-    )
+Respond in JSON:
+{{
+  "verdict": "APPROVE" | "REVISE",
+  "reason": "C++/Qt & CMake correctness review",
+  "patch": "Optimized unified diff patch"
+}}
+"""
+        payload = {
+            "model": self.cfg.local_model_name,
+            "messages": [
+                {"role": "system", "content": "You are a C++ Code Reviewer. Return JSON only."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"}
+        }
+        try:
+            res = requests.post(endpoint, json=payload, timeout=90)
+            if res.status_code == 200:
+                content = res.json()["choices"][0]["message"]["content"]
+                return json.loads(content)
+        except Exception as e:
+            logger.warning(f"Local reviewer evaluation skipped: {e}")
+        return None
 
-    for raw_path in changed.stdout.splitlines():
-        path = normalize_path(raw_path)
+def apply_patch_safely(repo_dir: Path, patch_text: str) -> bool:
+    """تست و اعمال دقیق پچ روی سورس کد"""
+    if not patch_text or not patch_text.strip():
+        logger.error("Patch text is empty.")
+        return False
 
-        if is_denied(path):
-            raise RuntimeError(
-                f"Safety violation: modified denied path: {path}"
-            )
+    # بررسی تغییر نیافتن مسیرهای حساس
+    for path in PROTECTED_PATHS:
+        if path in patch_text:
+            logger.error(f"SECURITY VIOLATION: Patch touches protected path '{path}'. Rejected!")
+            return False
 
-        if not is_allowed_source(path):
-            raise RuntimeError(
-                f"Safety violation: modified unsupported path: {path}"
-            )
+    patch_file = repo_dir / "candidate.patch"
+    patch_file.write_text(patch_text, encoding="utf-8")
 
+    # بررسی امکان اعمال بدون خطا (Dry Run)
+    code, stdout, stderr = run_command(["git", "apply", "--check", "candidate.patch"], cwd=repo_dir)
+    if code != 0:
+        logger.error(f"git apply --check failed:\n{stderr}")
+        patch_file.unlink(missing_ok=True)
+        return False
 
-# ============================================================
-# Main
-# ============================================================
+    # اعمال پچ
+    code, stdout, stderr = run_command(["git", "apply", "candidate.patch"], cwd=repo_dir)
+    patch_file.unlink(missing_ok=True)
+    if code != 0:
+        logger.error(f"Git apply failed: {stderr}")
+        return False
+
+    logger.info("Patch applied cleanly.")
+    return True
+
+class GroundTruthValidator:
+    """اعتبارسنجی واقعی به وسیله کامپایلر، تست‌ها و تحلیل‌گرهای استاتیک"""
+    def __init__(self, repo_dir: Path):
+        self.repo_dir = repo_dir
+
+    def validate_build_and_tests(self) -> bool:
+        logger.info("=== STEP 1: CMake Release Build ===")
+        code, _, stderr = run_command(["cmake", "-S", ".", "-B", "build-release", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release"], cwd=self.repo_dir)
+        if code != 0:
+            logger.error(f"CMake config failed:\n{stderr}")
+            return False
+
+        code, _, stderr = run_command(["cmake", "--build", "build-release", "--parallel"], cwd=self.repo_dir)
+        if code != 0:
+            logger.error(f"Release build failed:\n{stderr}")
+            return False
+
+        logger.info("=== STEP 2: CMake Debug & Unit Tests ===")
+        code, _, stderr = run_command(["cmake", "-S", ".", "-B", "build-tests", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Debug", "-DVOIDONE_BUILD_TESTS=ON"], cwd=self.repo_dir)
+        if code == 0:
+            run_command(["cmake", "--build", "build-tests", "--parallel"], cwd=self.repo_dir)
+            code_test, _, test_err = run_command(["ctest", "--test-dir", "build-tests", "--output-on-failure"], cwd=self.repo_dir)
+            if code_test != 0:
+                logger.error(f"Unit tests failed:\n{test_err}")
+                return False
+
+        return True
 
 def main():
-    print("========================================")
-    print("VoidOne AI Repair Agent")
-    print("========================================")
-    print(f"Model: {MODEL}")
-    print(f"Repository: {REPO}")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--log-file", required=True, help="Path to CI failure log")
+    args = parser.parse_args()
 
-    log = get_failed_log()
+    cfg = EnvironmentConfig()
+    log_path = Path(args.log_file)
 
-    if not log.strip():
-        raise RuntimeError(
-            "CI failure log is empty."
-        )
+    if not log_path.exists():
+        logger.error(f"Log file not found: {log_path}")
+        sys.exit(1)
 
-    print()
-    print("Collecting repository context...")
+    log_tail = log_path.read_text(encoding="utf-8", errors="ignore")[-8000:]
+    repo_context = collect_repo_context(cfg.repo_dir, log_tail)
 
-    context = collect_repository_context(log)
+    client = AIInferenceClient(cfg)
 
-    print(
-        f"Collected approximately "
-        f"{len(context):,} context characters."
-    )
+    logger.info("Phase 1: Generating Repair Proposal via Gemini 3.1 Pro...")
+    gemini_plan = client.query_gemini_lead(log_tail, repo_context)
 
-    prompt = build_prompt(
-        log=log,
-        context=context,
-    )
+    if not gemini_plan or gemini_plan.get("status") != "PATCH":
+        logger.error("Gemini could not generate a patch.")
+        sys.exit(1)
 
-    result = call_gemini(prompt)
+    logger.info("Phase 2: Reviewing Patch via Local Code Reviewer...")
+    reviewer_res = client.query_local_reviewer(gemini_plan, log_tail)
 
-    status = str(
-        result.get("status", "")
-    ).strip().upper()
+    final_patch = gemini_plan["patch"]
+    if reviewer_res and reviewer_res.get("verdict") == "REVISE" and reviewer_res.get("patch"):
+        logger.info("Using revised patch from local reviewer.")
+        final_patch = reviewer_res["patch"]
 
-    reason = str(
-        result.get("reason", "")
-    ).strip()
+    logger.info("Phase 3: Safe Patch Application...")
+    if not apply_patch_safely(cfg.repo_dir, final_patch):
+        sys.exit(1)
 
-    patch = clean_patch(
-        str(
-            result.get("patch", "")
-        )
-    )
+    logger.info("Phase 4: Compiler and Test Ground Truth Validation...")
+    validator = GroundTruthValidator(cfg.repo_dir)
+    if not validator.validate_build_and_tests():
+        logger.error("Validation failed! Rolling back changes...")
+        run_command(["git", "checkout", "."], cwd=cfg.repo_dir)
+        sys.exit(1)
 
-    print()
-    print("========================================")
-    print("Gemini diagnosis")
-    print("========================================")
-    print(reason or "No diagnosis supplied.")
-
-    if status == "NO_PATCH":
-        print()
-        print(
-            "Gemini determined that there is not enough "
-            "evidence for a safe automatic repair."
-        )
-        return 2
-
-    if status != "PATCH":
-        raise RuntimeError(
-            f"Unexpected Gemini status: {status!r}"
-        )
-
-    validate_patch_text(patch)
-
-    print()
-    print("========================================")
-    print("Applying validated patch")
-    print("========================================")
-
-    apply_patch(patch)
-
-    verify_changes()
-
-    print()
-    print("========================================")
-    print("AI REPAIR PATCH APPLIED SUCCESSFULLY")
-    print("========================================")
-
-    return 0
-
+    logger.info("SUCCESS: VoidOne AI Repair Engine successfully fixed and validated the repository!")
+    sys.exit(0)
 
 if __name__ == "__main__":
-    try:
-        sys.exit(main())
-
-    except KeyboardInterrupt:
-        print(
-            "\nInterrupted.",
-            file=sys.stderr,
-        )
-        sys.exit(130)
-
-    except Exception as exc:
-        print(
-            f"\nAI repair failed: {exc}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    main()
