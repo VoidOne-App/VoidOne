@@ -1,5 +1,6 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.21) # حروف کوچک برای دستورات CMake استانداردتر است
 
+# نسخه عددی برای CMake و نسخه متنی برای استفاده در ++C
 project(VoidOne
     VERSION 0.0.1
     DESCRIPTION "A modern Qt6 C++ game launcher"
@@ -50,7 +51,6 @@ find_package(Qt6 REQUIRED COMPONENTS
 # ============================================================================
 
 set(VOIDONE_SOURCES
-
     src/main.cpp
 
     # Core
@@ -75,7 +75,6 @@ set(VOIDONE_SOURCES
 # ============================================================================
 
 set(VOIDONE_QML_FILES
-
     src/ui/qml/Main.qml
     src/ui/qml/GameCard.qml
     src/ui/qml/Sidebar.qml
@@ -87,7 +86,6 @@ set(VOIDONE_QML_FILES
 # ============================================================================
 
 if(WIN32 AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.ico")
-
     set(VOIDONE_ICON_RESOURCE
         "${CMAKE_CURRENT_BINARY_DIR}/voidone_icon.rc"
     )
@@ -97,44 +95,31 @@ if(WIN32 AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.ico")
         "IDI_ICON1 ICON DISCARDABLE \"${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.ico\"\n"
     )
 
-    list(APPEND
-        VOIDONE_SOURCES
-        "${VOIDONE_ICON_RESOURCE}"
-    )
-
+    list(APPEND VOIDONE_SOURCES "${VOIDONE_ICON_RESOURCE}")
 endif()
 
 # ============================================================================
 # Executable
 # ============================================================================
 
-qt_add_executable(
-    VoidOne
-    ${VOIDONE_SOURCES}
-)
+qt_add_executable(VoidOne ${VOIDONE_SOURCES})
 
 # ============================================================================
 # QML Module
 # ============================================================================
 
-qt_add_qml_module(
-    VoidOne
-
+qt_add_qml_module(VoidOne
     URI VoidOne
     VERSION 1.0
-
-    QML_FILES
-        ${VOIDONE_QML_FILES}
+    QML_FILES ${VOIDONE_QML_FILES}
 )
 
 # ============================================================================
 # Include Directories
 # ============================================================================
 
-target_include_directories(
-    VoidOne
+target_include_directories(VoidOne
     PRIVATE
-
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
 )
@@ -143,11 +128,10 @@ target_include_directories(
 # Compile Definitions
 # ============================================================================
 
-target_compile_definitions(
-    VoidOne
+target_compile_definitions(VoidOne
     PRIVATE
-
         PROJECT_VERSION="${PROJECT_VERSION}"
+        PROJECT_VERSION_DISPLAY="V0.0.1 A" # نسخه نمایشی آلفا برای استفاده در کدها
         PROJECT_NAME="${PROJECT_NAME}"
 )
 
@@ -156,11 +140,8 @@ target_compile_definitions(
 # ============================================================================
 
 if(MSVC)
-
-    target_compile_definitions(
-        VoidOne
+    target_compile_definitions(VoidOne
         PRIVATE
-
             UNICODE
             _UNICODE
             NOMINMAX
@@ -168,36 +149,27 @@ if(MSVC)
             _SILENCE_STDEXT_ARR_IT_DEPRECATION_WARNINGS
     )
 
-    target_compile_options(
-        VoidOne
+    target_compile_options(VoidOne
         PRIVATE
-
             /W4
             /permissive-
             /Zc:__cplusplus
     )
-
 else()
-
-    target_compile_options(
-        VoidOne
+    target_compile_options(VoidOne
         PRIVATE
-
             -Wall
             -Wextra
             -Wpedantic
     )
-
 endif()
 
 # ============================================================================
 # Qt Libraries
 # ============================================================================
 
-target_link_libraries(
-    VoidOne
+target_link_libraries(VoidOne
     PRIVATE
-
         Qt6::Core
         Qt6::Gui
         Qt6::Quick
@@ -208,18 +180,11 @@ target_link_libraries(
 # Target Properties
 # ============================================================================
 
-set_target_properties(
-    VoidOne
+set_target_properties(VoidOne
     PROPERTIES
-
-        OUTPUT_NAME
-            "VoidOne"
-
-        VERSION
-            "${PROJECT_VERSION}"
-
-        DESCRIPTION
-            "${PROJECT_DESCRIPTION}"
+        OUTPUT_NAME "VoidOne"
+        VERSION "${PROJECT_VERSION}"
+        DESCRIPTION "${PROJECT_DESCRIPTION}"
 )
 
 # ============================================================================
@@ -227,30 +192,11 @@ set_target_properties(
 # ============================================================================
 
 if(WIN32)
-
     if(VOIDONE_ENABLE_CONSOLE)
-
-        # Keep console visible.
-        # Useful for qDebug(), std::cout, std::cerr and runtime diagnostics.
-        set_target_properties(
-            VoidOne
-            PROPERTIES
-
-                WIN32_EXECUTABLE FALSE
-        )
-
+        set_target_properties(VoidOne PROPERTIES WIN32_EXECUTABLE FALSE)
     else()
-
-        # Hide console window for normal GUI builds.
-        set_target_properties(
-            VoidOne
-            PROPERTIES
-
-                WIN32_EXECUTABLE TRUE
-        )
-
+        set_target_properties(VoidOne PROPERTIES WIN32_EXECUTABLE TRUE)
     endif()
-
 endif()
 
 # ============================================================================
@@ -259,7 +205,6 @@ endif()
 
 install(
     TARGETS VoidOne
-
     BUNDLE DESTINATION .
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 )
@@ -269,11 +214,8 @@ install(
 # ============================================================================
 
 if(VOIDONE_BUILD_TESTS)
-
     enable_testing()
-
     message(STATUS "VoidOne tests: ENABLED")
-
 endif()
 
 # ============================================================================
@@ -284,7 +226,7 @@ message(STATUS "")
 message(STATUS "============================================")
 message(STATUS "          VoidOne Configuration")
 message(STATUS "============================================")
-message(STATUS "Version:        ${PROJECT_VERSION}")
+message(STATUS "Version:        ${PROJECT_VERSION} (Alpha)")
 message(STATUS "C++ Standard:   C++${CMAKE_CXX_STANDARD}")
 message(STATUS "Compiler:       ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "Compiler Ver:   ${CMAKE_CXX_COMPILER_VERSION}")
