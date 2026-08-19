@@ -2,16 +2,18 @@ name: VoidOne AI Repair
 
 on:
   workflow_run:
-    workflows: ["VoidOne CI/CD"]
-    types: [completed]
+    workflows:
+      - "VoidOne CI/CD"
+    types:
+      - completed
 
   workflow_dispatch:
 
 permissions:
   contents: write
   actions: read
-  pull-requests: write
   checks: read
+  pull-requests: write
 
 concurrency:
   group: voidone-ai-repair
@@ -19,7 +21,6 @@ concurrency:
 
 env:
   GEMINI_MODEL: gemini-3.1-pro-preview
-  MAX_REPAIR_ATTEMPTS: "3"
 
 jobs:
   repair:
@@ -52,17 +53,27 @@ jobs:
       # =====================================================
 
       - name: Setup Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+          cache: "pip"
+
+      # =====================================================
+      # PYTHON DEPENDENCIES
+      # =====================================================
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install requests
+          python -m pip install --no-cache-dir requests
+
+          python - <<'PY'
+          import requests
+          print("requests:", requests.__version__)
+          PY
 
       # =====================================================
-      # COLLECT FAILED CI LOG
+      # COLLECT REAL CI LOG
       # =====================================================
 
       - name: Collect failed CI log
@@ -92,13 +103,20 @@ jobs:
       - name: Create manual diagnostic context
         if: github.event_name == 'workflow_dispatch'
         run: |
-          echo "Manual AI repair run." > ci-failure-tail.log
+          cat > ci-failure-tail.log <<'EOF'
+          Manual AI repair run.
+
+          No GitHub Actions failure log was supplied.
+
+          The agent must inspect the repository and determine
+          whether a safe repair can be identified.
+          EOF
 
       # =====================================================
-      # LINUX BUILD DEPENDENCIES
+      # BUILD DEPENDENCIES
       # =====================================================
 
-      - name: Install build dependencies
+      - name: Install Linux dependencies
         run: |
           sudo apt-get update
 
@@ -126,7 +144,7 @@ jobs:
           cache-key-prefix: voidone-qt
 
       # =====================================================
-      # GIT
+      # GIT IDENTITY
       # =====================================================
 
       - name: Configure Git
@@ -135,7 +153,7 @@ jobs:
           git config user.email "voidone-ai-repair@users.noreply.github.com"
 
       # =====================================================
-      # CREATE ISOLATED BRANCH
+      # ISOLATED REPAIR BRANCH
       # =====================================================
 
       - name: Create repair branch
@@ -146,6 +164,9 @@ jobs:
           git switch -c "$BRANCH"
 
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          echo "Repair branch:"
+          echo "$BRANCH"
 
       # =====================================================
       # GEMINI AI REPAIR
@@ -159,32 +180,34 @@ jobs:
           python scripts/ai_repair.py
 
       # =====================================================
-      # VALIDATE AI CHANGES
+      # VERIFY AI CHANGES
       # =====================================================
 
-      - name: Validate AI changes
+      - name: Verify AI changes
         run: |
+          echo "========================================"
+          echo "AI GENERATED CHANGES"
+          echo "========================================"
+
+          git status --short
+
           if git diff --quiet; then
             echo "AI did not modify the repository."
             exit 1
           fi
 
-          echo "Checking patch..."
+          echo ""
+          echo "Checking whitespace..."
 
           git diff --check
 
           echo ""
-          echo "========================================"
-          echo "AI CHANGES"
-          echo "========================================"
+          echo "Change summary:"
 
           git diff --stat
 
-          echo ""
-          git diff --cached --stat || true
-
       # =====================================================
-      # CMAKE RELEASE CONFIGURATION
+      # RELEASE CONFIGURATION
       # =====================================================
 
       - name: Configure Release
@@ -207,30 +230,50 @@ jobs:
             --parallel
 
       # =====================================================
-      # TESTS
+      # TEST CONFIGURATION
+      # =====================================================
+
+      - name: Configure tests
+        run: |
+          if cmake -S . -B build-ai-tests -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DVOIDONE_BUILD_TESTS=ON; then
+
+            echo "Test configuration succeeded."
+
+          else
+
+            echo "Test configuration failed."
+            exit 1
+
+          fi
+
+      # =====================================================
+      # TEST BUILD
+      # =====================================================
+
+      - name: Build tests
+        run: |
+          cmake \
+            --build build-ai-tests \
+            --parallel
+
+      # =====================================================
+      # RUN TESTS
       # =====================================================
 
       - name: Run tests
         run: |
-          if [ -d "tests" ]; then
-
-            ctest \
-              --test-dir build-ai-repair \
-              --output-on-failure \
-              --parallel 2
-
-          else
-
-            echo "No tests directory found."
-            echo "Skipping explicit test execution."
-
-          fi
+          ctest \
+            --test-dir build-ai-tests \
+            --output-on-failure \
+            --parallel 2
 
       # =====================================================
       # STATIC ANALYSIS
       # =====================================================
 
-      - name: Configure static analysis
+      - name: Configure clang-tidy
         run: |
           cmake \
             -S . \
@@ -246,7 +289,7 @@ jobs:
             --parallel
 
       # =====================================================
-      # SANITIZER BUILD
+      # SANITIZERS
       # =====================================================
 
       - name: Configure sanitizer build
@@ -267,7 +310,7 @@ jobs:
             --parallel
 
       # =====================================================
-      # COMMIT REPAIR
+      # COMMIT
       # =====================================================
 
       - name: Commit repaired code
@@ -275,7 +318,7 @@ jobs:
           git add --all
 
           if git diff --cached --quiet; then
-            echo "No changes were made."
+            echo "No changes are staged."
             exit 1
           fi
 
@@ -284,7 +327,6 @@ jobs:
 
       # =====================================================
       # PUSH REPAIR BRANCH
-      # NEVER PUSH MAIN
       # =====================================================
 
       - name: Push repair branch
@@ -297,7 +339,7 @@ jobs:
             "$BRANCH"
 
       # =====================================================
-      # CREATE DRAFT PULL REQUEST
+      # CREATE DRAFT PR
       # =====================================================
 
       - name: Create Draft Pull Request
@@ -314,69 +356,65 @@ jobs:
             --body "$(cat <<'EOF'
           ## 🤖 VoidOne AI Repair
 
-          This Pull Request was automatically generated by the
-          VoidOne AI Repair Agent.
+          Automatically generated repair for a failed CI run.
 
-          ### AI Model
+          ### Model
 
           Gemini 3.1 Pro Preview
 
-          ### Validation performed
+          ### Validation
 
-          - Real GitHub Actions failure log analyzed
-          - Minimal AI-generated patch
-          - Git diff validation
-          - CMake Release configuration
-          - Release build
-          - Unit tests when available
-          - clang-tidy/static analysis
-          - AddressSanitizer/UndefinedBehaviorSanitizer build
+          - Real CI failure log analyzed
+          - AI-generated minimal patch
+          - Patch safety validation
+          - CMake Release build
+          - Unit tests
+          - clang-tidy build
+          - Sanitizer build
+          - Final GitHub CI
 
           ### Safety
 
-          - No direct push to main
-          - Repair is isolated in a dedicated branch
-          - Human review is required before merging
+          - Never pushes directly to main
+          - Uses an isolated repair branch
+          - Human review is required
+          - AI repair agent and GitHub workflows are protected
 
-          **DO NOT MERGE WITHOUT REVIEW.**
+          **Please review the changes before merging.**
           EOF
           )")
 
-          echo "PR_URL=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
 
           echo ""
-          echo "========================================"
-          echo "DRAFT PR CREATED"
-          echo "========================================"
+          echo "Draft PR:"
           echo "$PR_URL"
 
       # =====================================================
-      # WAIT FOR REAL GITHUB CI
+      # WAIT FOR GITHUB CI
       # =====================================================
 
       - name: Wait for GitHub CI
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_URL: ${{ steps.pr.outputs.PR_URL }}
+          PR_URL: ${{ steps.pr.outputs.url }}
         run: |
           echo "Waiting for GitHub CI..."
 
-          for i in $(seq 1 30); do
+          for attempt in $(seq 1 30); do
 
             echo ""
-            echo "Checking CI..."
-            echo "Attempt $i / 30"
+            echo "========================================"
+            echo "CI CHECK $attempt / 30"
+            echo "========================================"
 
             if gh pr checks "$PR_URL" --watch --fail-fast; then
-
               echo ""
-              echo "========================================"
-              echo "ALL GITHUB CHECKS PASSED"
-              echo "========================================"
-
+              echo "All GitHub checks passed."
               exit 0
-
             fi
+
+            echo "Checks are not green yet."
 
             sleep 30
 
@@ -384,32 +422,29 @@ jobs:
 
           echo ""
           echo "GitHub CI did not become green."
-
           exit 1
 
       # =====================================================
-      # MARK PR READY
+      # READY FOR HUMAN REVIEW
       # =====================================================
 
       - name: Mark PR ready for review
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_URL: ${{ steps.pr.outputs.PR_URL }}
+          PR_URL: ${{ steps.pr.outputs.url }}
         run: |
           gh pr ready "$PR_URL"
 
           echo ""
           echo "========================================"
-          echo "🤖 VOIDONE AI REPAIR SUCCESSFUL"
+          echo "🤖 VOIDONE AI REPAIR PASSED"
           echo "========================================"
           echo ""
-          echo "The repair passed:"
-          echo "  ✓ AI patch validation"
-          echo "  ✓ Release build"
-          echo "  ✓ Tests"
-          echo "  ✓ Static analysis"
-          echo "  ✓ Sanitizer build"
-          echo "  ✓ GitHub CI"
+          echo "Release build       : PASS"
+          echo "Tests                : PASS"
+          echo "Static analysis      : PASS"
+          echo "Sanitizer build      : PASS"
+          echo "GitHub CI            : PASS"
           echo ""
           echo "PR is ready for human review."
