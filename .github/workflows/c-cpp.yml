@@ -65,32 +65,57 @@ jobs:
   # ----------------------------------------------------------
   static-analysis:
     name: CodeQL & Static Analysis
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    runs-on: windows-2025
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - name: 1. Checkout Source Code
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
-      - name: Initialize CodeQL
+      - name: 2. Setup MSVC x64 Environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: 3. Install Enterprise Qt Framework
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+          cache-key-prefix: voidone-qt-v1
+
+      - name: 4. Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: cpp
+          build-mode: manual
 
-      - name: Autobuild (CodeQL)
-        uses: github/codeql-action/autobuild@v3
+      - name: 5. Configure & Build (traced by CodeQL)
+        shell: pwsh
+        run: |
+          mkdir build -ErrorAction SilentlyContinue
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release --parallel
 
-      - name: Run CodeQL Analysis
+      - name: 6. Run CodeQL Analysis
         uses: github/codeql-action/analyze@v3
 
-      - name: Install cppcheck
-        run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - name: 7. Install cppcheck
+        shell: pwsh
+        run: choco install cppcheck -y --no-progress
 
-      - name: Run cppcheck
+      - name: 8. Run cppcheck
+        shell: pwsh
         run: |
-          cppcheck --enable=warning,performance,portability \
-            --error-exitcode=0 \
-            --xml --xml-version=2 src/ 2> cppcheck-report.xml || true
+          cppcheck --enable=warning,performance,portability `
+            --error-exitcode=0 `
+            --xml --xml-version=2 src/ 2> cppcheck-report.xml
+          exit 0
 
-      - name: Upload cppcheck report
+      - name: 9. Upload cppcheck report
         uses: actions/upload-artifact@v4
         with:
           name: cppcheck-report
