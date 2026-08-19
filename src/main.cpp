@@ -27,12 +27,15 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationName("VoidOne-App");
     QCoreApplication::setOrganizationDomain("voidone.app");
     QCoreApplication::setApplicationName("VoidOne"); 
-    QCoreApplication::setApplicationVersion("2.0");
+    
+    // تنظیم نسخه به حالت آلفا (V0.0.1 A)
+    QCoreApplication::setApplicationVersion("V0.0.1 A"); 
 
     QGuiApplication app(argc, argv);
 
+    // لاگ‌های ترمینالی خفن برای دیباگ
     qDebug() << "\n[VoidOne] =========================================";
-    qDebug() << "[VoidOne] Boot sequence initiated...";
+    qDebug() << "[VoidOne] Boot sequence initiated... Version:" << QCoreApplication::applicationVersion();
 
     // ۲. راه‌اندازی دیتابیس در خط مقدم (اگر بالا نیاد، برنامه کرش مدیریت‌شده میده)
     if (!Database::initialize()) {
