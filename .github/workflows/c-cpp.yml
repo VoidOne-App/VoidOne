@@ -1,4 +1,4 @@
-name: VoidOne Ultimate CI/CD
+name: VoidOne CI/CD
 
 on:
   push:
