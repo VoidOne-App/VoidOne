@@ -1,6 +1,6 @@
 /****************************************************************************
 ** 
-**  V O I D O N E   E N G I N E (NeonLauncher)
+**  V O I D O N E   E N G I N E
 **  High-Performance QML & C++ Core
 ** 
 **  Copyright (C) 2026 VoidOne-App
@@ -23,10 +23,10 @@
 
 int main(int argc, char *argv[])
 {
-    // ۱. تنظیمات پایه‌ای اپلیکیشن (استاندارد Qt برای ذخیره بهتر فایل‌ها و تنظیمات)
+    // ۱. تنظیمات پایه‌ای اپلیکیشن (یکپارچه با برند VoidOne)
     QCoreApplication::setOrganizationName("VoidOne-App");
     QCoreApplication::setOrganizationDomain("voidone.app");
-    QCoreApplication::setApplicationName("NeonLauncher");
+    QCoreApplication::setApplicationName("VoidOne"); 
     QCoreApplication::setApplicationVersion("2.0");
 
     QGuiApplication app(argc, argv);
