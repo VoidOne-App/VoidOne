@@ -7,24 +7,32 @@ on:
   workflow_dispatch:
     inputs:
       failed_run_id:
-        description: "Target Failed Workflow Run ID"
-        required: true
+        description: "Target Failed Workflow Run ID (Leave empty to test current commit)"
+        required: false
         type: string
 
 jobs:
   ai-repair:
     name: Execute AI Repair Loop
-    if: >
-      (github.event_name == 'workflow_dispatch') ||
-      (github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_branch == 'main')
+    # این شرط اصلاح شده تا در اجرای دستی اسکیپ نشود
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
 
     steps:
       - name: Resolve Target Commit SHA
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            RUN_ID="${{ inputs.failed_run_id }}"
-            HEAD_SHA=$(gh run view "$RUN_ID" --json headSha --jq '.headSha')
+            if [ -n "${{ inputs.failed_run_id }}" ]; then
+              RUN_ID="${{ inputs.failed_run_id }}"
+              HEAD_SHA=$(gh run view "$RUN_ID" --json headSha --jq '.headSha')
+            else
+              RUN_ID="${{ github.run_id }}"
+              HEAD_SHA="${{ github.sha }}"
+            fi
           else
             RUN_ID="${{ github.event.workflow_run.id }}"
             HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
