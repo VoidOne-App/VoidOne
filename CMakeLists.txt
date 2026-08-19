@@ -1,16 +1,14 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(VoidOne
-VERSION 0.0.1
-DESCRIPTION "A modern Qt6 C++ game launcher"
-LANGUAGES CXX
+    VERSION 0.0.1
+    DESCRIPTION "A modern Qt6 C++ game launcher"
+    LANGUAGES CXX
 )
 
-============================================================================
-
-Project Configuration
-
-============================================================================
+# ============================================================================
+# Project Configuration
+# ============================================================================
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,273 +20,279 @@ set(CMAKE_AUTOUIC ON)
 
 include(GNUInstallDirs)
 
-============================================================================
+# ============================================================================
+# Build Options
+# ============================================================================
 
-Qt
+option(VOIDONE_BUILD_TESTS
+    "Build VoidOne tests"
+    OFF
+)
 
-============================================================================
+option(VOIDONE_ENABLE_CONSOLE
+    "Keep the console window enabled on Windows"
+    ON
+)
+
+# ============================================================================
+# Qt
+# ============================================================================
 
 find_package(Qt6 REQUIRED COMPONENTS
-Core
-Gui
-Quick
-Sql
+    Core
+    Gui
+    Quick
+    Sql
 )
 
-============================================================================
+# ============================================================================
+# Source Files
+# ============================================================================
 
-Source Files
+set(VOIDONE_SOURCES
 
-============================================================================
+    src/main.cpp
 
-set(PROJECT_SOURCES
+    # Core
+    src/core/Database.cpp
+    src/core/Database.h
 
-src/main.cpp
+    src/core/SteamScanner.cpp
+    src/core/SteamScanner.h
 
-# Core
-src/core/Database.cpp
-src/core/Database.h
+    src/core/GameModel.cpp
+    src/core/GameModel.h
 
-src/core/SteamScanner.cpp
-src/core/SteamScanner.h
+    src/core/TranslationManager.cpp
+    src/core/TranslationManager.h
 
-src/core/GameModel.cpp
-src/core/GameModel.h
-
-src/core/TranslationManager.cpp
-src/core/TranslationManager.h
-
-src/core/SaveBackupManager.cpp
-src/core/SaveBackupManager.h
-
+    src/core/SaveBackupManager.cpp
+    src/core/SaveBackupManager.h
 )
 
-============================================================================
+# ============================================================================
+# QML Files
+# ============================================================================
 
-QML Files
+set(VOIDONE_QML_FILES
 
-============================================================================
-
-set(QML_FILES
-
-src/ui/qml/Main.qml
-src/ui/qml/GameCard.qml
-src/ui/qml/Sidebar.qml
-src/ui/qml/SaveBackupView.qml
-
+    src/ui/qml/Main.qml
+    src/ui/qml/GameCard.qml
+    src/ui/qml/Sidebar.qml
+    src/ui/qml/SaveBackupView.qml
 )
 
-============================================================================
-
-Windows Application Icon
-
-============================================================================
+# ============================================================================
+# Windows Application Icon
+# ============================================================================
 
 if(WIN32 AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.ico")
 
-set(APP_ICON_RESOURCE
-    "${CMAKE_CURRENT_BINARY_DIR}/voidone_icon.rc"
-)
+    set(VOIDONE_ICON_RESOURCE
+        "${CMAKE_CURRENT_BINARY_DIR}/voidone_icon.rc"
+    )
 
-file(WRITE
-    "${APP_ICON_RESOURCE}"
-    "IDI_ICON1 ICON DISCARDABLE \"${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.ico\"\n"
-)
+    file(WRITE
+        "${VOIDONE_ICON_RESOURCE}"
+        "IDI_ICON1 ICON DISCARDABLE \"${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.ico\"\n"
+    )
 
-list(APPEND
-    PROJECT_SOURCES
-    "${APP_ICON_RESOURCE}"
-)
+    list(APPEND
+        VOIDONE_SOURCES
+        "${VOIDONE_ICON_RESOURCE}"
+    )
 
 endif()
 
-============================================================================
-
-Executable
-
-============================================================================
+# ============================================================================
+# Executable
+# ============================================================================
 
 qt_add_executable(
-VoidOne
-${PROJECT_SOURCES}
+    VoidOne
+    ${VOIDONE_SOURCES}
 )
 
-============================================================================
-
-QML Module
-
-============================================================================
+# ============================================================================
+# QML Module
+# ============================================================================
 
 qt_add_qml_module(
-VoidOne
+    VoidOne
 
-URI VoidOne
+    URI VoidOne
+    VERSION 1.0
 
-VERSION 1.0
-
-QML_FILES
-    ${QML_FILES}
-
+    QML_FILES
+        ${VOIDONE_QML_FILES}
 )
 
-============================================================================
-
-Include Directories
-
-============================================================================
+# ============================================================================
+# Include Directories
+# ============================================================================
 
 target_include_directories(
-VoidOne
-PRIVATE
+    VoidOne
+    PRIVATE
 
-    "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
-
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
 )
 
-============================================================================
-
-Compile Definitions
-
-============================================================================
+# ============================================================================
+# Compile Definitions
+# ============================================================================
 
 target_compile_definitions(
-VoidOne
-PRIVATE
+    VoidOne
+    PRIVATE
 
-    PROJECT_VERSION="${PROJECT_VERSION}"
-    PROJECT_NAME="${PROJECT_NAME}"
-
+        PROJECT_VERSION="${PROJECT_VERSION}"
+        PROJECT_NAME="${PROJECT_NAME}"
 )
 
-============================================================================
-
-Compiler Warnings
-
-============================================================================
+# ============================================================================
+# Compiler Warnings
+# ============================================================================
 
 if(MSVC)
 
-target_compile_definitions(
-    VoidOne
-    PRIVATE
+    target_compile_definitions(
+        VoidOne
+        PRIVATE
 
-        UNICODE
-        _UNICODE
-        NOMINMAX
-        WIN32_LEAN_AND_MEAN
-        _SILENCE_STDEXT_ARR_IT_DEPRECATION_WARNINGS
-)
+            UNICODE
+            _UNICODE
+            NOMINMAX
+            WIN32_LEAN_AND_MEAN
+            _SILENCE_STDEXT_ARR_IT_DEPRECATION_WARNINGS
+    )
 
-target_compile_options(
-    VoidOne
-    PRIVATE
+    target_compile_options(
+        VoidOne
+        PRIVATE
 
-        /W4
-        /permissive-
-        /Zc:__cplusplus
-)
+            /W4
+            /permissive-
+            /Zc:__cplusplus
+    )
 
 else()
 
-target_compile_options(
-    VoidOne
-    PRIVATE
+    target_compile_options(
+        VoidOne
+        PRIVATE
 
-        -Wall
-        -Wextra
-        -Wpedantic
-)
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
 
 endif()
 
-============================================================================
-
-Qt Libraries
-
-============================================================================
+# ============================================================================
+# Qt Libraries
+# ============================================================================
 
 target_link_libraries(
-VoidOne
-PRIVATE
+    VoidOne
+    PRIVATE
 
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Quick
-    Qt6::Sql
-
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Quick
+        Qt6::Sql
 )
 
-============================================================================
-
-Target Properties
-
-============================================================================
-
-set_target_properties(
-VoidOne
-PROPERTIES
-
-    OUTPUT_NAME
-        "VoidOne"
-
-    VERSION
-        "${PROJECT_VERSION}"
-
-    DESCRIPTION
-        "${PROJECT_DESCRIPTION}"
-
-)
-
-============================================================================
-
-Windows Application
-
-============================================================================
-
-if(WIN32)
+# ============================================================================
+# Target Properties
+# ============================================================================
 
 set_target_properties(
     VoidOne
     PROPERTIES
 
-        WIN32_EXECUTABLE
-            $<IF:$<CONFIG:Release>,TRUE,FALSE>
+        OUTPUT_NAME
+            "VoidOne"
+
+        VERSION
+            "${PROJECT_VERSION}"
+
+        DESCRIPTION
+            "${PROJECT_DESCRIPTION}"
 )
+
+# ============================================================================
+# Windows Application
+# ============================================================================
+
+if(WIN32)
+
+    if(VOIDONE_ENABLE_CONSOLE)
+
+        # Keep console visible.
+        # Useful for qDebug(), std::cout, std::cerr and runtime diagnostics.
+        set_target_properties(
+            VoidOne
+            PROPERTIES
+
+                WIN32_EXECUTABLE FALSE
+        )
+
+    else()
+
+        # Hide console window for normal GUI builds.
+        set_target_properties(
+            VoidOne
+            PROPERTIES
+
+                WIN32_EXECUTABLE TRUE
+        )
+
+    endif()
 
 endif()
 
-============================================================================
-
-Installation
-
-============================================================================
+# ============================================================================
+# Installation
+# ============================================================================
 
 install(
-TARGETS VoidOne
+    TARGETS VoidOne
 
-BUNDLE DESTINATION .
-RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR"
-
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 )
 
-============================================================================
+# ============================================================================
+# Tests
+# ============================================================================
 
-Configuration Summary
+if(VOIDONE_BUILD_TESTS)
 
-============================================================================
+    enable_testing()
+
+    message(STATUS "VoidOne tests: ENABLED")
+
+endif()
+
+# ============================================================================
+# Configuration Summary
+# ============================================================================
 
 message(STATUS "")
 message(STATUS "============================================")
 message(STATUS "          VoidOne Configuration")
 message(STATUS "============================================")
-message(STATUS "Version:       ${PROJECT_VERSION}")
-message(STATUS "C++ Standard:  C++${CMAKE_CXX_STANDARD}")
-message(STATUS "Compiler:      ${CMAKE_CXX_COMPILER_ID}")
-message(STATUS "Compiler Ver:  ${CMAKE_CXX_COMPILER_VERSION}")
-message(STATUS "Qt Version:    ${Qt6_VERSION}")
-message(STATUS "System:        ${CMAKE_SYSTEM_NAME}")
-message(STATUS "Generator:     ${CMAKE_GENERATOR}")
+message(STATUS "Version:        ${PROJECT_VERSION}")
+message(STATUS "C++ Standard:   C++${CMAKE_CXX_STANDARD}")
+message(STATUS "Compiler:       ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "Compiler Ver:   ${CMAKE_CXX_COMPILER_VERSION}")
+message(STATUS "Qt Version:     ${Qt6_VERSION}")
+message(STATUS "System:         ${CMAKE_SYSTEM_NAME}")
+message(STATUS "Generator:      ${CMAKE_GENERATOR}")
+message(STATUS "Console:        ${VOIDONE_ENABLE_CONSOLE}")
+message(STATUS "Tests:          ${VOIDONE_BUILD_TESTS}")
 message(STATUS "============================================")
 message(STATUS "VoidOne configuration complete.")
 message(STATUS "")
