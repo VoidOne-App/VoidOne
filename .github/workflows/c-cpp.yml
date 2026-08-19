@@ -170,7 +170,7 @@ jobs:
 
           windeployqt `
             --release `
-            --qmldir "$env:GITHUB_WORKSPACE\src\ui\qml" `
+            --qmldir "$env:GITHUB_WORKSPACE\src" `
             $exe.FullName
 
       # --------------------------------------------------------
@@ -236,13 +236,14 @@ jobs:
         shell: pwsh
         run: |
           $exe = Resolve-Path "package\VoidOne.exe"
+          $pkgDir = Split-Path $exe -Parent
 
           Write-Host "Starting VoidOne in offscreen mode..."
 
-          $env:QT_QPA_PLATFORM = "offscreen"
-          
           $process = Start-Process `
             -FilePath $exe `
+            -ArgumentList "-platform", "offscreen" `
+            -WorkingDirectory $pkgDir `
             -PassThru `
             -WindowStyle Hidden
 
