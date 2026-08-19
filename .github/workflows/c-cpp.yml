@@ -1,244 +1,239 @@
-name: VoidOne CI/CD
+name: VoidOne Enterprise CI/CD
 
 on:
   push:
     branches:
       - main
+      - release/*
     tags:
       - "v*"
-
   pull_request:
     branches:
       - main
-
   workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: "Skip test suite (emergency builds only)"
+        type: boolean
+        default: false
 
 # ============================================================
-# Global settings
+# Global Security & Environment Settings
 # ============================================================
 
 permissions:
-  contents: read
+  contents: write
+  actions: read
+  security-events: write
+  id-token: write        # required for keyless cosign signing
+  attestations: write     # required for build provenance
 
 concurrency:
-  group: voidone-${{ github.workflow }}-${{ github.ref }}
+  group: voidone-prod-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CMAKE_BUILD_TYPE: Release
+  CL_FLAGS: "/MP /W4 /NXCOMPAT /DYNAMICBASE /GUARD:CF"
+  QT_VERSION: "6.8.*"
+
 # ============================================================
-# Jobs
+# Jobs Pipeline
 # ============================================================
 
 jobs:
 
-  # ==========================================================
-  # Windows Release
-  # ==========================================================
+  # ----------------------------------------------------------
+  # Job 0: Semantic Version Gate (tags only)
+  # ----------------------------------------------------------
+  validate-version:
+    name: Validate Release Tag
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Enforce SemVer format
+        run: |
+          TAG="${{ github.ref_name }}"
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+            echo "::error::Tag '$TAG' does not follow SemVer (vX.Y.Z or vX.Y.Z-rc.N)"
+            exit 1
+          fi
+          echo "Tag $TAG is valid SemVer."
 
-  windows-release:
-    name: Windows x64 • Release
+  # ----------------------------------------------------------
+  # Job 1: Static Analysis & Security Scanning
+  # ----------------------------------------------------------
+  static-analysis:
+    name: CodeQL & Static Analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: cpp
+
+      - name: Autobuild (CodeQL)
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+
+      - name: Run cppcheck
+        run: |
+          cppcheck --enable=warning,performance,portability \
+            --error-exitcode=0 \
+            --xml --xml-version=2 src/ 2> cppcheck-report.xml || true
+
+      - name: Upload cppcheck report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cppcheck-report
+          path: cppcheck-report.xml
+          retention-days: 14
+
+  # ----------------------------------------------------------
+  # Job 2: Build, Hardening, Package & Test (Windows x64)
+  # ----------------------------------------------------------
+  build-windows:
+    name: Build & Package • Windows x64 (MSVC)
+    needs: [static-analysis]
+    if: always() && (needs.static-analysis.result == 'success' || needs.static-analysis.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [Release]
     runs-on: windows-2025
-    timeout-minutes: 35
+    timeout-minutes: 40
+    outputs:
+      build-version: ${{ steps.version.outputs.value }}
 
     steps:
 
-      - name: Checkout
+      - name: 1. Checkout Source Code
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
-      # --------------------------------------------------------
-      # Python
-      # --------------------------------------------------------
+      - name: 2. Resolve Build Version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $ver = "${{ github.ref_name }}" -replace '^v',''
+          } else {
+            $ver = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
+          }
+          echo "value=$ver" >> $env:GITHUB_OUTPUT
 
-      - name: Setup Python
+      - name: 3. Setup Build Caching (ccache)
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: voidone-msvc-${{ matrix.config }}-${{ github.sha }}
+          restore-keys: |
+            voidone-msvc-${{ matrix.config }}-
+          variant: ccache
+          max-size: 500M
+
+      - name: 4. Setup Python Engine
         uses: actions/setup-python@v7
         with:
           python-version: "3.13"
-          check-latest: true
 
-      - name: Verify Python
-        shell: pwsh
-        run: |
-          python --version
-          python -c "import sys; print(sys.executable)"
-          python -m pip --version
-
-      # --------------------------------------------------------
-      # MSVC
-      # --------------------------------------------------------
-
-      - name: Setup MSVC
+      - name: 5. Setup MSVC x64 Environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
-      - name: Verify MSVC
-        shell: pwsh
-        run: |
-          Write-Host "MSVC environment:"
-          cl
-
-      # --------------------------------------------------------
-      # Qt
-      # --------------------------------------------------------
-
-      - name: Install Qt
+      - name: 6. Install Enterprise Qt Framework
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.8.*"
+          version: ${{ env.QT_VERSION }}
           target: desktop
           arch: win64_msvc2022_64
           cache: true
-          cache-key-prefix: voidone-qt
+          cache-key-prefix: voidone-qt-v1
           setup-python: false
 
-      - name: Verify Qt
+      - name: 7. Configure Project via CMake
         shell: pwsh
         run: |
-          Write-Host "Qt6_DIR:"
-          Write-Host $env:Qt6_DIR
-
-          Write-Host ""
-          Write-Host "Qt version:"
-          qmake --version
-
-      # --------------------------------------------------------
-      # Configure
-      # --------------------------------------------------------
-
-      - name: Configure
-        shell: pwsh
-        run: |
+          mkdir build -ErrorAction SilentlyContinue
           cmake `
             -S . `
             -B build `
             -G Ninja `
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=${{ matrix.config }} `
+            -DPROJECT_VERSION="${{ steps.version.outputs.value }}" `
+            -DBUILD_TESTING=ON `
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
+            -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
 
-      # --------------------------------------------------------
-      # Build
-      # --------------------------------------------------------
-
-      - name: Build Release
+      - name: 8. Compile Binaries
         shell: pwsh
         run: |
-          cmake `
-            --build build `
-            --parallel
+          cmake --build build --config ${{ matrix.config }} --parallel
 
-      # --------------------------------------------------------
-      # Locate executable
-      # --------------------------------------------------------
-
-      - name: Locate executable
+      - name: 9. Run Unit Test Suite (CTest)
+        if: ${{ !inputs.skip_tests }}
         shell: pwsh
         run: |
-          $exe = Get-ChildItem `
-            -Path build `
-            -Filter VoidOne.exe `
-            -Recurse `
-            -ErrorAction SilentlyContinue `
-            | Select-Object -First 1
+          ctest --test-dir build -C ${{ matrix.config }} --output-on-failure --timeout 120
 
+      - name: 10. Verify Primary Executable Build
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path build -Filter VoidOne.exe -Recurse | Select-Object -First 1
           if (-not $exe) {
-            Write-Error "VoidOne.exe was not found."
+            Write-Error "CRITICAL: Build process failed to produce VoidOne.exe binaries."
             exit 1
           }
+          Write-Host "Target compiled successfully: $($exe.FullName)"
 
-          Write-Host ""
-          Write-Host "Executable found:"
-          Write-Host $exe.FullName
-
-      # --------------------------------------------------------
-      # Deploy Qt
-      # --------------------------------------------------------
-
-      - name: Deploy Qt
+      - name: 11. Prepare Clean Staging Environment
         shell: pwsh
         run: |
-          $exe = Get-ChildItem `
-            -Path build `
-            -Filter VoidOne.exe `
-            -Recurse `
-            -ErrorAction SilentlyContinue `
-            | Select-Object -First 1
+          Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path package | Out-Null
 
-          if (-not $exe) {
-            Write-Error "Release executable not found."
-            exit 1
-          }
+          $exe = Get-ChildItem -Path build -Filter VoidOne.exe -Recurse | Select-Object -First 1
+          Copy-Item -Path $exe.FullName -Destination package\VoidOne.exe -Force
 
-          Write-Host "Deploying Qt dependencies..."
-
+      - name: 12. Deploy Qt Dependencies & QML Engine
+        shell: pwsh
+        run: |
           windeployqt `
             --release `
+            --compiler-runtime `
+            --no-translations `
             --qmldir "$env:GITHUB_WORKSPACE\src" `
-            $exe.FullName
+            package\VoidOne.exe
 
-      # --------------------------------------------------------
-      # Prepare package
-      # --------------------------------------------------------
-
-      - name: Prepare package
+      - name: 13. Integrity Check Platform Plugins
         shell: pwsh
         run: |
-          $exe = Get-ChildItem `
-            -Path build `
-            -Filter VoidOne.exe `
-            -Recurse `
-            -ErrorAction SilentlyContinue `
-            | Select-Object -First 1
-
-          if (-not $exe) {
-            Write-Error "Release executable not found."
+          $qwin = "package\platforms\qwindows.dll"
+          if (-not (Test-Path $qwin)) {
+            Write-Error "CRITICAL INTEGRITY FAILURE: Qt Platform plugin 'qwindows.dll' is missing!"
             exit 1
           }
+          Write-Host "Validation Passed: qwindows.dll core interface confirmed."
 
-          Remove-Item `
-            -Path package `
-            -Recurse `
-            -Force `
-            -ErrorAction SilentlyContinue
-
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path package `
-            | Out-Null
-
-          Copy-Item `
-            -Path (Join-Path $exe.Directory.FullName "*") `
-            -Destination package `
-            -Recurse `
-            -Force
-
-      # --------------------------------------------------------
-      # Verify package
-      # --------------------------------------------------------
-
-      - name: Verify package
-        shell: pwsh
-        run: |
-          $exe = "package\VoidOne.exe"
-
-          if (-not (Test-Path $exe)) {
-            Write-Error "Packaged VoidOne.exe is missing."
-            exit 1
-          }
-
-          Write-Host ""
-          Write-Host "Package contents:"
-          Get-ChildItem package -Recurse
-
-      # --------------------------------------------------------
-      # Smoke test
-      # --------------------------------------------------------
-
-      - name: Smoke test
+      - name: 14. Enterprise Smoke Test & Runtime Verification
         shell: pwsh
         run: |
           $exe = Resolve-Path "package\VoidOne.exe"
           $pkgDir = Split-Path $exe -Parent
 
-          Write-Host "Starting VoidOne in offscreen mode..."
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $env:QT_DEBUG_PLUGINS = "1"
+          $env:QML_IMPORT_TRACE = "1"
 
           $process = Start-Process `
             -FilePath $exe `
@@ -247,93 +242,144 @@ jobs:
             -PassThru `
             -WindowStyle Hidden
 
-          Start-Sleep -Seconds 5
+          Start-Sleep -Seconds 7
 
           if ($process.HasExited) {
-            Write-Error "VoidOne exited immediately with code $($process.ExitCode)."
+            Write-Error "CRITICAL EXECUTION FAILURE: Application crashed on boot with exit code $($process.ExitCode)."
             exit 1
           }
 
-          Write-Host "VoidOne started successfully."
+          Write-Host "Application boot cycle validated successfully."
+          Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
 
-          Stop-Process `
-            -Id $process.Id `
-            -Force `
-            -ErrorAction SilentlyContinue
+      - name: 15. Generate Software Bill of Materials (SBOM)
+        uses: anchore/sbom-action@v0
+        with:
+          path: package
+          format: spdx-json
+          output-file: VoidOne-SBOM.spdx.json
 
-      # --------------------------------------------------------
-      # ZIP
-      # --------------------------------------------------------
-
-      - name: Create ZIP
+      - name: 16. Generate Portable Archive (ZIP)
         shell: pwsh
         run: |
           Compress-Archive `
             -Path package\* `
-            -DestinationPath VoidOne-Windows-x64.zip `
+            -DestinationPath VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip `
             -CompressionLevel Optimal
 
-      # --------------------------------------------------------
-      # SHA256
-      # --------------------------------------------------------
-
-      - name: Generate checksum
+      - name: 17. Generate Checksums (SHA256)
         shell: pwsh
         run: |
-          (Get-FileHash `
-            VoidOne-Windows-x64.zip `
-            -Algorithm SHA256).Hash `
-            | Out-File `
-              VoidOne-Windows-x64.zip.sha256 `
-              -Encoding ascii
+          $file = "VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip"
+          $hash = (Get-FileHash $file -Algorithm SHA256).Hash
+          "$hash  $file" | Out-File "$file.sha256" -Encoding ascii
 
-      # --------------------------------------------------------
-      # Artifact
-      # --------------------------------------------------------
+      - name: 18. Generate Build Provenance Attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip"
 
-      - name: Upload artifact
+      - name: 19. Upload Enterprise Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: VoidOne-Windows-x64
+          name: VoidOne-Windows-x64-Enterprise
           path: |
-            VoidOne-Windows-x64.zip
-            VoidOne-Windows-x64.zip.sha256
+            VoidOne-Windows-x64-Portable-*.zip
+            VoidOne-Windows-x64-Portable-*.zip.sha256
+            VoidOne-SBOM.spdx.json
           retention-days: 30
+          if-no-files-found: error
 
-
-  # ==========================================================
-  # GitHub Release
-  # ==========================================================
-
-  release:
-    name: GitHub Release
-
-    needs:
-      - windows-release
-
+  # ----------------------------------------------------------
+  # Job 3: Sign Artifacts (Keyless, Sigstore/Cosign)
+  # ----------------------------------------------------------
+  sign-artifacts:
+    name: Sign Release Artifacts
+    needs: build-windows
     if: startsWith(github.ref, 'refs/tags/v')
-
     runs-on: ubuntu-24.04
-
-    permissions:
-      contents: write
-
     steps:
-
-      - name: Download artifacts
+      - name: Download Build Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          name: VoidOne-Windows-x64-Enterprise
+          path: release-files
 
-      - name: Display artifacts
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign zip artifact (keyless OIDC)
         run: |
-          echo "VoidOne release artifacts:"
-          find artifacts -type f -print
+          cosign sign-blob --yes \
+            --output-signature release-files/VoidOne-Windows-x64-Portable.sig \
+            --output-certificate release-files/VoidOne-Windows-x64-Portable.pem \
+            release-files/VoidOne-Windows-x64-Portable-*.zip
 
-      - name: Create Release
+      - name: Upload Signed Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoidOne-Windows-x64-Signed
+          path: release-files/*
+          retention-days: 30
+
+  # ----------------------------------------------------------
+  # Job 4: Production Release Deployment
+  # ----------------------------------------------------------
+  publish-release:
+    name: Production Release Deployment
+    needs: [validate-version, build-windows, sign-artifacts]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment:
+      name: production
+    permissions:
+      contents: write
+    steps:
+
+      - name: 1. Download Signed Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: VoidOne-Windows-x64-Signed
+          path: release-files
+
+      - name: 2. Determine Release Channel
+        id: channel
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [[ "$TAG" =~ (alpha|beta|rc) ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 3. Publish Official GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: "VoidOne Release ${{ github.ref_name }}"
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          draft: false
+          prerelease: ${{ steps.channel.outputs.prerelease }}
           files: |
-            artifacts/VoidOne-Windows-x64/*
+            release-files/*
+
+      - name: 4. Notify Discord on Success
+        if: success()
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$WEBHOOK" ]; then
+            curl -sf -H "Content-Type: application/json" -d '{
+              "content": "🚀 **VoidOne ${{ github.ref_name }}** just shipped. Signed, scanned, and released."
+            }' "$WEBHOOK"
+          fi
+
+      - name: 5. Notify Discord on Failure
+        if: failure()
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$WEBHOOK" ]; then
+            curl -sf -H "Content-Type: application/json" -d '{
+              "content": "❌ **VoidOne ${{ github.ref_name }}** release pipeline failed. Check the Actions log."
+            }' "$WEBHOOK"
+          fi
