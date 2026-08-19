@@ -1,653 +1,633 @@
 name: VoidOne CI/CD
 
 on:
-push:
-branches:
-- main
-tags:
-- "v*"
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
 
-pull_request:
-branches:
-- main
+  pull_request:
+    branches:
+      - main
 
-workflow_dispatch:
+  workflow_dispatch:
 
-============================================================
-
-Global settings
-
-============================================================
+# ============================================================
+# Global settings
+# ============================================================
 
 permissions:
-contents: read
+  contents: read
 
 concurrency:
-group: voidone-${{ github.workflow }}-${{ github.ref }}
-cancel-in-progress: true
+  group: voidone-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-============================================================
-
-Jobs
-
-============================================================
+# ============================================================
+# Jobs
+# ============================================================
 
 jobs:
 
-==========================================================
-
-Linux Release
-
-==========================================================
-
-linux-release:
-name: Linux x64 • Release
-runs-on: ubuntu-24.04
-timeout-minutes: 30
-
-steps:
-
-  - name: Checkout
-    uses: actions/checkout@v5
-
-  - name: Install system dependencies
-    run: |
-      sudo apt-get update
-
-      sudo apt-get install -y \
-        build-essential \
-        ninja-build \
-        ccache \
-        libgl1-mesa-dev \
-        libpulse-dev \
-        libxkbcommon-dev
-
-  - name: Install Qt
-    uses: jurplel/install-qt-action@v4
-    with:
-      version: "6.8.*"
-      target: desktop
-      arch: linux_gcc_64
-      cache: true
-      cache-key-prefix: voidone-qt
-
-  - name: Configure
-    run: |
-      cmake \
-        -S . \
-        -B build \
-        -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-
-  - name: Build
-    run: |
-      cmake \
-        --build build \
-        --parallel
-
-  - name: Install
-    run: |
-      rm -rf package
-
-      cmake \
-        --install build \
-        --prefix package
-
-  - name: Verify executable
-    run: |
-      test -f package/bin/VoidOne
-
-      file package/bin/VoidOne
-
-  - name: Package
-    run: |
-      mkdir -p dist
-
-      tar \
-        -C package \
-        -czf dist/VoidOne-Linux-x64.tar.gz \
-        .
-
-  - name: Generate checksum
-    run: |
-      sha256sum \
-        dist/VoidOne-Linux-x64.tar.gz \
-        > dist/VoidOne-Linux-x64.tar.gz.sha256
-
-  - name: Upload artifact
-    uses: actions/upload-artifact@v4
-    with:
-      name: VoidOne-Linux-x64
-      path: |
-        dist/VoidOne-Linux-x64.tar.gz
-        dist/VoidOne-Linux-x64.tar.gz.sha256
-      retention-days: 30
-
-==========================================================
-
-Windows Release
-
-==========================================================
-
-windows-release:
-name: Windows x64 • Release
-runs-on: windows-2025
-timeout-minutes: 35
-
-steps:
-
-  - name: Checkout
-    uses: actions/checkout@v5
-
-  # --------------------------------------------------------
-  # Python
-  # --------------------------------------------------------
-
-  - name: Setup Python
-    uses: actions/setup-python@v7
-    with:
-      python-version: "3.13"
-      check-latest: true
-
-  - name: Verify Python
-    shell: pwsh
-    run: |
-      python --version
-      python -c "import sys; print(sys.executable)"
-      python -m pip --version
-
-  # --------------------------------------------------------
-  # MSVC
-  # --------------------------------------------------------
-
-  - name: Setup MSVC
-    uses: ilammy/msvc-dev-cmd@v1
-    with:
-      arch: x64
-
-  - name: Verify MSVC
-    shell: pwsh
-    run: |
-      Write-Host "MSVC environment:"
-      cl
-
-  # --------------------------------------------------------
-  # Qt
-  # --------------------------------------------------------
-
-  - name: Install Qt
-    uses: jurplel/install-qt-action@v4
-    with:
-      version: "6.8.*"
-      target: desktop
-      arch: win64_msvc2022_64
-      cache: true
-      cache-key-prefix: voidone-qt
-      setup-python: false
-
-  - name: Verify Qt
-    shell: pwsh
-    run: |
-      Write-Host "Qt6_DIR:"
-      Write-Host $env:Qt6_DIR
-
-      Write-Host ""
-      Write-Host "Qt version:"
-      qmake --version
-
-  # --------------------------------------------------------
-  # Configure
-  # --------------------------------------------------------
-
-  - name: Configure
-    shell: pwsh
-    run: |
-      cmake `
-        -S . `
-        -B build `
-        -G Ninja `
-        -DCMAKE_BUILD_TYPE=Release
-
-  # --------------------------------------------------------
-  # Build
-  # --------------------------------------------------------
-
-  - name: Build Release
-    shell: pwsh
-    run: |
-      cmake `
-        --build build `
-        --parallel
-
-  # --------------------------------------------------------
-  # Locate executable
-  # --------------------------------------------------------
-
-  - name: Locate executable
-    shell: pwsh
-    run: |
-      $exe = Get-ChildItem `
-        -Path build `
-        -Filter VoidOne.exe `
-        -Recurse `
-        -ErrorAction SilentlyContinue `
-        | Select-Object -First 1
-
-      if (-not $exe) {
-        Write-Error "VoidOne.exe was not found."
-        exit 1
-      }
-
-      Write-Host ""
-      Write-Host "Executable found:"
-      Write-Host $exe.FullName
-
-  # --------------------------------------------------------
-  # Deploy Qt
-  # --------------------------------------------------------
-
-  - name: Deploy Qt
-    shell: pwsh
-    run: |
-      $exe = Get-ChildItem `
-        -Path build `
-        -Filter VoidOne.exe `
-        -Recurse `
-        -ErrorAction SilentlyContinue `
-        | Select-Object -First 1
-
-      if (-not $exe) {
-        Write-Error "Release executable not found."
-        exit 1
-      }
-
-      Write-Host "Deploying Qt dependencies..."
-
-      windeployqt `
-        --release `
-        --qmldir "$env:GITHUB_WORKSPACE\src\ui\qml" `
-        $exe.FullName
-
-  # --------------------------------------------------------
-  # Prepare package
-  # --------------------------------------------------------
-
-  - name: Prepare package
-    shell: pwsh
-    run: |
-      $exe = Get-ChildItem `
-        -Path build `
-        -Filter VoidOne.exe `
-        -Recurse `
-        -ErrorAction SilentlyContinue `
-        | Select-Object -First 1
-
-      if (-not $exe) {
-        Write-Error "Release executable not found."
-        exit 1
-      }
-
-      Remove-Item `
-        -Path package `
-        -Recurse `
-        -Force `
-        -ErrorAction SilentlyContinue
-
-      New-Item `
-        -ItemType Directory `
-        -Force `
-        -Path package `
-        | Out-Null
-
-      Copy-Item `
-        -Path (Join-Path $exe.Directory.FullName "*") `
-        -Destination package `
-        -Recurse `
-        -Force
-
-  # --------------------------------------------------------
-  # Verify package
-  # --------------------------------------------------------
-
-  - name: Verify package
-    shell: pwsh
-    run: |
-      $exe = "package\VoidOne.exe"
-
-      if (-not (Test-Path $exe)) {
-        Write-Error "Packaged VoidOne.exe is missing."
-        exit 1
-      }
-
-      Write-Host ""
-      Write-Host "Package contents:"
-      Get-ChildItem package -Recurse
-
-  # --------------------------------------------------------
-  # Smoke test
-  # --------------------------------------------------------
-
-  - name: Smoke test
-    shell: pwsh
-    run: |
-      $exe = Resolve-Path "package\VoidOne.exe"
-
-      Write-Host "Starting VoidOne..."
-
-      $process = Start-Process `
-        -FilePath $exe `
-        -PassThru `
-        -WindowStyle Hidden
-
-      Start-Sleep -Seconds 5
-
-      if ($process.HasExited) {
-        Write-Error "VoidOne exited immediately with code $($process.ExitCode)."
-        exit 1
-      }
-
-      Write-Host "VoidOne started successfully."
-
-      Stop-Process `
-        -Id $process.Id `
-        -Force `
-        -ErrorAction SilentlyContinue
-
-  # --------------------------------------------------------
-  # ZIP
-  # --------------------------------------------------------
-
-  - name: Create ZIP
-    shell: pwsh
-    run: |
-      Compress-Archive `
-        -Path package\* `
-        -DestinationPath VoidOne-Windows-x64.zip `
-        -CompressionLevel Optimal
-
-  # --------------------------------------------------------
-  # SHA256
-  # --------------------------------------------------------
-
-  - name: Generate checksum
-    shell: pwsh
-    run: |
-      (Get-FileHash `
-        VoidOne-Windows-x64.zip `
-        -Algorithm SHA256).Hash `
-        | Out-File `
-          VoidOne-Windows-x64.zip.sha256 `
-          -Encoding ascii
-
-  # --------------------------------------------------------
-  # Artifact
-  # --------------------------------------------------------
-
-  - name: Upload artifact
-    uses: actions/upload-artifact@v4
-    with:
-      name: VoidOne-Windows-x64
-      path: |
-        VoidOne-Windows-x64.zip
-        VoidOne-Windows-x64.zip.sha256
-      retention-days: 30
-
-==========================================================
-
-Linux Debug
-
-==========================================================
-
-linux-debug:
-name: Linux x64 • Debug
-runs-on: ubuntu-24.04
-timeout-minutes: 30
-
-steps:
-
-  - name: Checkout
-    uses: actions/checkout@v5
-
-  - name: Install dependencies
-    run: |
-      sudo apt-get update
-
-      sudo apt-get install -y \
-        build-essential \
-        ninja-build \
-        libgl1-mesa-dev \
-        libpulse-dev \
-        libxkbcommon-dev
-
-  - name: Install Qt
-    uses: jurplel/install-qt-action@v4
-    with:
-      version: "6.8.*"
-      target: desktop
-      arch: linux_gcc_64
-      cache: true
-      cache-key-prefix: voidone-qt
-
-  - name: Configure Debug
-    run: |
-      cmake \
-        -S . \
-        -B build-debug \
-        -G Ninja \
-        -DCMAKE_BUILD_TYPE=Debug
-
-  - name: Build Debug
-    run: |
-      cmake \
-        --build build-debug \
-        --parallel
-
-==========================================================
-
-AddressSanitizer + UndefinedBehaviorSanitizer
-
-==========================================================
-
-sanitizers:
-name: Linux • Address/UB Sanitizer
-runs-on: ubuntu-24.04
-timeout-minutes: 30
-
-steps:
-
-  - name: Checkout
-    uses: actions/checkout@v5
-
-  - name: Install dependencies
-    run: |
-      sudo apt-get update
-
-      sudo apt-get install -y \
-        build-essential \
-        ninja-build \
-        libgl1-mesa-dev \
-        libpulse-dev \
-        libxkbcommon-dev
-
-  - name: Install Qt
-    uses: jurplel/install-qt-action@v4
-    with:
-      version: "6.8.*"
-      target: desktop
-      arch: linux_gcc_64
-      cache: true
-      cache-key-prefix: voidone-qt
-
-  - name: Configure Sanitizers
-    env:
-      CXXFLAGS: "-fsanitize=address,undefined -fno-omit-frame-pointer"
-      LDFLAGS: "-fsanitize=address,undefined"
-    run: |
-      cmake \
-        -S . \
-        -B build-sanitize \
-        -G Ninja \
-        -DCMAKE_BUILD_TYPE=Debug
-
-  - name: Build Sanitized
-    run: |
-      cmake \
-        --build build-sanitize \
-        --parallel
-
-==========================================================
-
-Unit Tests
-
-==========================================================
-
-tests:
-name: Unit Tests
-runs-on: ubuntu-24.04
-timeout-minutes: 30
-
-steps:
-
-  - name: Checkout
-    uses: actions/checkout@v5
-
-  - name: Install dependencies
-    run: |
-      sudo apt-get update
-
-      sudo apt-get install -y \
-        build-essential \
-        ninja-build \
-        libgl1-mesa-dev \
-        libpulse-dev \
-        libxkbcommon-dev
-
-  - name: Install Qt
-    uses: jurplel/install-qt-action@v4
-    with:
-      version: "6.8.*"
-      target: desktop
-      arch: linux_gcc_64
-      cache: true
-      cache-key-prefix: voidone-qt
-
-  - name: Configure tests
-    run: |
-      cmake \
-        -S . \
-        -B build-tests \
-        -G Ninja \
-        -DCMAKE_BUILD_TYPE=Debug \
-        -DVOIDONE_BUILD_TESTS=ON
-
-  - name: Build tests
-    run: |
-      cmake \
-        --build build-tests \
-        --parallel
-
-  - name: Run tests
-    run: |
-      ctest \
-        --test-dir build-tests \
-        --output-on-failure \
-        --parallel 2
-
-==========================================================
-
-Static Analysis
-
-==========================================================
-
-static-analysis:
-name: Linux • Static Analysis
-runs-on: ubuntu-24.04
-timeout-minutes: 30
-
-steps:
-
-  - name: Checkout
-    uses: actions/checkout@v5
-
-  - name: Install dependencies
-    run: |
-      sudo apt-get update
-
-      sudo apt-get install -y \
-        clang \
-        clang-tidy \
-        ninja-build \
-        libgl1-mesa-dev \
-        libpulse-dev \
-        libxkbcommon-dev
-
-  - name: Install Qt
-    uses: jurplel/install-qt-action@v4
-    with:
-      version: "6.8.*"
-      target: desktop
-      arch: linux_gcc_64
-      cache: true
-      cache-key-prefix: voidone-qt
-
-  - name: Configure
-    run: |
-      cmake \
-        -S . \
-        -B build-analysis \
-        -G Ninja \
-        -DCMAKE_BUILD_TYPE=Debug \
-        -DCMAKE_CXX_COMPILER=clang++ \
-        -DCMAKE_CXX_CLANG_TIDY=clang-tidy
-
-  - name: Build
-    run: |
-      cmake \
-        --build build-analysis \
-        --parallel
-
-==========================================================
-
-GitHub Release
-
-==========================================================
-
-release:
-name: GitHub Release
-
-needs:
-  - linux-release
-  - windows-release
-  - linux-debug
-  - sanitizers
-  - tests
-  - static-analysis
-
-if: startsWith(github.ref, 'refs/tags/v')
-
-runs-on: ubuntu-24.04
-
-permissions:
-  contents: write
-
-steps:
-
-  - name: Download artifacts
-    uses: actions/download-artifact@v4
-    with:
-      path: artifacts
-
-  - name: Display artifacts
-    run: |
-      echo "VoidOne release artifacts:"
-      find artifacts -type f -print
-
-  - name: Create Release
-    uses: softprops/action-gh-release@v2
-    with:
-      generate_release_notes: true
-      prerelease: ${{ contains(github.ref_name, '-') }}
-      files: |
-        artifacts/VoidOne-Linux-x64/*
-        artifacts/VoidOne-Windows-x64/*
+  # ==========================================================
+  # Linux Release
+  # ==========================================================
+
+  linux-release:
+    name: Linux x64 • Release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            ninja-build \
+            ccache \
+            libgl1-mesa-dev \
+            libpulse-dev \
+            libxkbcommon-dev
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.*"
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+          cache-key-prefix: voidone-qt
+
+      - name: Configure
+        run: |
+          cmake \
+            -S . \
+            -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: |
+          cmake \
+            --build build \
+            --parallel
+
+      - name: Install
+        run: |
+          rm -rf package
+          cmake \
+            --install build \
+            --prefix package
+
+      - name: Verify executable
+        run: |
+          test -f package/bin/VoidOne
+          file package/bin/VoidOne
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          tar \
+            -C package \
+            -czf dist/VoidOne-Linux-x64.tar.gz \
+            .
+
+      - name: Generate checksum
+        run: |
+          sha256sum \
+            dist/VoidOne-Linux-x64.tar.gz \
+            > dist/VoidOne-Linux-x64.tar.gz.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoidOne-Linux-x64
+          path: |
+            dist/VoidOne-Linux-x64.tar.gz
+            dist/VoidOne-Linux-x64.tar.gz.sha256
+          retention-days: 30
+
+
+  # ==========================================================
+  # Windows Release
+  # ==========================================================
+
+  windows-release:
+    name: Windows x64 • Release
+    runs-on: windows-2025
+    timeout-minutes: 35
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # --------------------------------------------------------
+      # Python
+      # --------------------------------------------------------
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          check-latest: true
+
+      - name: Verify Python
+        shell: pwsh
+        run: |
+          python --version
+          python -c "import sys; print(sys.executable)"
+          python -m pip --version
+
+      # --------------------------------------------------------
+      # MSVC
+      # --------------------------------------------------------
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Verify MSVC
+        shell: pwsh
+        run: |
+          Write-Host "MSVC environment:"
+          cl
+
+      # --------------------------------------------------------
+      # Qt
+      # --------------------------------------------------------
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.*"
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+          cache-key-prefix: voidone-qt
+          setup-python: false
+
+      - name: Verify Qt
+        shell: pwsh
+        run: |
+          Write-Host "Qt6_DIR:"
+          Write-Host $env:Qt6_DIR
+
+          Write-Host ""
+          Write-Host "Qt version:"
+          qmake --version
+
+      # --------------------------------------------------------
+      # Configure
+      # --------------------------------------------------------
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake `
+            -S . `
+            -B build `
+            -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release
+
+      # --------------------------------------------------------
+      # Build
+      # --------------------------------------------------------
+
+      - name: Build Release
+        shell: pwsh
+        run: |
+          cmake `
+            --build build `
+            --parallel
+
+      # --------------------------------------------------------
+      # Locate executable
+      # --------------------------------------------------------
+
+      - name: Locate executable
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem `
+            -Path build `
+            -Filter VoidOne.exe `
+            -Recurse `
+            -ErrorAction SilentlyContinue `
+            | Select-Object -First 1
+
+          if (-not $exe) {
+            Write-Error "VoidOne.exe was not found."
+            exit 1
+          }
+
+          Write-Host ""
+          Write-Host "Executable found:"
+          Write-Host $exe.FullName
+
+      # --------------------------------------------------------
+      # Deploy Qt
+      # --------------------------------------------------------
+
+      - name: Deploy Qt
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem `
+            -Path build `
+            -Filter VoidOne.exe `
+            -Recurse `
+            -ErrorAction SilentlyContinue `
+            | Select-Object -First 1
+
+          if (-not $exe) {
+            Write-Error "Release executable not found."
+            exit 1
+          }
+
+          Write-Host "Deploying Qt dependencies..."
+
+          windeployqt `
+            --release `
+            --qmldir "$env:GITHUB_WORKSPACE\src\ui\qml" `
+            $exe.FullName
+
+      # --------------------------------------------------------
+      # Prepare package
+      # --------------------------------------------------------
+
+      - name: Prepare package
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem `
+            -Path build `
+            -Filter VoidOne.exe `
+            -Recurse `
+            -ErrorAction SilentlyContinue `
+            | Select-Object -First 1
+
+          if (-not $exe) {
+            Write-Error "Release executable not found."
+            exit 1
+          }
+
+          Remove-Item `
+            -Path package `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path package `
+            | Out-Null
+
+          Copy-Item `
+            -Path (Join-Path $exe.Directory.FullName "*") `
+            -Destination package `
+            -Recurse `
+            -Force
+
+      # --------------------------------------------------------
+      # Verify package
+      # --------------------------------------------------------
+
+      - name: Verify package
+        shell: pwsh
+        run: |
+          $exe = "package\VoidOne.exe"
+
+          if (-not (Test-Path $exe)) {
+            Write-Error "Packaged VoidOne.exe is missing."
+            exit 1
+          }
+
+          Write-Host ""
+          Write-Host "Package contents:"
+          Get-ChildItem package -Recurse
+
+      # --------------------------------------------------------
+      # Smoke test
+      # --------------------------------------------------------
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "package\VoidOne.exe"
+
+          Write-Host "Starting VoidOne..."
+
+          $process = Start-Process `
+            -FilePath $exe `
+            -PassThru `
+            -WindowStyle Hidden
+
+          Start-Sleep -Seconds 5
+
+          if ($process.HasExited) {
+            Write-Error "VoidOne exited immediately with code $($process.ExitCode)."
+            exit 1
+          }
+
+          Write-Host "VoidOne started successfully."
+
+          Stop-Process `
+            -Id $process.Id `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+      # --------------------------------------------------------
+      # ZIP
+      # --------------------------------------------------------
+
+      - name: Create ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path package\* `
+            -DestinationPath VoidOne-Windows-x64.zip `
+            -CompressionLevel Optimal
+
+      # --------------------------------------------------------
+      # SHA256
+      # --------------------------------------------------------
+
+      - name: Generate checksum
+        shell: pwsh
+        run: |
+          (Get-FileHash `
+            VoidOne-Windows-x64.zip `
+            -Algorithm SHA256).Hash `
+            | Out-File `
+              VoidOne-Windows-x64.zip.sha256 `
+              -Encoding ascii
+
+      # --------------------------------------------------------
+      # Artifact
+      # --------------------------------------------------------
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoidOne-Windows-x64
+          path: |
+            VoidOne-Windows-x64.zip
+            VoidOne-Windows-x64.zip.sha256
+          retention-days: 30
+
+
+  # ==========================================================
+  # Linux Debug
+  # ==========================================================
+
+  linux-debug:
+    name: Linux x64 • Debug
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            ninja-build \
+            libgl1-mesa-dev \
+            libpulse-dev \
+            libxkbcommon-dev
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.*"
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+          cache-key-prefix: voidone-qt
+
+      - name: Configure Debug
+        run: |
+          cmake \
+            -S . \
+            -B build-debug \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build Debug
+        run: |
+          cmake \
+            --build build-debug \
+            --parallel
+
+
+  # ==========================================================
+  # AddressSanitizer + UndefinedBehaviorSanitizer
+  # ==========================================================
+
+  sanitizers:
+    name: Linux • Address/UB Sanitizer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            ninja-build \
+            libgl1-mesa-dev \
+            libpulse-dev \
+            libxkbcommon-dev
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.*"
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+          cache-key-prefix: voidone-qt
+
+      - name: Configure Sanitizers
+        env:
+          CXXFLAGS: "-fsanitize=address,undefined -fno-omit-frame-pointer"
+          LDFLAGS: "-fsanitize=address,undefined"
+        run: |
+          cmake \
+            -S . \
+            -B build-sanitize \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build Sanitized
+        run: |
+          cmake \
+            --build build-sanitize \
+            --parallel
+
+
+  # ==========================================================
+  # Unit Tests
+  # ==========================================================
+
+  tests:
+    name: Unit Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            ninja-build \
+            libgl1-mesa-dev \
+            libpulse-dev \
+            libxkbcommon-dev
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.*"
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+          cache-key-prefix: voidone-qt
+
+      - name: Configure tests
+        run: |
+          cmake \
+            -S . \
+            -B build-tests \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DVOIDONE_BUILD_TESTS=ON
+
+      - name: Build tests
+        run: |
+          cmake \
+            --build build-tests \
+            --parallel
+
+      - name: Run tests
+        run: |
+          ctest \
+            --test-dir build-tests \
+            --output-on-failure \
+            --parallel 2
+
+
+  # ==========================================================
+  # Static Analysis
+  # ==========================================================
+
+  static-analysis:
+    name: Linux • Static Analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            clang-tidy \
+            ninja-build \
+            libgl1-mesa-dev \
+            libpulse-dev \
+            libxkbcommon-dev
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.*"
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+          cache-key-prefix: voidone-qt
+
+      - name: Configure
+        run: |
+          cmake \
+            -S . \
+            -B build-analysis \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_CXX_CLANG_TIDY=clang-tidy
+
+      - name: Build
+        run: |
+          cmake \
+            --build build-analysis \
+            --parallel
+
+
+  # ==========================================================
+  # GitHub Release
+  # ==========================================================
+
+  release:
+    name: GitHub Release
+
+    needs:
+      - linux-release
+      - windows-release
+      - linux-debug
+      - sanitizers
+      - tests
+      - static-analysis
+
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: write
+
+    steps:
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display artifacts
+        run: |
+          echo "VoidOne release artifacts:"
+          find artifacts -type f -print
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            artifacts/VoidOne-Linux-x64/*
+            artifacts/VoidOne-Windows-x64/*
