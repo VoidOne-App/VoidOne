@@ -40,7 +40,4 @@ int main(int argc, char *argv[])
     qDebug() << "[VoidOne] Starting event loop...";
 
     return app.exec();
-}    qDebug() << "Step 6";
-
-    return app.exec();
 }
