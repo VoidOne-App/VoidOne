@@ -1,22 +1,68 @@
 version: 2
-
 updates:
-  # GitHub Actions
+  # GitHub Actions Workflows
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Etc/UTC"
     open-pull-requests-limit: 10
+    rebase-strategy: "auto"
     labels:
+      - "area: ci"
       - "dependencies"
-      - "github-actions"
+      - "automerge"
+    commit-message:
+      prefix: "chore(deps-dev)"
+      include: "scope"
+    groups:
+      actions-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
 
-  # CMake dependencies
+  # CMake Build System
   - package-ecosystem: "cmake"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+      day: "monday"
+      time: "04:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
     labels:
+      - "area: build/cmake"
       - "dependencies"
-      - "cmake"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # Python AI Scripts Dependencies
+  - package-ecosystem: "pip"
+    directory: "/scripts"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+    labels:
+      - "area: ci"
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      python-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
