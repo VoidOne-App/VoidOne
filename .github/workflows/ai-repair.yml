@@ -20,6 +20,10 @@ jobs:
        github.event.workflow_run.conclusion == 'failure' &&
        github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
 
     steps:
       - name: Resolve Target Commit SHA
