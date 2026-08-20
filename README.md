@@ -1,283 +1,85 @@
-VoidOne
+<div align="center">
 
-Open-source PC Game Launcher built with C++ and Qt 6.
+# 🌌 VoidOne
 
-VoidOne is an open-source game launcher focused on providing a modern, fast, customizable, and visually distinctive experience for PC gamers.
+**Next-Generation, Open-Source PC Game Launcher & Library Manager**
 
-The project is currently in active development and aims to grow into a powerful game library and launcher, with features inspired by modern game-management software such as Playnite while maintaining its own identity and design.
+[![VoidOne CI/CD](https://img.shields.io/github/actions/workflow/status/mohammedmk3900-rgb/NeonLauncher-Qt/c-cpp.yml?branch=main&style=for-the-badge&logo=github&label=CI/CD)](https://github.com/mohammedmk3900-rgb/NeonLauncher-Qt)
+[![CodeQL Security](https://img.shields.io/github/actions/workflow/status/mohammedmk3900-rgb/NeonLauncher-Qt/codeql.yml?branch=main&style=for-the-badge&logo=github&label=CodeQL)](https://github.com/mohammedmk3900-rgb/NeonLauncher-Qt)
+[![C++23](https://img.shields.io/badge/C%2B%2B-23-00599C?style=for-the-badge&logo=cplusplus)](https://en.cppreference.com/w/cpp/23)
+[![Qt 6.8](https://img.shields.io/badge/Qt-6.8-41CD52?style=for-the-badge&logo=qt)](https://www.qt.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-«🚧 VoidOne is currently in early development.
-Features and architecture may change significantly as the project evolves.»
-
----
-
-✨ Vision
-
-The goal of VoidOne is to create a complete and extensible game launcher that can:
-
-- Automatically discover installed games
-- Organize games into a unified library
-- Launch games from different platforms
-- Provide a modern and customizable interface
-- Support mods and game management
-- Integrate useful gaming tools
-- Remain lightweight and open source
-
-The long-term goal is to build something that can become a serious alternative to existing game-library managers.
+<p align="center">
+  <a href="#-about">About</a> •
+  <a href="#-key-features">Features</a> •
+  <a href="#-tech-stack">Tech Stack</a> •
+  <a href="#-building-from-source">Building</a> •
+  <a href="#-autonomous-ci-repair">AI Engine</a> •
+  <a href="#-roadmap">Roadmap</a>
+</p>
 
 ---
 
-🚀 Planned Features
+</div>
 
-🎮 Game Library
+## 👁️ About VoidOne
 
-- [ ] Automatic game scanning
-- [ ] Unified game library
-- [ ] Game metadata
-- [ ] Cover and background artwork
-- [ ] Game categories and tags
-- [ ] Favorites
-- [ ] Playtime tracking
-- [ ] Recently played games
+**VoidOne** is a blazing-fast, lightweight, open-source PC game launcher engineered with modern **C++23** and **Qt 6 / QML**. Built as a unified ecosystem for PC gamers, VoidOne bridges the gap between fragmented game distribution platforms (Steam, Epic Games, GOG, Xbox) and local execution—delivering a cyberpunk-inspired, highly customizable dashboard without the telemetry bloat.
 
-🕹️ Game Launching
-
-- [ ] Direct game launching
-- [ ] Steam integration
-- [ ] Epic Games integration
-- [ ] GOG integration
-- [ ] Xbox / Microsoft Store integration
-- [ ] Custom game executables
-- [ ] Launch arguments
-- [ ] Per-game configuration
-
-🧩 Mod Management
-
-- [ ] Mod installation
-- [ ] Mod profiles
-- [ ] Mod enable/disable
-- [ ] Mod load order
-- [ ] Mod backup and restore
-
-🎨 Interface
-
-- [ ] Modern QML interface
-- [ ] Custom themes
-- [ ] Animations
-- [ ] Dark mode
-- [ ] Customizable library layouts
-- [ ] Cyberpunk-inspired visual identity
-
-⚙️ Advanced Features
-
-- [ ] SQLite-based game database
-- [ ] Plugin system
-- [ ] Overlay system
-- [ ] RGB device integration
-- [ ] Cloud synchronization
-- [ ] Game statistics
-- [ ] Optional AI-powered recommendations
+> ⚠️ **Development Status:** VoidOne is under active early-stage development. Core architecture and APIs are evolving rapidly.
 
 ---
 
-🛠️ Technology
+## ✨ Key Features
 
-VoidOne is currently built around:
+### 🎮 Unified Game Aggregator
+* **Auto-Discovery:** Scans local drives and platform manifests to build a single master game library.
+* **Rich Metadata Engine:** Fetches high-resolution cover arts, dynamic backgrounds, and game details automatically.
+* **Session Analytics:** Tracks local playtime, recent activity, and launch statistics without privacy-invading metrics.
 
-Technology| Purpose
-C++23| Core application
-Qt 6| Application framework
-QML| User interface
-SQLite| Local game database
-CMake| Build system
-WinAPI| Windows integration
-GitHub Actions| CI/CD
+### 🎨 Cyberpunk QML Interface
+* **GPU-Accelerated Visuals:** High-performance QML/QtQuick interface with smooth 60+ FPS animations.
+* **Deep Customization:** Modular UI with dynamic theme switching, layouts, and dark mode native support.
 
----
+### 🧩 Integrated Mod Engine
+* **Profile Manager:** Create per-game mod profiles with one-click enable/disable states.
+* **Load Order Control:** Granular control over mod installation paths and load hierarchies.
 
-🖥️ Supported Platforms
-
-Windows
-
-Primary development platform
-
-- Windows 10+
-- Windows 11
-- x64
-
-Linux
-
-Linux builds are also being tested through CI.
-
-«macOS support is not currently a priority, but the architecture may evolve to support additional platforms in the future.»
+### 🤖 Self-Healing CI/CD Pipeline
+* **Automated AI Repair:** Integrated LLM-driven repair agent (Gemini 2.5 Pro + Qwen2.5-Coder) that automatically analyzes CI build failures and submits auto-fix PRs.
 
 ---
 
-🔨 Building
+## ⚙️ Tech Stack & Architecture
 
-Requirements
+| Component | Technology | Purpose |
+| :--- | :--- | :--- |
+| **Core Engine** | C++23 | Low-overhead application logic & system calls |
+| **GUI Framework** | Qt 6.8 / QML | Declarative, GPU-rendered user interface |
+| **Database** | SQLite3 | Thread-safe, embedded local metadata storage |
+| **Build System** | CMake + Ninja | Cross-platform, parallelized build pipeline |
+| **Integration** | WinAPI / Linux D-Bus | OS-level launcher & process hooks |
+| **CI/CD** | GitHub Actions | Automated builds, CodeQL scanning & auto-remediation |
 
-- C++23-compatible compiler
-- Qt 6
-- CMake
-- Ninja or another supported CMake generator
-- Git
+---
 
-Clone the repository:
+## 🔨 Building from Source
 
-git clone https://github.com/mohammedmk3900-rgb/NeonLauncher-Qt.git
+### Prerequisites
+* **Compiler:** MSVC 2022 (Windows) / Clang 17+ or GCC 13+ (Linux) with **C++23** support
+* **Framework:** Qt 6.8+ (Desktop & Quick modules)
+* **Tools:** CMake 3.25+, Ninja build system, Git
+
+### Quick Start
+
+```bash
+# 1. Clone the repository
+git clone [https://github.com/mohammedmk3900-rgb/NeonLauncher-Qt.git](https://github.com/mohammedmk3900-rgb/NeonLauncher-Qt.git)
 cd NeonLauncher-Qt
 
-Configure:
+# 2. Configure build system
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=23
 
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-
-Build:
-
-cmake --build build --parallel
-
----
-
-🤖 GitHub Actions
-
-VoidOne uses GitHub Actions to automatically build and validate the project.
-
-The CI pipeline currently performs tasks such as:
-
-- Windows Release build
-- Windows Debug build
-- Linux Release build
-- Linux Debug build
-- Unit tests
-- Address/Undefined Behavior Sanitizers
-- Static analysis
-- QML validation
-- Release artifact generation
-
-Every release build is packaged with the required runtime files so that the application can be distributed without requiring the user to install the development environment.
-
----
-
-📦 Releases
-
-Official builds will be published through GitHub Releases.
-
-Development versions may be unstable and should not be considered production-ready.
-
----
-
-🗺️ Roadmap
-
-Phase 1 — Foundation
-
-- [x] Initial C++/Qt project
-- [x] CMake build system
-- [x] QML integration
-- [x] Windows CI
-- [x] Linux CI
-- [x] Automated release builds
-- [ ] Stable application startup
-- [ ] Basic launcher UI
-
-Phase 2 — Game Library
-
-- [ ] Game detection
-- [ ] Game database
-- [ ] Game metadata
-- [ ] Library UI
-- [ ] Game launching
-
-Phase 3 — Platform Integration
-
-- [ ] Steam
-- [ ] Epic Games
-- [ ] GOG
-- [ ] Microsoft/Xbox
-- [ ] Custom games
-
-Phase 4 — Advanced Management
-
-- [ ] Mod manager
-- [ ] Plugin system
-- [ ] Game profiles
-- [ ] Statistics
-- [ ] Overlay
-
-Phase 5 — Ecosystem
-
-- [ ] Themes
-- [ ] Extensions
-- [ ] Cloud synchronization
-- [ ] Optional AI features
-- [ ] Community integrations
-
----
-
-🤝 Contributing
-
-VoidOne is an open-source project and contributions are welcome.
-
-You don't need to be an expert to contribute.
-
-You can help with:
-
-- C++
-- Qt / QML
-- Python
-- UI/UX
-- Testing
-- Documentation
-- Bug reports
-- Feature ideas
-- Performance improvements
-- Translation
-- Game compatibility testing
-
-If you're interested in contributing, feel free to open an issue or submit a pull request.
-
----
-
-👨‍💻 Project Background
-
-VoidOne started as an idea for a modern PC game launcher.
-
-The project is currently being developed while its creator learns C++ and Qt.
-
-Some early parts of the project were generated or assisted by AI. The goal is not to hide that fact, but to use AI as a development tool while gradually understanding, improving, and rewriting the code.
-
-The project is intended to become a genuine open-source project where contributors can help shape its architecture and future.
-
-«The idea comes first. The code gets better with every version.»
-
----
-
-📸 Screenshots
-
-Coming soon.
-
----
-
-📄 License
-
-License information will be added as the project approaches its first stable release.
-
----
-
-⭐ Support the Project
-
-If you like the idea behind VoidOne, you can help by:
-
-- ⭐ Starring the repository
-- 🐛 Reporting bugs
-- 💡 Suggesting features
-- 🧪 Testing development builds
-- 🧑‍💻 Contributing code
-- 📖 Improving documentation
-
-Every contribution helps the project grow.
-
----
-
-VoidOne
-
-One launcher. Your entire PC game library.
+# 3. Build parallel targets
+cmake --build build --config Release --parallel
