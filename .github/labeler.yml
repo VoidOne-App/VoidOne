@@ -1,0 +1,22 @@
+# لیبل‌های مربوط به بخش‌های مختلف سورس‌کد C++ و Qt
+'area: core':
+  - changed-files:
+      - any-glob-to-any-file: ['src/**/*.cpp', 'src/**/*.h', 'src/**/*.hpp']
+
+'area: ui/qml':
+  - changed-files:
+      - any-glob-to-any-file: ['src/**/*.qml', 'assets/**/*']
+
+'area: build/cmake':
+  - changed-files:
+      - any-glob-to-any-file: ['CMakeLists.txt', '**/CMakeLists.txt', 'cmake/**/*']
+
+# لیبل‌های سیستم CI/CD و گیتهاب اکشنز
+'area: ci':
+  - changed-files:
+      - any-glob-to-any-file: ['.github/workflows/*', '.github/**/*']
+
+# مستندات
+'area: docs':
+  - changed-files:
+      - any-glob-to-any-file: ['README.md', 'docs/**/*', 'LICENSE']
