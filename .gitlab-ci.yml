@@ -1,0 +1,118 @@
+stages:
+  - validate
+  - static-analysis
+  - dependency-scan
+  - build
+  - sign
+  - publish
+
+variables:
+  APP_NAME: "VoidOne"
+  GIT_SUBMODULE_STRATEGY: recursive
+
+validate-version:
+  stage: validate
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v/'
+  script:
+    - echo "Validating SemVer for tag $CI_COMMIT_TAG"
+    - |
+      if [[ ! "$CI_COMMIT_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+        echo "Error: Tag '$CI_COMMIT_TAG' does not follow SemVer format!"
+        exit 1
+      fi
+
+static-analysis:
+  stage: static-analysis
+  image: fedora:latest
+  before_script:
+    - dnf install -y cppcheck
+  script:
+    - cppcheck --enable=warning,performance,portability --error-exitcode=0 --xml --xml-version=2 src/ 2> cppcheck-report.xml
+  artifacts:
+    name: cppcheck-report
+    paths:
+      - cppcheck-report.xml
+    expire_in: 14 days
+
+dependency-scan:
+  stage: dependency-scan
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  script:
+    - trivy fs --severity CRITICAL,HIGH --format template --template "@contrib/gitlab.tpl" -o gl-dependency-scanning-report.json .
+  artifacts:
+    reports:
+      dependency_scanning: gl-dependency-scanning-report.json
+
+build-windows:
+  stage: build
+  image: fedora:latest
+  before_script:
+    - dnf install -y cmake gcc-c++ mingw64-gcc-c++ mingw64-qt6-qtbase zip
+  script:
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        VERSION=$(echo $CI_COMMIT_TAG | sed 's/^v//')
+      else
+        VERSION="0.0.0-dev.${CI_COMMIT_SHORT_SHA}"
+      fi
+    - mkdir build && cd build
+    - cmake .. -DCMAKE_TOOLCHAIN_FILE=/usr/share/mingw64/toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DPROJECT_VERSION="$VERSION"
+    - make -j$(nproc)
+    - cd ..
+    - mkdir -p package
+    - cp build/*.exe package/$APP_NAME.exe 2>/dev/null || cp build/src/*.exe package/$APP_NAME.exe
+    - cd package && zip -r ../VoidOne-Windows-x64-Portable-$VERSION.zip . && cd ..
+    - sha256sum VoidOne-Windows-x64-Portable-$VERSION.zip > VoidOne-Windows-x64-Portable-$VERSION.zip.sha256
+  artifacts:
+    name: VoidOne-Windows-x64-Release
+    paths:
+      - VoidOne-Windows-x64-Portable-*.zip*
+    expire_in: 30 days
+
+sign-artifacts:
+  stage: sign
+  image: alpine:latest
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v/'
+  dependencies:
+    - build-windows
+  before_script:
+    - apk add --no-progress --no-cache cosign
+  script:
+    - |
+      for f in VoidOne-Windows-x64-Portable-*.zip; do
+        [ -f "$f" ] || continue
+        cosign sign-blob --yes --output-signature "$f.sig" "$f" || true
+      done
+  artifacts:
+    paths:
+      - "*.sig"
+    expire_in: 30 days
+
+publish-release:
+  stage: publish
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v/'
+  dependencies:
+    - build-windows
+    - sign-artifacts
+  script:
+    - echo "Creating GitLab Release for $CI_COMMIT_TAG"
+    - |
+      if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+        apk add --no-cache curl jq
+        PAYLOAD=$(jq -n --arg tag "$CI_COMMIT_TAG" '{username: "VoidOne GitLab CI", content: ("🚀 **VoidOne " + $tag + "** Release is live on GitLab!")}')
+        curl -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL" || true
+      fi
+  release:
+    name: 'VoidOne $CI_COMMIT_TAG'
+    tag_name: '$CI_COMMIT_TAG'
+    description: 'Automated release created by GitLab CI/CD pipeline.'
+    assets:
+      links:
+        - name: 'Portable ZIP Archive'
+          url: '$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_TAG/raw/VoidOne-Windows-x64-Portable-$CI_COMMIT_TAG.zip?job=build-windows'
