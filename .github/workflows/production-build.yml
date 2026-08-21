@@ -1,0 +1,208 @@
+Name: VoidOne Ultimate CI/CD (Production Ready)
+
+on:
+  push:
+    branches:
+      - main
+      - release/*
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: "Skip test suite (emergency builds only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+  security-events: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: voidone-prod-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  QT_VERSION: "6.8.*"
+  QT_ARCH: win64_msvc2022_64
+  APP_NAME: VoidOne
+
+jobs:
+  validate-version:
+    name: Validate Release Tag
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Enforce SemVer format
+        run: |
+          TAG="${{ github.ref_name }}"
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+            echo "::error::Tag '$TAG' does not follow SemVer (vX.Y.Z or vX.Y.Z-rc.N)"
+            exit 1
+          fi
+          echo "Tag $TAG is valid SemVer."
+
+  static-analysis:
+    name: CodeQL Security Analysis
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          target: desktop
+          arch: ${{ env.QT_ARCH }}
+          dir: ${{ github.workspace }}
+          cache: true
+          cache-key-prefix: voidone-qt
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: cpp
+          build-mode: manual
+
+      - name: Configure & Build
+        shell: pwsh
+        run: |
+          mkdir build -ErrorAction SilentlyContinue
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release --parallel
+
+      - uses: github/codeql-action/analyze@v3
+
+  dependency-scan:
+    name: Dependency Security Scan (Trivy)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 0
+
+      - name: Upload SARIF to GitHub Security Tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-dependencies
+
+  build-windows:
+    name: Build & Package (Windows x64)
+    needs: [static-analysis, dependency-scan]
+    if: always() && needs.static-analysis.result == 'success'
+    runs-on: windows-2025
+    timeout-minutes: 45
+    outputs:
+      build-version: ${{ steps.version.outputs.value }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Resolve Build Version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $ver = "${{ github.ref_name }}" -replace '^v',''
+          } else {
+            $ver = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
+          }
+          echo "value=$ver" >> $env:GITHUB_OUTPUT
+
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: voidone-msvc-release-${{ github.sha }}
+          restore-keys: voidone-msvc-release-
+          variant: ccache
+          max-size: 500M
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          target: desktop
+          arch: ${{ env.QT_ARCH }}
+          dir: ${{ github.workspace }}
+          cache: true
+          cache-key-prefix: voidone-qt
+          setup-python: false
+
+      - name: Configure Project via CMake
+        shell: pwsh
+        run: |
+          mkdir build -ErrorAction SilentlyContinue
+          cmake `
+            -S . -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DPROJECT_VERSION="${{ steps.version.outputs.value }}" `
+            -DBUILD_TESTING=ON `
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
+            -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
+
+      - name: Compile Release Binaries
+        shell: pwsh
+        run: cmake --build build --config Release --parallel
+
+      - name: Prepare Staging & Deploy Qt
+        shell: pwsh
+        run: |
+          Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          
+          $exe = Get-ChildItem -Path build -Filter "$env:APP_NAME.exe" -Recurse | Select-Object -First 1
+          if (-not $exe) {
+            $exe = Get-ChildItem -Path build -Filter "*.exe" -Recurse | Where-Object { $_.Name -notmatch "test" } | Select-Object -First 1
+          }
+          
+          if (-not $exe) {
+            Write-Error "CRITICAL: Executable was not found in build directory."
+            exit 1
+          }
+          
+          Copy-Item -Path $exe.FullName -Destination "package\$env:APP_NAME.exe" -Force
+          windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
+
+      - name: Create Zip Archive & SHA256 Hashes
+        shell: pwsh
+        run: |
+          Compress-Archive -Path package\* -DestinationPath "VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip" -CompressionLevel Optimal
+          Get-ChildItem -Path . -Filter "VoidOne-*-${{ steps.version.outputs.value }}.zip" -File | ForEach-Object { (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoidOne-Windows-x64-Release
+          path: |
+            VoidOne-Windows-x64-Portable-*.zip*
+          retention-days: 30
