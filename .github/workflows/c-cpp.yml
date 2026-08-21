@@ -20,16 +20,16 @@ on:
 permissions:
   contents: write
   actions: read
-  security-events: write   # For SARIF reports (CodeQL/Trivy)
-  id-token: write          # OIDC for Keyless Cosign
-  attestations: write      # GitHub Build Provenance
+  security-events: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: voidone-prod-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  QT_VERSION: "6.8.*"
+  QT_VERSION: "6.8.0"   # Fixed from 6.8.* for stability
   QT_ARCH: win64_msvc2022_64
   APP_NAME: VoidOne
 
@@ -63,6 +63,10 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install Build Tools
+        shell: pwsh
+        run: choco install ninja -y --no-progress
+
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
@@ -90,11 +94,15 @@ jobs:
 
       - uses: github/codeql-action/analyze@v3
 
-      - name: Install & Run cppcheck
+      - name: Install & Run cppcheck (Safe Execution)
         shell: pwsh
         run: |
           choco install cppcheck -y --no-progress
-          cppcheck --enable=warning,performance,portability --error-exitcode=0 --xml --xml-version=2 src/ 2> cppcheck-report.xml
+          $cppcheckDir = "C:\Program Files\Cppcheck"
+          "$cppcheckDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          
+          # Explicitly pointing to cfg dir to prevent std.cfg missing bug
+          & "$cppcheckDir\cppcheck.exe" --data-dir="$cppcheckDir\cfg" --enable=warning,performance,portability --error-exitcode=0 --xml --xml-version=2 src/ 2> cppcheck-report.xml
 
       - uses: actions/upload-artifact@v4
         with:
@@ -129,7 +137,7 @@ jobs:
           category: trivy-dependencies
 
   # ----------------------------------------------------------
-  # 4. Build, Test, Coverage, Package & SBOM
+  # 4. Build, Test, Optimize, Package & SBOM
   # ----------------------------------------------------------
   build-windows:
     name: Build & Package (Windows x64)
@@ -155,7 +163,7 @@ jobs:
           } else {
             $ver = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
           }
-          echo "value=$ver" >> $env:GITHUB_OUTPUT
+          "value=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - uses: hendrikmuhs/ccache-action@v1.2
         with:
@@ -167,6 +175,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      - name: Install Build Tools
+        shell: pwsh
+        run: choco install ninja -y --no-progress
 
       - uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -186,7 +198,8 @@ jobs:
         shell: pwsh
         run: |
           mkdir build -ErrorAction SilentlyContinue
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPROJECT_VERSION="${{ steps.version.outputs.value }}" -DBUILD_TESTING=ON -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
+          # Removed /GUARD:CF to prevent UPX crash on launch
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPROJECT_VERSION="${{ steps.version.outputs.value }}" -DBUILD_TESTING=ON -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /HIGHENTROPYVA"
 
       - name: Compile Release Binaries
         shell: pwsh
@@ -197,8 +210,9 @@ jobs:
         shell: pwsh
         run: |
           choco install opencppcoverage -y --no-progress
-          $occ = "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe"
-          & $occ --sources src --export_type cobertura:coverage.xml -- ctest --test-dir build -C Release --output-on-failure --timeout 120
+          $occDir = "C:\Program Files\OpenCppCoverage"
+          "$occDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & "$occDir\OpenCppCoverage.exe" --sources src --export_type cobertura:coverage.xml -- ctest --test-dir build -C Release --output-on-failure --timeout 120
 
       - name: Upload Coverage to Codecov
         if: ${{ !inputs.skip_tests }}
@@ -217,6 +231,21 @@ jobs:
           $exe = Get-ChildItem -Path build -Filter "$env:APP_NAME.exe" -Recurse | Select-Object -First 1
           Copy-Item -Path $exe.FullName -Destination "package\$env:APP_NAME.exe" -Force
           windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
+
+      - name: Optimize Executable with UPX
+        shell: pwsh
+        run: |
+          choco install upx -y --no-progress
+          $exePath = "package\$env:APP_NAME.exe"
+          $originalSize = (Get-Item $exePath).Length / 1MB
+          
+          upx --best --lzma $exePath
+          
+          $compressedSize = (Get-Item $exePath).Length / 1MB
+          $saved = $originalSize - $compressedSize
+          
+          $msg = "✅ **UPX Compression Saved:** $($saved.ToString('0.00')) MB"
+          $msg | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Enterprise Smoke Test
         shell: pwsh
@@ -271,12 +300,14 @@ jobs:
           Get-ChildItem -Path . -Filter "*.zip" -File | ForEach-Object { (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
           Get-ChildItem -Path dist -Filter "*.exe" -File | ForEach-Object { (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
           
-          # Writing a beautiful summary to GitHub Actions UI
           $zipHash = (Get-FileHash $zipName -Algorithm SHA256).Hash
-          echo "### 🚀 Build Successful (Version: ${{ steps.version.outputs.value }})" >> $env:GITHUB_STEP_SUMMARY
-          echo "| File Type | SHA256 Hash |" >> $env:GITHUB_STEP_SUMMARY
-          echo "|-----------|-------------|" >> $env:GITHUB_STEP_SUMMARY
-          echo "| **ZIP** | \`$zipHash\` |" >> $env:GITHUB_STEP_SUMMARY
+          $summary = @"
+          ### 🚀 Build Successful (Version: ${{ steps.version.outputs.value }})
+          | File Type | SHA256 Hash |
+          |-----------|-------------|
+          | **ZIP** | \`$zipHash\` |
+          "@
+          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Generate Build Provenance Attestation
         uses: actions/attest-build-provenance@v2
@@ -383,7 +414,7 @@ jobs:
                 url: $url,
                 color: 3066993,
                 author: { name: $actor },
-                description: "All assets are signed, tested, and published.",
+                description: "All assets are compressed (UPX), signed, tested, and published.",
                 footer: { text: "Enterprise Supply Chain Security" }
               }]
             }')
