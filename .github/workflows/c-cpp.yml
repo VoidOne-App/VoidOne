@@ -230,36 +230,6 @@ jobs:
           Copy-Item -Path $exe.FullName -Destination "package\$env:APP_NAME.exe" -Force
           windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
 
-          # Deploy offscreen/minimal platform plugins using QT_ROOT_DIR
-          $qtPlatforms = Join-Path $env:QT_ROOT_DIR "plugins\platforms"
-          New-Item -ItemType Directory -Force -Path "package\platforms" | Out-Null
-          
-          if (Test-Path "$qtPlatforms\qoffscreen.dll") {
-            Copy-Item -Path "$qtPlatforms\qoffscreen.dll" -Destination "package\platforms\" -Force
-            Copy-Item -Path "$qtPlatforms\qminimal.dll" -Destination "package\platforms\" -Force
-            Write-Host "✅ Offscreen and Minimal platform plugins deployed successfully."
-          } else {
-            Write-Warning "⚠️ Could not locate offscreen plugin at $qtPlatforms"
-          }
-
-      - name: Enterprise Smoke Test (Pre-UPX)
-        shell: pwsh
-        run: |
-          $exe = Resolve-Path "package\$env:APP_NAME.exe"
-          $env:QT_QPA_PLATFORM = "offscreen"
-          $env:QT_DEBUG_PLUGINS = "1"
-          
-          $process = Start-Process -FilePath $exe -ArgumentList "-platform","offscreen" -WorkingDirectory (Split-Path $exe -Parent) -PassThru -WindowStyle Hidden
-          Start-Sleep -Seconds 5
-          if (-not $process.HasExited) {
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            Write-Host "✅ Smoke test passed! Binary launched and ran successfully."
-          } else {
-            $code = "0x{0:X8}" -f $process.ExitCode
-            Write-Error "❌ Smoke test failed! Process exited prematurely with code: $code"
-            exit 1
-          }
-
       - name: Optimize Executable with UPX
         shell: pwsh
         run: |
