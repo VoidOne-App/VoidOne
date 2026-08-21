@@ -20,9 +20,9 @@ on:
 permissions:
   contents: write
   actions: read
-  security-events: write   # جهت ارسال گزارش‌های SARIF (CodeQL و Trivy)
-  id-token: write          # جهت Cosign بدون کلید و GitHub Attestation
-  attestations: write      # جهت اثبات اصالت فایل‌های بیلد
+  security-events: write   # For SARIF reports (CodeQL/Trivy)
+  id-token: write          # OIDC for Keyless Cosign
+  attestations: write      # GitHub Build Provenance
 
 concurrency:
   group: voidone-prod-${{ github.workflow }}-${{ github.ref }}
@@ -34,9 +34,8 @@ env:
   APP_NAME: VoidOne
 
 jobs:
-
   # ----------------------------------------------------------
-  # 1. بررسی صحت ساختار تگ نسخه (SemVer)
+  # 1. Validate SemVer Tag
   # ----------------------------------------------------------
   validate-version:
     name: Validate Release Tag
@@ -53,7 +52,7 @@ jobs:
           echo "Tag $TAG is valid SemVer."
 
   # ----------------------------------------------------------
-  # 2. آنالیز امنیتی سورس‌کد (CodeQL + cppcheck)
+  # 2. Static Security Analysis (CodeQL + cppcheck)
   # ----------------------------------------------------------
   static-analysis:
     name: CodeQL Security Analysis
@@ -104,10 +103,10 @@ jobs:
           retention-days: 14
 
   # ----------------------------------------------------------
-  # 3. اسکن کتابخانه‌ها و وابستگی‌ها برای حفره امنیتی (Trivy)
+  # 3. Dependency Security Scan (Trivy)
   # ----------------------------------------------------------
   dependency-scan:
-    name: Dependency Security Scan (Trivy)
+    name: Dependency Scan (Trivy)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -130,7 +129,7 @@ jobs:
           category: trivy-dependencies
 
   # ----------------------------------------------------------
-  # 4. بیلد، تست، درصد پوشش کد، SBOM و ساخت بسته‌ها
+  # 4. Build, Test, Coverage, Package & SBOM
   # ----------------------------------------------------------
   build-windows:
     name: Build & Package (Windows x64)
@@ -187,32 +186,23 @@ jobs:
         shell: pwsh
         run: |
           mkdir build -ErrorAction SilentlyContinue
-          cmake `
-            -S . -B build -G Ninja `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DPROJECT_VERSION="${{ steps.version.outputs.value }}" `
-            -DBUILD_TESTING=ON `
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
-            -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPROJECT_VERSION="${{ steps.version.outputs.value }}" -DBUILD_TESTING=ON -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
 
       - name: Compile Release Binaries
         shell: pwsh
         run: cmake --build build --config Release --parallel
 
-      # آنالیز پوشش تست‌ها با OpenCppCoverage و ارسال به Codecov
-      - name: Install OpenCppCoverage
-        shell: pwsh
-        run: choco install opencppcoverage -y --no-progress
-
-      - name: Run Tests with Coverage
+      - name: Run Tests with OpenCppCoverage
         if: ${{ !inputs.skip_tests }}
         shell: pwsh
         run: |
+          choco install opencppcoverage -y --no-progress
           $occ = "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe"
           & $occ --sources src --export_type cobertura:coverage.xml -- ctest --test-dir build -C Release --output-on-failure --timeout 120
 
       - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v5
+        if: ${{ !inputs.skip_tests }}
+        uses: codecov/codecov-action@v4
         with:
           files: coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -225,43 +215,20 @@ jobs:
           New-Item -ItemType Directory -Force -Path package | Out-Null
           
           $exe = Get-ChildItem -Path build -Filter "$env:APP_NAME.exe" -Recurse | Select-Object -First 1
-          if (-not $exe) {
-            $exe = Get-ChildItem -Path build -Filter "*.exe" -Recurse | Where-Object { $_.Name -notmatch "test" } | Select-Object -First 1
-          }
-          
-          if (-not $exe) {
-            Write-Error "CRITICAL: Executable was not found in build directory."
-            exit 1
-          }
-          
           Copy-Item -Path $exe.FullName -Destination "package\$env:APP_NAME.exe" -Force
           windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
 
       - name: Enterprise Smoke Test
         shell: pwsh
         run: |
-          $targetPath = "package\$env:APP_NAME.exe"
-          if (-not (Test-Path $targetPath)) {
-            Write-Error "Target binary $targetPath does not exist!"
-            exit 1
-          }
-          
-          $exe = (Resolve-Path $targetPath).Path
-          $pkgDir = Split-Path $exe -Parent
+          $exe = Resolve-Path "package\$env:APP_NAME.exe"
           $env:QT_QPA_PLATFORM = "offscreen"
-          
-          $process = Start-Process -FilePath $exe -ArgumentList "-platform","offscreen" -WorkingDirectory $pkgDir -PassThru -WindowStyle Hidden
+          $process = Start-Process -FilePath $exe -ArgumentList "-platform","offscreen" -WorkingDirectory (Split-Path $exe -Parent) -PassThru -WindowStyle Hidden
           Start-Sleep -Seconds 5
-          
-          if ($process.HasExited) {
-            Write-Warning "Smoke test process exited with code $($process.ExitCode). Proceeding..."
-          } else {
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            Write-Host "Smoke Test passed successfully!"
-          }
+          if ($process.HasExited -and $process.ExitCode -ne 0) { Write-Error "Smoke test failed!"; exit 1 }
+          Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
 
-      # ساخت فایل نصبی با Inno Setup
-      - name: Install Inno Setup & Build Installer
+      - name: Build Installer (Inno Setup)
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
@@ -273,57 +240,51 @@ jobs:
           AppId={{B6E1A0B2-9F3D-4C7A-VOID-ONE-APP-ID}}
           AppName=VoidOne
           AppVersion=${{ steps.version.outputs.value }}
-          AppPublisher=VoidOne-App
           DefaultDirName={autopf}\VoidOne
-          DefaultGroupName=VoidOne
           OutputDir=..\dist
           OutputBaseFilename=VoidOne-Setup-x64-${{ steps.version.outputs.value }}
           Compression=lzma2
           SolidCompression=yes
           ArchitecturesInstallIn64BitMode=x64compatible
-          SetupIconFile=..\package\VoidOne.exe
-          WizardStyle=modern
-
-          [Tasks]
-          Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
-
           [Files]
           Source: "..\package\*"; DestDir: "{app}"; Flags: recursesubdirs
-
           [Icons]
-          Name: "{group}\VoidOne"; Filename: "{app}\VoidOne.exe"
-          Name: "{group}\Uninstall VoidOne"; Filename: "{uninstallexe}"
-          Name: "{commondesktop}\VoidOne"; Filename: "{app}\VoidOne.exe"; Tasks: desktopicon
-
-          [Run]
-          Filename: "{app}\VoidOne.exe"; Description: "Launch VoidOne now"; Flags: nowait postinstall skipifsilent
+          Name: "{autoprograms}\VoidOne"; Filename: "{app}\VoidOne.exe"
           "@ | Out-File -FilePath installer\VoidOne.iss -Encoding utf8
           }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\VoidOne.iss
 
-      # ساخت شناسه معماری قطعات نرم‌افزار (SBOM)
-      - name: Generate Software Bill of Materials (SBOM)
+      - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
           path: package
           format: spdx-json
           output-file: VoidOne-SBOM-x64.spdx.json
 
-      # ساخت نسخه پرتابل (ZIP) و فایل‌های SHA256
-      - name: Create Zip Archive & SHA256 Hashes
+      - name: Create Zip Archive & SHA256
+        id: package_hash
         shell: pwsh
         run: |
-          Compress-Archive -Path package\* -DestinationPath "VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip" -CompressionLevel Optimal
-          Get-ChildItem -Path . -Filter "VoidOne-*-${{ steps.version.outputs.value }}.zip" -File | ForEach-Object { (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
+          $zipName = "VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip"
+          Compress-Archive -Path package\* -DestinationPath $zipName -CompressionLevel Optimal
+          
+          Get-ChildItem -Path . -Filter "*.zip" -File | ForEach-Object { (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
           Get-ChildItem -Path dist -Filter "*.exe" -File | ForEach-Object { (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
+          
+          # Writing a beautiful summary to GitHub Actions UI
+          $zipHash = (Get-FileHash $zipName -Algorithm SHA256).Hash
+          echo "### 🚀 Build Successful (Version: ${{ steps.version.outputs.value }})" >> $env:GITHUB_STEP_SUMMARY
+          echo "| File Type | SHA256 Hash |" >> $env:GITHUB_STEP_SUMMARY
+          echo "|-----------|-------------|" >> $env:GITHUB_STEP_SUMMARY
+          echo "| **ZIP** | \`$zipHash\` |" >> $env:GITHUB_STEP_SUMMARY
 
-      # اثبات اصالت ساخت فایل توسط گیتهاب (Build Attestation)
       - name: Generate Build Provenance Attestation
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
             VoidOne-Windows-x64-Portable-*.zip
             dist/*.exe
+            VoidOne-SBOM-x64.spdx.json
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -336,10 +297,10 @@ jobs:
           retention-days: 30
 
   # ----------------------------------------------------------
-  # 5. امضای دیجیتال بدون کلید (Sigstore/Cosign - ۱۰۰٪ رایگان)
+  # 5. Keyless Cosign Signature (OIDC)
   # ----------------------------------------------------------
   sign-artifacts:
-    name: Cosign Keyless Supply-Chain Signing
+    name: Cosign Keyless Signing
     needs: build-windows
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
@@ -351,13 +312,11 @@ jobs:
 
       - uses: sigstore/cosign-installer@v3.8.1
 
-      - name: Sign binaries with OIDC
+      - name: Sign binaries & SBOM with OIDC
         run: |
-          find release-files -type f \( -name "*.zip" -o -name "*.exe" \) | while read -r f; do
-            cosign sign-blob --yes \
-              --output-signature "$f.sig" \
-              --output-certificate "$f.pem" \
-              "$f"
+          find release-files -type f \( -name "*.zip" -o -name "*.exe" -o -name "*.json" \) | while read -r f; do
+            echo "Signing $f..."
+            cosign sign-blob --yes --output-signature "$f.sig" --output-certificate "$f.pem" "$f"
           done
 
       - uses: actions/upload-artifact@v4
@@ -367,7 +326,7 @@ jobs:
           retention-days: 30
 
   # ----------------------------------------------------------
-  # 6. انتشار روی GitHub Releases + نوتیفیکیشن دیسکورد
+  # 6. Publish Release & Discord
   # ----------------------------------------------------------
   publish-release:
     name: Publish Release & Notify
@@ -397,19 +356,7 @@ jobs:
           else
             LOG="• Initial official release"
           fi
-          {
-            echo "log<<EOF"
-            echo "$LOG"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Compute artifact sizes
-        id: sizes
-        run: |
-          ZIP=$(find release-files -iname "VoidOne-Windows-x64-Portable-*.zip" | head -n1)
-          EXE=$(find release-files -iname "*.exe" | head -n1)
-          echo "zip_mb=$( [ -f "$ZIP" ] && du -m "$ZIP" | cut -f1 || echo '?' )" >> "$GITHUB_OUTPUT"
-          echo "exe_mb=$( [ -f "$EXE" ] && du -m "$EXE" | cut -f1 || echo '?' )" >> "$GITHUB_OUTPUT"
+          { echo "log<<EOF"; echo "$LOG"; echo "EOF"; } >> "$GITHUB_OUTPUT"
 
       - name: Publish Official GitHub Release
         uses: softprops/action-gh-release@v2
@@ -417,23 +364,17 @@ jobs:
           name: "VoidOne ${{ github.ref_name }}"
           generate_release_notes: true
           draft: false
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           files: release-files/**
 
       - name: Notify Discord (Rich Embed)
         if: success()
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          CHANGELOG: ${{ steps.changelog.outputs.log }}
         run: |
           if [ -z "$WEBHOOK" ]; then exit 0; fi
           PAYLOAD=$(jq -n \
             --arg tag "${{ github.ref_name }}" \
             --arg actor "${{ github.actor }}" \
-            --arg avatar "${{ github.event.sender.avatar_url }}" \
-            --arg zipsize "${{ steps.sizes.outputs.zip_mb }} MB" \
-            --arg exesize "${{ steps.sizes.outputs.exe_mb }} MB" \
-            --arg changelog "$CHANGELOG" \
             --arg url "https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}" \
             '{
               username: "VoidOne CI",
@@ -441,20 +382,15 @@ jobs:
                 title: ("🚀 VoidOne " + $tag + " — Production Release Live!"),
                 url: $url,
                 color: 3066993,
-                author: { name: $actor, icon_url: $avatar },
-                fields: [
-                  { name: "🏷️ Version", value: $tag, inline: true },
-                  { name: "📦 Portable ZIP", value: $zipsize, inline: true },
-                  { name: "🖥️ Installer EXE", value: $exesize, inline: true },
-                  { name: "📝 Changelog", value: $changelog }
-                ],
-                footer: { text: "VoidOne Enterprise CI/CD" }
+                author: { name: $actor },
+                description: "All assets are signed, tested, and published.",
+                footer: { text: "Enterprise Supply Chain Security" }
               }]
             }')
           curl -sf -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK"
 
   # ----------------------------------------------------------
-  # 7. انتشار خودکار روی Windows Package Manager (Winget)
+  # 7. Publish to Winget
   # ----------------------------------------------------------
   publish-winget:
     name: Publish to Winget Repository
@@ -462,9 +398,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, 'alpha') && !contains(github.ref_name, 'beta')
     runs-on: windows-2025
     steps:
-      - name: Submit PR to microsoft/winget-pkgs
-        if: ${{ secrets.WINGET_TOKEN != '' }}
-        uses: vedantmgoyal2009/winget-releaser@v2
+      - uses: vedantmgoyal2009/winget-releaser@v2
         with:
           identifier: VoidOne-App.VoidOne
           installers-regex: 'VoidOne-Setup-x64-.*\.exe$'
