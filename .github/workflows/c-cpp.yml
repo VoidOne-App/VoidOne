@@ -230,12 +230,16 @@ jobs:
           Copy-Item -Path $exe.FullName -Destination "package\$env:APP_NAME.exe" -Force
           windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
 
-          # Deployment of Qt Offscreen and Minimal plugins for Headless CI testing
-          $qtBin = (Get-Command windeployqt).Source
-          $qtPlatformsDir = Join-Path (Split-Path (Split-Path $qtBin -Parent) -Parent) "plugins\platforms"
-          if (Test-Path "$qtPlatformsDir\qoffscreen.dll") {
-            Copy-Item -Path "$qtPlatformsDir\qoffscreen.dll" -Destination "package\platforms\" -Force
-            Copy-Item -Path "$qtPlatformsDir\qminimal.dll" -Destination "package\platforms\" -Force
+          # Deploy offscreen/minimal platform plugins using QT_ROOT_DIR
+          $qtPlatforms = Join-Path $env:QT_ROOT_DIR "plugins\platforms"
+          New-Item -ItemType Directory -Force -Path "package\platforms" | Out-Null
+          
+          if (Test-Path "$qtPlatforms\qoffscreen.dll") {
+            Copy-Item -Path "$qtPlatforms\qoffscreen.dll" -Destination "package\platforms\" -Force
+            Copy-Item -Path "$qtPlatforms\qminimal.dll" -Destination "package\platforms\" -Force
+            Write-Host "✅ Offscreen and Minimal platform plugins deployed successfully."
+          } else {
+            Write-Warning "⚠️ Could not locate offscreen plugin at $qtPlatforms"
           }
 
       - name: Enterprise Smoke Test (Pre-UPX)
