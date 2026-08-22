@@ -38,12 +38,13 @@
 
 <p align="center">
   <a href="#-about">About</a> •
-  <a href="#-why-voidone">Why VoidOne?</a> •
   <a href="#-voidones-promise--gamer-to-gamer">Manifesto</a> •
+  <a href="#-why-voidone">Why VoidOne?</a> •
   <a href="#-key-features">Features</a> •
   <a href="#-tech-stack--architecture">Tech Stack</a> •
   <a href="#-download--install">Download</a> •
   <a href="#-building-from-source">Building</a> •
+  <a href="#-autonomous-ai-repair-system">AI Engine</a> •
   <a href="#-engineering-roadmap">Roadmap</a> •
   <a href="#-contributing">Contributing</a>
 </p>
@@ -95,13 +96,13 @@ I believe gaming software should respect the people who use it — their privacy
 ## ✨ Key Features
 
 ### 👻 Ghost Launch & Launcher Bypass (In Development)
-- **Direct Binary Execution:** Launch DRM-Free Steam, Epic, and GOG titles directly via local executables and launch args, bypassing bloatware.
-- **Silent Background Orchestration:** Run mandatory third-party clients in headless/minimized mode and automatically kill their processes upon game exit to release 100% system RAM back to your game.
+- **Direct Binary Execution:** Launch DRM-Free Steam, Epic, and GOG titles directly via local executables and launch arguments, bypassing heavy store bloatware.
+- **Silent Background Orchestration:** Run mandatory third-party clients in headless or minimized mode, and automatically terminate their background processes upon game exit to release 100% system RAM back to your game.
 
 ### 🎮 Unified Game Aggregator
 - **Auto-Discovery Engine:** Systematically scans local storage drives, custom directory trees, and external platform manifests (Steam VDF, Epic AppData, GOG Galaxy SQLite) to automatically populate a master game registry.
-- **Rich Metadata Enrichment:** Asynchronously fetches high-resolution cover artwork, panoramic hero images, ratings, release timelines, and publisher details via cached connections.
-- **Session Analytics & Local Metrics:** Localized tracking of per-game execution sessions, playtime accumulation, and launch frequency stored entirely within an encrypted local database.
+- **Rich Metadata Enrichment:** Asynchronously fetches high-resolution cover artwork, panoramic hero images, metacritic ratings, release timelines, and publisher details via cached API connections.
+- **Session Analytics & Local Metrics:** Localized tracking of per-game execution sessions, playtime accumulation, launch frequency, and personal usage trends stored entirely within an encrypted local database.
 
 ### 🎨 Cyberpunk QML Interface
 - **Hardware-Accelerated Visuals:** High-performance QML/QtQuick presentation layer backed by direct GPU rendering, supporting fluid 60+ FPS animations, hardware shaders, and customizable particle effects.
@@ -173,33 +174,58 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=23
 
 # 3. Build optimized binaries in parallel
 cmake --build build --config Release --parallel
+```
 
-🤖 Autonomous AI Repair System
+<br/>
+
+## 🤖 Autonomous AI Repair System
+
 VoidOne features an automated self-healing CI pipeline designed to diagnose build regressions instantly:
+
+```mermaid
 flowchart LR
-    A[❌ CI Build Failure<br/>GitHub Workflow] --> B[🧠 Lead Diagnostic Model<br/>Gemini 2.5 Pro]
-    B --> C[💻 Code Generation Model<br/>Qwen2.5-Coder]
+    A[❌ CI Build Failure] --> B[🧠 Lead Diagnostic Model: Gemini]
+    B --> C[💻 Code Generation Model: Qwen]
     C --> D[✅ Patch Review & Validation]
-    D --> E[🔀 Automated<br/>Pull Request]
+    D --> E[🔀 Automated Pull Request]
+```
 
 Every AI-generated patch is manually reviewed before merge — AI accelerates diagnosis, it doesn't make the final call.
-🗺️ Engineering Roadmap
- * [x] Phase 1 — Core Foundation: CMake C++23 build harness, Qt 6.8/QML scaffolding, automated cross-compilation CI pipelines
- * [ ] Phase 2 — Database & Scanning Engine: Thread-safe SQLite database schema, multi-threaded disk scanners, manifest parsing algorithms
- * [ ] Phase 3 — Storefront Connectors: Native API and filesystem hooks for Steam, Epic Games Launcher, GOG Galaxy, and manual executables
- * [ ] Phase 4 — Ghost Launch Engine: Direct execution mode, Steam API stub integration, and auto-killing background store processes
- * [ ] Phase 5 — Advanced Mod Engine: Dynamic plugin loader, mod dependency graph resolution, virtual filesystem overlay mechanics
- * [ ] Phase 6 — Ecosystem Expansion: Customizable QML theme development SDK, RGB hardware synchronization (OpenRGB), cloud configuration sync
-🤝 Contributing
+
+<br/>
+
+## 🗺️ Engineering Roadmap
+
+- [x] **Phase 1 — Core Foundation:** CMake C++23 build harness, Qt 6.8/QML scaffolding, automated cross-compilation CI pipelines
+- [ ] **Phase 2 — Database & Scanning Engine:** Thread-safe SQLite database schema, multi-threaded disk scanners, manifest parsing algorithms
+- [ ] **Phase 3 — Storefront Connectors:** Native API and filesystem hooks for Steam, Epic Games Launcher, GOG Galaxy, and manual executables
+- [ ] **Phase 4 — Ghost Launch Engine:** Direct execution mode, Steam API stub integration, and auto-killing background store processes
+- [ ] **Phase 5 — Advanced Mod Engine:** Dynamic plugin loader, mod dependency graph resolution, virtual filesystem overlay mechanics
+- [ ] **Phase 6 — Ecosystem Expansion:** Customizable QML theme development SDK, RGB hardware synchronization (OpenRGB), cloud configuration sync
+
+<br/>
+
+## 🤝 Contributing
+
 Contributions are fundamental to the growth of open-source software. Whether fixing bugs, refining UI components, or implementing store integration logic, your efforts are welcome.
- * Fork the project repository.
- * Create your feature branch: git checkout -b feature/NewFeature
- * Commit your changes: git commit -m 'feat: implement new game scanner'
- * Push to your branch: git push origin feature/NewFeature
- * Submit a detailed Pull Request.
-👨‍💻 Project Background
+
+1. Fork the project repository.
+2. Create your feature branch: `git checkout -b feature/NewFeature`
+3. Commit your changes: `git commit -m 'feat: implement new game scanner'`
+4. Push to your branch: `git push origin feature/NewFeature`
+5. Submit a detailed Pull Request.
+
+<br/>
+
+## 👨‍💻 Project Background
+
 VoidOne originated as an ambitious initiative to build a modern, high-performance, bloat-free alternative to traditional PC game launchers. The project serves as a practical implementation platform for exploring modern low-level system design patterns in C++23 alongside declarative UI design via Qt 6 / QML. Artificial intelligence is used as a collaborative pair-programming tool during architecture drafting and automated testing, with all code subject to manual auditing, profiling, and iterative optimization.
-📄 License
+
+<br/>
+
+## 📄 License
+
+```
 +--------------------------------------------------------------+
 |                    [ V O I D O N E   E N G I N E ]           |
 +--------------------------------------------------------------+
@@ -207,11 +233,20 @@ VoidOne originated as an ambitious initiative to build a modern, high-performanc
 | Repo: [github.com/VoidOne-App/VoidOne](https://github.com/VoidOne-App/VoidOne)                         |
 | Tech: Modern C++23 & Qt 6 / QML                               |
 +--------------------------------------------------------------+
+```
 
-VoidOne is released under the terms of the MIT License. For complete terms and permissions, consult the LICENSE file in the repository root.
+VoidOne is released under the terms of the **MIT License**. For complete terms and permissions, consult the [LICENSE](LICENSE) file in the repository root.
+
+<br/>
+
 <div align="center">
-Built by a gamer. Built for gamers. Built in the open.
-<sub>Engineered with precision, ❤️, and modern C++23 by the VoidOne-App Core Team.</sub>
-⭐ If you like VoidOne, consider giving it a star!
-</div>
 
+**Built by a gamer. Built for gamers. Built in the open.**
+
+<sub>Engineered with precision, ❤️, and modern C++23 by the VoidOne-App Core Team.</sub>
+
+<br/><br/>
+
+⭐ If you like VoidOne, consider giving it a star!
+
+</div>
