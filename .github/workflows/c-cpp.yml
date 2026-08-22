@@ -358,20 +358,38 @@ jobs:
               -Encoding utf8 `
               -Append
 
-      - name: Build Installer (Inno Setup)
+      - name: Convert Icon & Build Installer (Inno Setup)
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
+          python -m pip install --upgrade pillow
 
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           New-Item -ItemType Directory -Force -Path installer | Out-Null
 
-          $hasIcon = Test-Path "app.ico"
-          $iconLine = if ($hasIcon) { "SetupIconFile=..\app.ico" } else { "" }
+          $iconFile = Get-ChildItem -Path . -Filter "app.*" | Where-Object { $_.Extension -in ".ico", ".png", ".jpg", ".jpeg" } | Select-Object -First 1
 
-          if ($hasIcon) {
-            Copy-Item -Path "app.ico" -Destination "package\app.ico" -Force
+          $hasValidIcon = $false
+          if ($iconFile) {
+            python -c @"
+from PIL import Image
+import sys
+
+try:
+    img = Image.open(r'$($iconFile.FullName)')
+    icon_sizes = [(16,16), (32,32), (48,48), (64,64), (128,128), (256,256)]
+    img.save(r'package\app.ico', format='ICO', sizes=icon_sizes)
+    print('SUCCESS')
+except Exception as e:
+    print(f'ERROR: {e}')
+    sys.exit(1)
+"@
+            if ($LASTEXITCODE -eq 0) {
+              $hasValidIcon = $true
+            }
           }
+
+          $iconLine = if ($hasValidIcon) { "SetupIconFile=..\package\app.ico" } else { "" }
 
           @"
           [Setup]
