@@ -363,21 +363,18 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
 
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path dist |
-            Out-Null
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          New-Item -ItemType Directory -Force -Path installer | Out-Null
 
-          if (-not (Test-Path "installer\VoidOne.iss")) {
+          $hasIcon = Test-Path "app.ico"
+          $iconLine = if ($hasIcon) { "SetupIconFile=..\app.ico" } else { "SetupIconFile=" }
+          $shortcutIcon = if ($hasIcon) { "IconFilename: `"{app}\app.ico`"" } else { "" }
 
-            New-Item `
-              -ItemType Directory `
-              -Force `
-              -Path installer |
-              Out-Null
+          if ($hasIcon) {
+            Copy-Item -Path "app.ico" -Destination "package\app.ico" -Force
+          }
 
-            @"
+          @"
           [Setup]
           AppId={{B6E1A0B2-9F3D-4C7A-VOID-ONE-APP-ID}}
           AppName=VoidOne
@@ -388,20 +385,17 @@ jobs:
           Compression=lzma2
           SolidCompression=yes
           ArchitecturesInstallIn64BitMode=x64compatible
+          DisableProgramGroupPage=yes
+          $iconLine
 
           [Files]
           Source: "..\package\*"; DestDir: "{app}"; Flags: recursesubdirs
 
           [Icons]
-          Name: "{autoprograms}\VoidOne"; Filename: "{app}\VoidOne.exe"
-          "@ |
-              Out-File `
-                -FilePath installer\VoidOne.iss `
-                -Encoding utf8
-          }
+          Name: "{autoprograms}\VoidOne"; Filename: "{app}\VoidOne.exe"; $shortcutIcon
+          "@ | Out-File -FilePath installer\VoidOne.iss -Encoding utf8
 
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
-            installer\VoidOne.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\VoidOne.iss
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
