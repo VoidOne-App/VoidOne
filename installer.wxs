@@ -1,26 +1,31 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
 
-  <Package Name="VoidOne (Beta)" 
+  <Package Name="VoidOne" 
            Manufacturer="VoidOne-App" 
            Version="0.0.1.0" 
            UpgradeCode="B6E1A0B2-9F3D-4C7A-B1C2-3D4E5F6A7B8C" 
            Scope="perMachine"
            InstallerVersion="500">
+
+    <!-- جلوگیری از نصب روی سیستم‌های 32 بیتی (چون پکیج 64 بیتی است) -->
+    <Launch Message="This application requires a 64-bit version of Windows." 
+            Condition="VersionNT64" />
     
-    <MajorUpgrade DowngradeErrorMessage="A newer version of VoidOne is already installed."
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed."
                   Schedule="afterInstallInitialize" />
                   
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
-    <!-- Control Panel / Add-Remove Programs Properties -->
+    <!-- Control Panel / Add-Remove Programs Properties (Commercial Look) -->
     <Property Id="ARPCOMMENTS" Value="VoidOne Open-Source High-Performance Engine" />
-    <Property Id="ARPCONTACT" Value="VoidOne-App Team" />
-    <Property Id="ARPHELPLINK" Value="https://github.com/VoidOne-App/VoidOne" />
+    <Property Id="ARPCONTACT" Value="VoidOne-App Support Team" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/VoidOne-App/VoidOne/issues" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/VoidOne-App/VoidOne" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPSIZE" Value="50000" /> <!-- اختیاری: تخمین سایز برای نمایش دقیق‌تر -->
 
-    <!-- Application Icon (Points directly to root app-icon.ico) -->
+    <!-- Application Icon -->
     <Icon Id="AppIcon.ico" SourceFile="app-icon.ico" />
 
     <!-- Target Directory Structure -->
@@ -34,7 +39,7 @@
 
     <StandardDirectory Id="DesktopFolder" />
 
-    <!-- 1. Application Core Files (Package output directory) -->
+    <!-- 1. Application Core Files -->
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
       <Files Include="package\**" />
     </ComponentGroup>
@@ -45,7 +50,7 @@
       <!-- Start Menu Shortcut -->
       <Component Id="ApplicationShortcut" Directory="ApplicationProgramsFolder" Guid="A1B2C3D4-E5F6-7A8B-9C0D-1E2F3A4B5C6D">
         <Shortcut Id="ApplicationStartMenuShortcut"
-                  Name="VoidOne (Beta)"
+                  Name="VoidOne"
                   Description="Launch VoidOne Application"
                   Target="[INSTALLFOLDER]VoidOne.exe"
                   WorkingDirectory="INSTALLFOLDER"
@@ -58,7 +63,7 @@
       <!-- Desktop Shortcut -->
       <Component Id="DesktopShortcutComponent" Directory="DesktopFolder" Guid="B2C3D4E5-F6A7-8B9C-0D1E-2F3A4B5C6D7E">
         <Shortcut Id="DesktopShortcut"
-                  Name="VoidOne (Beta)"
+                  Name="VoidOne"
                   Description="Launch VoidOne Application"
                   Target="[INSTALLFOLDER]VoidOne.exe"
                   WorkingDirectory="INSTALLFOLDER"
@@ -69,9 +74,12 @@
       
     </ComponentGroup>
 
-    <!-- Graphical UI Wizard -->
+    <!-- Graphical UI Wizard با ظاهر استاندارد و حرفه‌ای -->
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
     
+    <!-- لایسنس‌نامه (در صورت داشتن فایل license.rtf در کنار فایل wxs آن را فعال کنید) -->
+    <!-- <WixVariable Id="WixUILicenseRtf" Value="license.rtf" /> -->
+
     <!-- Main Feature Definition -->
     <Feature Id="MainFeature" Title="VoidOne Core" Level="1" ConfigurableDirectory="INSTALLFOLDER">
       <ComponentGroupRef Id="ProductComponents" />
