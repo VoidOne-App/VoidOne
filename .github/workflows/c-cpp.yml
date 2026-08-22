@@ -1,4 +1,4 @@
-name: VoidOne Ultimate CI/CD (Production Ready)
+Name: VoidOne Ultimate CI/CD (Production Ready)
 
 on:
   push:
@@ -367,8 +367,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path installer | Out-Null
 
           $hasIcon = Test-Path "app.ico"
-          $iconLine = if ($hasIcon) { "SetupIconFile=..\app.ico" } else { "SetupIconFile=" }
-          $shortcutIcon = if ($hasIcon) { "IconFilename: `"{app}\app.ico`"" } else { "" }
+          $iconLine = if ($hasIcon) { "SetupIconFile=..\app.ico" } else { "" }
 
           if ($hasIcon) {
             Copy-Item -Path "app.ico" -Destination "package\app.ico" -Force
@@ -379,21 +378,32 @@ jobs:
           AppId={{B6E1A0B2-9F3D-4C7A-VOID-ONE-APP-ID}}
           AppName=VoidOne
           AppVersion=${{ steps.version.outputs.value }}
+          AppPublisher=VoidOne-App
           DefaultDirName={autopf}\VoidOne
+          DefaultGroupName=VoidOne
           OutputDir=..\dist
           OutputBaseFilename=VoidOne-Setup-x64-${{ steps.version.outputs.value }}
           Compression=lzma2
           SolidCompression=yes
           ArchitecturesInstallIn64BitMode=x64compatible
+          WizardStyle=modern
           DisableProgramGroupPage=yes
           $iconLine
+
+          [Tasks]
+          Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
 
           [Files]
           Source: "..\package\*"; DestDir: "{app}"; Flags: recursesubdirs
 
           [Icons]
-          Name: "{autoprograms}\VoidOne"; Filename: "{app}\VoidOne.exe"; $shortcutIcon
-          "@ | Out-File -FilePath installer\VoidOne.iss -Encoding utf8
+          Name: "{group}\VoidOne"; Filename: "{app}\VoidOne.exe"
+          Name: "{group}\Uninstall VoidOne"; Filename: "{uninstallexe}"
+          Name: "{commondesktop}\VoidOne"; Filename: "{app}\VoidOne.exe"; Tasks: desktopicon
+
+          [Run]
+          Filename: "{app}\VoidOne.exe"; Description: "Launch VoidOne now"; Flags: nowait postinstall skipifsilent
+          "@ | Out-File -FilePath installer\VoidOne.iss -Encoding utf8 -Force
 
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\VoidOne.iss
 
