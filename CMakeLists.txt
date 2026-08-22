@@ -1,6 +1,5 @@
-cmake_minimum_required(VERSION 3.21) # حروف کوچک برای دستورات CMake استانداردتر است
+cmake_minimum_required(VERSION 3.21)
 
-# نسخه عددی برای CMake و نسخه متنی برای استفاده در ++C
 project(VoidOne
     VERSION 0.0.1
     DESCRIPTION "A modern Qt6 C++ game launcher"
@@ -82,20 +81,18 @@ set(VOIDONE_QML_FILES
 )
 
 # ============================================================================
-# Windows Application Icon
+# Windows Application Icon (تغییر یافته برای خواندن app.ico از ریشه)
 # ============================================================================
 
-if(WIN32 AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.ico")
-    set(VOIDONE_ICON_RESOURCE
-        "${CMAKE_CURRENT_BINARY_DIR}/voidone_icon.rc"
-    )
-
-    file(WRITE
-        "${VOIDONE_ICON_RESOURCE}"
-        "IDI_ICON1 ICON DISCARDABLE \"${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.ico\"\n"
-    )
-
-    list(APPEND VOIDONE_SOURCES "${VOIDONE_ICON_RESOURCE}")
+if(WIN32)
+    set(APP_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/app.ico")
+    if(EXISTS "${APP_ICON_PATH}")
+        set(VOIDONE_ICON_RESOURCE "${CMAKE_CURRENT_BINARY_DIR}/voidone_icon.rc")
+        file(WRITE "${VOIDONE_ICON_RESOURCE}"
+            "IDI_ICON1 ICON DISCARDABLE \"${APP_ICON_PATH}\"\n"
+        )
+        list(APPEND VOIDONE_SOURCES "${VOIDONE_ICON_RESOURCE}")
+    endif()
 endif()
 
 # ============================================================================
@@ -125,13 +122,13 @@ target_include_directories(VoidOne
 )
 
 # ============================================================================
-# Compile Definitions
+# Compile Definitions (تغییر نسخه نمایشی به 0.0.1b)
 # ============================================================================
 
 target_compile_definitions(VoidOne
     PRIVATE
         PROJECT_VERSION="${PROJECT_VERSION}"
-        PROJECT_VERSION_DISPLAY="V0.0.1 A" # نسخه نمایشی آلفا برای استفاده در کدها
+        PROJECT_VERSION_DISPLAY="0.0.1b"
         PROJECT_NAME="${PROJECT_NAME}"
 )
 
@@ -226,7 +223,7 @@ message(STATUS "")
 message(STATUS "============================================")
 message(STATUS "          VoidOne Configuration")
 message(STATUS "============================================")
-message(STATUS "Version:        ${PROJECT_VERSION} (Alpha)")
+message(STATUS "Version:        ${PROJECT_VERSION} (0.0.1b)")
 message(STATUS "C++ Standard:   C++${CMAKE_CXX_STANDARD}")
 message(STATUS "Compiler:       ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "Compiler Ver:   ${CMAKE_CXX_COMPILER_VERSION}")
