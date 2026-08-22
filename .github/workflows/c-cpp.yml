@@ -1,4 +1,4 @@
-name: VoidOne Ultimate Enterprise CI/CD
+Name: VoidOne Ultimate Enterprise CI/CD
 
 on:
   push:
@@ -35,7 +35,6 @@ env:
   QT_ARCH: win64_msvc2022_64
   APP_NAME: VoidOne
   WIX_ACCEPT_EULA: "true"
-  WIX_ACCEPT_OSMF_EULA: "true"
 
 jobs:
 
@@ -158,7 +157,7 @@ jobs:
         shell: pwsh
         run: |
           choco install ninja upx nsis dotnet-8.0-sdk -y --no-progress
-          dotnet tool install --global wix
+          dotnet tool install --global wix --ignore-failed-sources || dotnet tool update --global wix
           wix extension add -g WixToolset.UI.wixext
 
       - uses: ilammy/msvc-dev-cmd@v1
@@ -231,9 +230,9 @@ jobs:
             Move-Item -Path "dist\VoidOne-Setup-x64.exe" -Destination "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe" -Force
           }
 
-          # 2. WiX v7 MSI
+          # 2. WiX MSI
           if (Test-Path "installer.wxs") {
-            wix eula accept wix7
+            wix eula accept
             wix build installer.wxs -ext WixToolset.UI.wixext -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi"
           }
 
