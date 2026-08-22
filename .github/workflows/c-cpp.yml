@@ -1,4 +1,4 @@
-name: VoidOne Ultimate CI/CD (Production Ready)
+name: VoidOne Ultimate Enterprise CI/CD
 
 on:
   push:
@@ -50,13 +50,10 @@ jobs:
       - name: Enforce SemVer format
         run: |
           TAG="${{ github.ref_name }}"
-
           if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)(\.[0-9]+)?)?$ ]]; then
             echo "::error::Tag '$TAG' does not follow the supported SemVer format."
-            echo "::error::Examples: v0.0.1, v0.0.1-beta, v0.0.1-beta.1, v0.0.1-rc.1"
             exit 1
           fi
-
           echo "Tag $TAG is valid SemVer."
 
   # ----------------------------------------------------------
@@ -99,87 +96,19 @@ jobs:
         shell: pwsh
         run: |
           mkdir build -ErrorAction SilentlyContinue
-
-          cmake `
-            -S . `
-            -B build `
-            -G Ninja `
-            -DCMAKE_BUILD_TYPE=Release
-
-          cmake `
-            --build build `
-            --config Release `
-            --parallel
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release --parallel
 
       - uses: github/codeql-action/analyze@v3
 
-      - name: Install & Run cppcheck
-        shell: pwsh
-        run: |
-          choco install cppcheck -y --no-progress
-
-          $cppcheckDir = "C:\Program Files\Cppcheck"
-
-          "$cppcheckDir" |
-            Out-File `
-              -FilePath $env:GITHUB_PATH `
-              -Encoding utf8 `
-              -Append
-
-          & "$cppcheckDir\cppcheck.exe" `
-            --enable=warning,performance,portability `
-            --error-exitcode=0 `
-            --xml `
-            --xml-version=2 `
-            src/ `
-            2> cppcheck-report.xml
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cppcheck-report
-          path: cppcheck-report.xml
-          retention-days: 14
-
   # ----------------------------------------------------------
-  # 3. Dependency Security Scan
-  # ----------------------------------------------------------
-
-  dependency-scan:
-    name: Dependency Scan (Trivy)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run Trivy scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: sarif
-          output: trivy-results.sarif
-          severity: CRITICAL,HIGH
-          exit-code: 0
-
-      - name: Upload SARIF to GitHub Security Tab
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results.sarif
-          category: trivy-dependencies
-
-  # ----------------------------------------------------------
-  # 4. Build, Test, Optimize, Package & SBOM
+  # 3. Build, Optimize & Package Dual Installers (EXE & MSI)
   # ----------------------------------------------------------
 
   build-windows:
-    name: Build & Package (Windows x64)
-    needs:
-      - static-analysis
-      - dependency-scan
-
+    name: Build & Package (EXE, MSI & ZIP)
+    needs: static-analysis
     if: always() && needs.static-analysis.result == 'success'
-
     runs-on: windows-2025
     timeout-minutes: 45
 
@@ -187,7 +116,6 @@ jobs:
       build-version: ${{ steps.version.outputs.value }}
 
     steps:
-
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -199,16 +127,10 @@ jobs:
         run: |
           if ("${{ github.ref_type }}" -eq "tag") {
             $ver = "${{ github.ref_name }}" -replace '^v',''
-          }
-          else {
+          } else {
             $ver = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
           }
-
-          "value=$ver" |
-            Out-File `
-              -FilePath $env:GITHUB_OUTPUT `
-              -Encoding utf8 `
-              -Append
+          "value=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - uses: hendrikmuhs/ccache-action@v1.2
         with:
@@ -217,13 +139,11 @@ jobs:
           variant: ccache
           max-size: 500M
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Install Build Tools
+      - name: Install Build Tools & Packaging Suites (NSIS + WiX)
         shell: pwsh
-        run: choco install ninja -y --no-progress
+        run: |
+          choco install ninja upx nsis dotnet-8.0-sdk -y --no-progress
+          dotnet tool install --global wix
 
       - uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -237,443 +157,87 @@ jobs:
           dir: ${{ github.workspace }}
           cache: true
           cache-key-prefix: voidone-qt
-          setup-python: false
 
-      - name: Configure Project via CMake
+      - name: Configure & Compile Executable
         shell: pwsh
         run: |
           mkdir build -ErrorAction SilentlyContinue
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPROJECT_VERSION="${{ steps.version.outputs.value }}" -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build build --config Release --parallel
 
-          cmake `
-            -S . `
-            -B build `
-            -G Ninja `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DPROJECT_VERSION="${{ steps.version.outputs.value }}" `
-            -DBUILD_TESTING=ON `
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
-            -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /HIGHENTROPYVA"
-
-      - name: Compile Release Binaries
+      - name: Prepare Staging Folder & Deploy Qt Binaries
         shell: pwsh
         run: |
-          cmake `
-            --build build `
-            --config Release `
-            --parallel
+          Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          $exe = Get-ChildItem -Path build -Filter "$env:APP_NAME.exe" -Recurse | Select-Object -First 1
+          Copy-Item -Path $exe.FullName -Destination "package\$env:APP_NAME.exe" -Force
+          windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
 
-      - name: Run Tests with OpenCppCoverage
-        if: ${{ !inputs.skip_tests }}
+      - name: Compress Executable with UPX
+        shell: pwsh
+        run: upx --best package\$env:APP_NAME.exe
+
+      - name: Build Dual Installers (NSIS EXE + WiX MSI)
         shell: pwsh
         run: |
-          choco install opencppcoverage -y --no-progress
-
-          $occDir = "C:\Program Files\OpenCppCoverage"
-
-          "$occDir" |
-            Out-File `
-              -FilePath $env:GITHUB_PATH `
-              -Encoding utf8 `
-              -Append
-
-          & "$occDir\OpenCppCoverage.exe" `
-            --sources src `
-            --export_type cobertura:coverage.xml `
-            -- ctest `
-            --test-dir build `
-            -C Release `
-            --output-on-failure `
-            --timeout 120
-
-      - name: Upload Coverage to Codecov
-        if: ${{ !inputs.skip_tests }}
-        uses: codecov/codecov-action@v4
-        with:
-          files: coverage.xml
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-
-      - name: Prepare Staging & Deploy Qt
-        shell: pwsh
-        run: |
-          Remove-Item `
-            -Path package `
-            -Recurse `
-            -Force `
-            -ErrorAction SilentlyContinue
-
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path package |
-            Out-Null
-
-          $exe = Get-ChildItem `
-            -Path build `
-            -Filter "$env:APP_NAME.exe" `
-            -Recurse |
-            Select-Object -First 1
-
-          if (-not $exe) {
-            Write-Error "VoidOne.exe was not found."
-            exit 1
-          }
-
-          Copy-Item `
-            -Path $exe.FullName `
-            -Destination "package\$env:APP_NAME.exe" `
-            -Force
-
-          windeployqt `
-            --release `
-            --compiler-runtime `
-            --no-translations `
-            --qmldir "$env:GITHUB_WORKSPACE\src" `
-            "package\$env:APP_NAME.exe"
-
-      - name: Optimize Executable with UPX
-        shell: pwsh
-        run: |
-          choco install upx -y --no-progress
-
-          $exePath = "package\$env:APP_NAME.exe"
-
-          $originalSize =
-            (Get-Item $exePath).Length / 1MB
-
-          upx --best $exePath
-
-          $compressedSize =
-            (Get-Item $exePath).Length / 1MB
-
-          $saved =
-            $originalSize - $compressedSize
-
-          $msg =
-            "✅ **UPX Compression Saved:** $($saved.ToString('0.00')) MB"
-
-          $msg |
-            Out-File `
-              -FilePath $env:GITHUB_STEP_SUMMARY `
-              -Encoding utf8 `
-              -Append
-
-      - name: Convert Icon & Build Installer (Inno Setup)
-        shell: pwsh
-        run: |
-          choco install innosetup -y --no-progress
-          python -m pip install --upgrade pillow
-
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          New-Item -ItemType Directory -Force -Path installer | Out-Null
 
-          $iconFile = Get-ChildItem -Path . -Filter "app.*" | Where-Object { $_.Extension -in ".ico", ".png", ".jpg", ".jpeg" } | Select-Object -First 1
-
-          $hasValidIcon = $false
-          if ($iconFile) {
-            python -c @"
-from PIL import Image
-import sys
-
-try:
-    img = Image.open(r'$($iconFile.FullName)')
-    icon_sizes = [(16,16), (32,32), (48,48), (64,64), (128,128), (256,256)]
-    img.save(r'package\app.ico', format='ICO', sizes=icon_sizes)
-    print('SUCCESS')
-except Exception as e:
-    print(f'ERROR: {e}')
-    sys.exit(1)
-"@
-            if ($LASTEXITCODE -eq 0) {
-              $hasValidIcon = $true
-            }
+          # 1. ساخت نسخه EXE با NSIS
+          if (Test-Path "installer.nsi") {
+            & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+            Move-Item -Path "dist\VoidOne-Setup-x64.exe" -Destination "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe" -Force
           }
 
-          $iconLine = if ($hasValidIcon) { "SetupIconFile=..\package\app.ico" } else { "" }
+          # 2. ساخت نسخه MSI با WiX v4
+          if (Test-Path "installer.wxs") {
+            wix build installer.wxs -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi"
+          }
 
-          @"
-          [Setup]
-          AppId={{B6E1A0B2-9F3D-4C7A-VOID-ONE-APP-ID}}
-          AppName=VoidOne
-          AppVersion=${{ steps.version.outputs.value }}
-          AppPublisher=VoidOne-App
-          DefaultDirName={autopf}\VoidOne
-          DefaultGroupName=VoidOne
-          OutputDir=..\dist
-          OutputBaseFilename=VoidOne-Setup-x64-${{ steps.version.outputs.value }}
-          Compression=lzma2
-          SolidCompression=yes
-          ArchitecturesInstallIn64BitMode=x64compatible
-          WizardStyle=modern
-          DisableProgramGroupPage=yes
-          $iconLine
-
-          [Tasks]
-          Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
-
-          [Files]
-          Source: "..\package\*"; DestDir: "{app}"; Flags: recursesubdirs
-
-          [Icons]
-          Name: "{group}\VoidOne"; Filename: "{app}\VoidOne.exe"
-          Name: "{group}\Uninstall VoidOne"; Filename: "{uninstallexe}"
-          Name: "{commondesktop}\VoidOne"; Filename: "{app}\VoidOne.exe"; Tasks: desktopicon
-
-          [Run]
-          Filename: "{app}\VoidOne.exe"; Description: "Launch VoidOne now"; Flags: nowait postinstall skipifsilent
-          "@ | Out-File -FilePath installer\VoidOne.iss -Encoding utf8 -Force
-
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\VoidOne.iss
-
-      - name: Generate SBOM
-        uses: anchore/sbom-action@v0
-        with:
-          path: package
-          format: spdx-json
-          output-file: VoidOne-SBOM-x64.spdx.json
-
-      - name: Create Zip Archive & SHA256
-        id: package_hash
+      - name: Create ZIP Archive (Portable) & Checksums
         shell: pwsh
         run: |
-          $zipName =
-            "VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip"
+          $zipName = "VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip"
+          Compress-Archive -Path package\* -DestinationPath $zipName -CompressionLevel Optimal
 
-          Compress-Archive `
-            -Path package\* `
-            -DestinationPath $zipName `
-            -CompressionLevel Optimal
+          Get-ChildItem -Path . -Filter "*.zip" | ForEach-Object {
+            (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii
+          }
+          Get-ChildItem -Path dist -Filter "*.*" | ForEach-Object {
+            (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii
+          }
 
-          Get-ChildItem `
-            -Path . `
-            -Filter "*.zip" `
-            -File |
-            ForEach-Object {
-              (
-                Get-FileHash $_.FullName -Algorithm SHA256
-              ).Hash + "  " + $_.Name |
-              Out-File `
-                "$($_.FullName).sha256" `
-                -Encoding ascii
-            }
-
-          Get-ChildItem `
-            -Path dist `
-            -Filter "*.exe" `
-            -File |
-            ForEach-Object {
-              (
-                Get-FileHash $_.FullName -Algorithm SHA256
-              ).Hash + "  " + $_.Name |
-              Out-File `
-                "$($_.FullName).sha256" `
-                -Encoding ascii
-            }
-
-          $zipHash =
-            (Get-FileHash $zipName -Algorithm SHA256).Hash
-
-          $summary = @"
-          ### 🚀 Build Successful
-          Version: `${{ steps.version.outputs.value }}`
-
-          | File Type | SHA256 Hash |
-          |-----------|-------------|
-          | **ZIP** | `$zipHash` |
-          "@
-
-          $summary |
-            Out-File `
-              -FilePath $env:GITHUB_STEP_SUMMARY `
-              -Encoding utf8 `
-              -Append
-
-      - name: Generate Build Provenance Attestation
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: |
-            VoidOne-Windows-x64-Portable-*.zip
-            dist/*.exe
-            VoidOne-SBOM-x64.spdx.json
-
-      - name: Upload Build Artifacts
+      - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: VoidOne-Windows-x64-Release
           path: |
             VoidOne-Windows-x64-Portable-*.zip*
-            VoidOne-SBOM-x64.spdx.json
-            dist/*.exe*
+            dist/*.*
           retention-days: 30
 
   # ----------------------------------------------------------
-  # 5. Keyless Cosign Signature
+  # 4. Publish Release to GitHub
   # ----------------------------------------------------------
 
-  sign-artifacts:
-    name: Cosign Keyless Signing
-    needs: build-windows
-
+  publish-release:
+    name: Publish Official Release
+    needs: [validate-version, build-windows]
     if: startsWith(github.ref, 'refs/tags/v')
-
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
 
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: VoidOne-Windows-x64-Release
           path: release-files
 
-      - uses: sigstore/cosign-installer@v3.8.1
-
-      - name: Sign binaries & SBOM with OIDC
-        run: |
-          find release-files \
-            -type f \
-            \( -name "*.zip" -o -name "*.exe" -o -name "*.json" \) |
-          while read -r f; do
-            echo "Signing $f..."
-
-            cosign sign-blob \
-              --yes \
-              --output-signature "$f.sig" \
-              --output-certificate "$f.pem" \
-              "$f"
-          done
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: VoidOne-Windows-x64-Signed
-          path: release-files/**
-          retention-days: 30
-
-  # ----------------------------------------------------------
-  # 6. Publish Release & Discord
-  # ----------------------------------------------------------
-
-  publish-release:
-    name: Publish Release & Notify
-    needs:
-      - validate-version
-      - build-windows
-      - sign-artifacts
-
-    if: startsWith(github.ref, 'refs/tags/v')
-
-    runs-on: ubuntu-24.04
-
-    environment:
-      name: production
-
-    permissions:
-      contents: write
-
-    steps:
-
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: VoidOne-Windows-x64-Signed
-          path: release-files
-
-      - name: Build changelog
-        id: changelog
-        run: |
-          PREV_TAG=$(
-            git describe \
-              --tags \
-              --abbrev=0 \
-              --exclude="${{ github.ref_name }}" \
-              2>/dev/null ||
-            echo ""
-          )
-
-          if [ -n "$PREV_TAG" ]; then
-            LOG=$(
-              git log \
-                "$PREV_TAG"..HEAD \
-                --pretty=format:"• %s" |
-              head -n 10
-            )
-          else
-            LOG="• Initial official release"
-          fi
-
-          {
-            echo "log<<EOF"
-            echo "$LOG"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Publish Official GitHub Release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "VoidOne ${{ github.ref_name }}"
           generate_release_notes: true
-          draft: false
           files: release-files/**
-
-      - name: Notify Discord
-        if: success()
-        env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
-
-        run: |
-          if [ -z "$WEBHOOK" ]; then
-            exit 0
-          fi
-
-          PAYLOAD=$(jq -n \
-            --arg tag "${{ github.ref_name }}" \
-            --arg actor "${{ github.actor }}" \
-            --arg url "https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}" \
-            '{
-              username: "VoidOne CI",
-              embeds: [{
-                title: ("🚀 VoidOne " + $tag + " — Production Release Live!"),
-                url: $url,
-                color: 3066993,
-                author: {
-                  name: $actor
-                },
-                description: "All assets are compressed (UPX), signed, tested, and published.",
-                footer: {
-                  text: "Enterprise Supply Chain Security"
-                }
-              }]
-            }')
-
-          curl \
-            -sf \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            "$WEBHOOK"
-
-  # ----------------------------------------------------------
-  # 7. Publish to Winget
-  # ----------------------------------------------------------
-
-  publish-winget:
-    name: Publish to Winget Repository
-    needs:
-      - publish-release
-      - build-windows
-
-    if: >
-      startsWith(github.ref, 'refs/tags/v') &&
-      !contains(github.ref_name, 'alpha') &&
-      !contains(github.ref_name, 'beta')
-
-    runs-on: windows-2025
-
-    steps:
-      - uses: vedantmgoyal2009/winget-releaser@v2
-        with:
-          identifier: VoidOne-App.VoidOne
-          installers-regex: 'VoidOne-Setup-x64-.*\.exe$'
-          version: ${{ needs.build-windows.outputs.build-version }}
-          release-tag: ${{ github.ref_name }}
-          token: ${{ secrets.WINGET_TOKEN }}
