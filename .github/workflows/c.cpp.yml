@@ -152,23 +152,12 @@ jobs:
           variant: ccache
           max-size: 500M
 
-      # NOTE: UPX removed. UPX-packed binaries are a well-known false-positive
-      # trigger for Windows Defender and other AV engines (the entropy pattern
-      # from its compression is indistinguishable from malware packers at a
-      # glance). Given VoidOne is actively building user trust, the few MB
-      # saved isn't worth that risk.
       - name: Install Toolchain (NSIS, WiX)
         shell: pwsh
         run: |
           choco install ninja nsis dotnet-8.0-sdk -y --no-progress
           dotnet tool install --global wix --ignore-failed-sources || dotnet tool update --global wix
 
-          # WiX v6+ ships under the Open Source Maintenance Fee (OSMF) EULA.
-          # The fee only applies if your project earns $10k+/year FROM software
-          # that uses WiX — VoidOne is free/MIT with no revenue, so no fee is
-          # owed. Accepting the EULA gesture is still mandatory for the CLI to
-          # run at all, though. We detect the installed major version so this
-          # doesn't silently break on the next WiX release.
           $wixVersion = (wix --version).Trim()
           $wixMajor = $wixVersion.Split('.')[0]
           Write-Host "Installed WiX v$wixVersion — accepting EULA for wix$wixMajor"
@@ -195,8 +184,8 @@ jobs:
         run: |
           mkdir build -ErrorAction SilentlyContinue
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
-            -DPROJECT_VERSION="${{ steps.version.outputs.value }}" `
-            -DBUILD_TESTING=ON `
+            -DVOIDONE_VERSION_OVERRIDE="${{ steps.version.outputs.value }}" `
+            -DVOIDONE_BUILD_TESTS=ON `
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
             -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
 
@@ -214,9 +203,9 @@ jobs:
         run: |
           Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path package | Out-Null
-          $exe = Get-ChildItem -Path build -Filter "$env:APP_NAME.exe" -Recurse | Select-Object -First 1
-          Copy-Item -Path $exe.FullName -Destination "package\$env:APP_NAME.exe" -Force
-          windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
+          $exe = Get-ChildItem -Path build -Filter "$($env:APP_NAME).exe" -Recurse | Select-Object -First 1
+          Copy-Item -Path $exe.FullName -Destination "package\$($env:APP_NAME).exe" -Force
+          windeployqt --release --compiler-runtime --no-translations --qmldir "$($env:GITHUB_WORKSPACE)\src" "package\$($env:APP_NAME).exe"
 
       - name: Integrity Check (File Presence Only)
         shell: pwsh
@@ -225,7 +214,7 @@ jobs:
             Write-Error "CRITICAL: qwindows.dll is missing! windeployqt failed."
             exit 1
           }
-          if (-not (Test-Path "package\$env:APP_NAME.exe")) {
+          if (-not (Test-Path "package\$($env:APP_NAME).exe")) {
             Write-Error "CRITICAL: Executable is missing!"
             exit 1
           }
