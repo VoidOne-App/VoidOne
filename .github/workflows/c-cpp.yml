@@ -34,18 +34,18 @@ env:
   QT_VERSION: "6.8.0"
   QT_ARCH: win64_msvc2022_64
   APP_NAME: VoidOne
+  WIX_ACCEPT_EULA: "true"
+  WIX_ACCEPT_OSMF_EULA: "true"
 
 jobs:
 
   # ----------------------------------------------------------
   # 1. Validate SemVer Tag
   # ----------------------------------------------------------
-
   validate-version:
     name: Validate Release Tag
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
-
     steps:
       - name: Enforce SemVer format
         run: |
@@ -57,26 +57,30 @@ jobs:
           echo "Tag $TAG is valid SemVer."
 
   # ----------------------------------------------------------
-  # 2. Static Security Analysis
+  # 2. Static Security Analysis (CodeQL + cppcheck)
   # ----------------------------------------------------------
-
   static-analysis:
-    name: CodeQL Security Analysis
+    name: Security & Static Analysis
     runs-on: windows-2025
     timeout-minutes: 30
-
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install Build Tools
+      - name: Install Build Tools & cppcheck
         shell: pwsh
-        run: choco install ninja -y --no-progress
+        run: choco install ninja cppcheck -y --no-progress
 
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+
+      - name: Cache Qt
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/Qt
+          key: qt-${{ env.QT_VERSION }}-${{ env.QT_ARCH }}
 
       - uses: jurplel/install-qt-action@v4
         with:
@@ -92,7 +96,7 @@ jobs:
           languages: cpp
           build-mode: manual
 
-      - name: Configure & Build
+      - name: Configure & Build for CodeQL
         shell: pwsh
         run: |
           mkdir build -ErrorAction SilentlyContinue
@@ -101,17 +105,28 @@ jobs:
 
       - uses: github/codeql-action/analyze@v3
 
-  # ----------------------------------------------------------
-  # 3. Build, Optimize & Package Dual Installers (EXE & MSI)
-  # ----------------------------------------------------------
+      - name: Run cppcheck Static Analysis
+        shell: pwsh
+        run: |
+          cppcheck --enable=warning,performance,portability `
+            --error-exitcode=0 --xml --xml-version=2 src/ 2> cppcheck-report.xml
+          exit 0
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cppcheck-report
+          path: cppcheck-report.xml
+          retention-days: 14
+
+  # ----------------------------------------------------------
+  # 3. Build, Optimize, Test & Package
+  # ----------------------------------------------------------
   build-windows:
-    name: Build & Package (EXE, MSI & ZIP)
+    name: Build & Package (EXE, MSI, ZIP)
     needs: static-analysis
     if: always() && needs.static-analysis.result == 'success'
     runs-on: windows-2025
     timeout-minutes: 45
-
     outputs:
       build-version: ${{ steps.version.outputs.value }}
 
@@ -139,11 +154,12 @@ jobs:
           variant: ccache
           max-size: 500M
 
-      - name: Install Build Tools & Packaging Suites (NSIS + WiX)
+      - name: Install Toolchain (NSIS, WiX, UPX)
         shell: pwsh
         run: |
           choco install ninja upx nsis dotnet-8.0-sdk -y --no-progress
           dotnet tool install --global wix
+          wix extension add -g WixToolset.UI.wixext
 
       - uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -157,15 +173,28 @@ jobs:
           dir: ${{ github.workspace }}
           cache: true
           cache-key-prefix: voidone-qt
+          setup-python: false
 
-      - name: Configure & Compile Executable
+      - name: Configure C++/Qt Core
         shell: pwsh
         run: |
           mkdir build -ErrorAction SilentlyContinue
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPROJECT_VERSION="${{ steps.version.outputs.value }}" -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-          cmake --build build --config Release --parallel
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
+            -DPROJECT_VERSION="${{ steps.version.outputs.value }}" `
+            -DBUILD_TESTING=ON `
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
+            -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
 
-      - name: Prepare Staging Folder & Deploy Qt Binaries
+      - name: Compile Release Binaries
+        shell: pwsh
+        run: cmake --build build --config Release --parallel
+
+      - name: Run Unit Test Suite (CTest)
+        if: ${{ !inputs.skip_tests }}
+        shell: pwsh
+        run: ctest --test-dir build -C Release --output-on-failure --timeout 120
+
+      - name: Prepare Staging & Deploy Qt Binaries
         shell: pwsh
         run: |
           Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
@@ -174,28 +203,41 @@ jobs:
           Copy-Item -Path $exe.FullName -Destination "package\$env:APP_NAME.exe" -Force
           windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
 
+      - name: Integrity Check (Bypass Runtime Test)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "package\platforms\qwindows.dll")) {
+            Write-Error "CRITICAL: qwindows.dll is missing! windeployqt failed."
+            exit 1
+          }
+          if (-not (Test-Path "package\$env:APP_NAME.exe")) {
+            Write-Error "CRITICAL: Executable is missing!"
+            exit 1
+          }
+          Write-Host "✅ All critical files are present in the package folder. Skipping GUI run."
+
       - name: Compress Executable with UPX
         shell: pwsh
         run: upx --best package\$env:APP_NAME.exe
 
-      - name: Build Dual Installers (NSIS EXE + WiX MSI)
+      - name: Build Dual Installers (NSIS + WiX MSI)
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-
-          # 1. ساخت نسخه EXE با NSIS
+          
+          # 1. NSIS EXE Setup
           if (Test-Path "installer.nsi") {
             & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
             Move-Item -Path "dist\VoidOne-Setup-x64.exe" -Destination "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe" -Force
           }
 
-          # 2. تایید لایسنس WiX v7 و ساخت نسخه MSI
+          # 2. WiX v7 MSI
           if (Test-Path "installer.wxs") {
             wix eula accept wix7
-            wix build installer.wxs -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi"
+            wix build installer.wxs -ext WixToolset.UI.wixext -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi"
           }
 
-      - name: Create ZIP Archive (Portable) & Checksums
+      - name: Create ZIP Archive & Checksums
         shell: pwsh
         run: |
           $zipName = "VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip"
@@ -204,7 +246,7 @@ jobs:
           Get-ChildItem -Path . -Filter "*.zip" | ForEach-Object {
             (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii
           }
-          Get-ChildItem -Path dist -Filter "*.*" | ForEach-Object {
+          Get-ChildItem -Path dist -Filter "*.*" -Include "*.exe","*.msi" | ForEach-Object {
             (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii
           }
 
@@ -216,29 +258,100 @@ jobs:
             VoidOne-Windows-x64-Portable-*.zip*
             dist/*.*
           retention-days: 30
+          if-no-files-found: error
 
   # ----------------------------------------------------------
-  # 4. Publish Release to GitHub
+  # 4. Publish Release & Discord Webhooks
   # ----------------------------------------------------------
-
   publish-release:
-    name: Publish Official Release
+    name: Publish Release & Notifications
     needs: [validate-version, build-windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
+    environment:
+      name: production
     permissions:
       contents: write
-
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           name: VoidOne-Windows-x64-Release
           path: release-files
 
+      - name: Determine Channel & Build Changelog
+        id: meta
+        run: |
+          if [[ "${{ github.ref_name }}" =~ (alpha|beta|rc) ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          
+          PREV_TAG=$(git describe --tags --abbrev=0 --exclude="${{ github.ref_name }}" 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            LOG=$(git log "$PREV_TAG"..HEAD --pretty=format:"• %s" | head -n 10)
+          else
+            LOG="• Initial Release"
+          fi
+          {
+            echo "log<<EOF"
+            echo "$LOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Compute Artifact Sizes
+        id: sizes
+        run: |
+          ZIP=$(find release-files -iname "*.zip" | head -n1)
+          EXE=$(find release-files -iname "*.exe" | head -n1)
+          MSI=$(find release-files -iname "*.msi" | head -n1)
+          echo "zip_mb=$( [ -f "$ZIP" ] && du -m "$ZIP" | cut -f1 || echo 'N/A' )" >> "$GITHUB_OUTPUT"
+          echo "exe_mb=$( [ -f "$EXE" ] && du -m "$EXE" | cut -f1 || echo 'N/A' )" >> "$GITHUB_OUTPUT"
+          echo "msi_mb=$( [ -f "$MSI" ] && du -m "$MSI" | cut -f1 || echo 'N/A' )" >> "$GITHUB_OUTPUT"
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "VoidOne ${{ github.ref_name }}"
+          prerelease: ${{ steps.meta.outputs.prerelease }}
           generate_release_notes: true
           files: release-files/**
+
+      - name: Discord Notification — Success
+        if: success()
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          CHANGELOG: ${{ steps.meta.outputs.log }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then exit 0; fi
+          PAYLOAD=$(jq -n \
+            --arg tag "${{ github.ref_name }}" \
+            --arg actor "${{ github.actor }}" \
+            --arg avatar "${{ github.event.sender.avatar_url }}" \
+            --arg zipsize "${{ steps.sizes.outputs.zip_mb }} MB" \
+            --arg exesize "${{ steps.sizes.outputs.exe_mb }} MB" \
+            --arg msisize "${{ steps.sizes.outputs.msi_mb }} MB" \
+            --arg changelog "$CHANGELOG" \
+            --arg url "https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}" \
+            '{
+              username: "VoidOne CI",
+              embeds: [{
+                title: ("✅ VoidOne " + $tag + " — Released!"),
+                url: $url,
+                description: "New enterprise release is live.",
+                color: 3066993,
+                author: { name: $actor, icon_url: $avatar },
+                fields: [
+                  { name: "🏷️ Version", value: $tag, inline: true },
+                  { name: "💽 Portable ZIP", value: $zipsize, inline: true },
+                  { name: "🖥️ Setup EXE", value: $exesize, inline: true },
+                  { name: "⚙️ Setup MSI", value: $msisize, inline: true },
+                  { name: "📝 Changelog", value: $changelog }
+                ]
+              }]
+            }')
+          curl -sf -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK"
