@@ -1,0 +1,27 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="VoidOne" 
+           Manufacturer="VoidOne-App" 
+           Version="1.0.0.0" 
+           UpgradeCode="B6E1A0B2-9F3D-4C7A-B1C2-3D4E5F6A7B8C" 
+           Scope="perMachine">
+    
+    <MajorUpgrade DowngradeErrorMessage="A newer version of VoidOne is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="VoidOne" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="VoidOne"/>
+    </StandardDirectory>
+
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Files Include="package\**" />
+    </ComponentGroup>
+
+    <Feature Id="MainFeature" Title="VoidOne Application" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+  </Package>
+</Wix>
