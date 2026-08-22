@@ -1,4 +1,4 @@
-name: VoidOne Ultimate Enterprise CI/CD
+name: VoidOne Ultimate CI/CD
 
 on:
   push:
@@ -184,8 +184,8 @@ jobs:
         run: |
           mkdir build -ErrorAction SilentlyContinue
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
-            -DVOIDONE_VERSION_OVERRIDE="${{ steps.version.outputs.value }}" `
-            -DVOIDONE_BUILD_TESTS=ON `
+            -DPROJECT_VERSION="${{ steps.version.outputs.value }}" `
+            -DBUILD_TESTING=ON `
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
             -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
 
@@ -203,9 +203,9 @@ jobs:
         run: |
           Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path package | Out-Null
-          $exe = Get-ChildItem -Path build -Filter "$($env:APP_NAME).exe" -Recurse | Select-Object -First 1
-          Copy-Item -Path $exe.FullName -Destination "package\$($env:APP_NAME).exe" -Force
-          windeployqt --release --compiler-runtime --no-translations --qmldir "$($env:GITHUB_WORKSPACE)\src" "package\$($env:APP_NAME).exe"
+          $exe = Get-ChildItem -Path build -Filter "$env:APP_NAME.exe" -Recurse | Select-Object -First 1
+          Copy-Item -Path $exe.FullName -Destination "package\$env:APP_NAME.exe" -Force
+          windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
 
       - name: Integrity Check (File Presence Only)
         shell: pwsh
@@ -214,12 +214,11 @@ jobs:
             Write-Error "CRITICAL: qwindows.dll is missing! windeployqt failed."
             exit 1
           }
-          if (-not (Test-Path "package\$($env:APP_NAME).exe")) {
+          if (-not (Test-Path "package\$env:APP_NAME.exe")) {
             Write-Error "CRITICAL: Executable is missing!"
             exit 1
           }
           Write-Host "✅ All critical files are present in the package folder."
-          Write-Host "ℹ️  Note: this only verifies the files exist — it does not launch the app. There is currently no automated crash-on-startup check in this pipeline."
 
       - name: Build Dual Installers (NSIS + WiX MSI)
         shell: pwsh
@@ -232,7 +231,7 @@ jobs:
             Move-Item -Path "dist\VoidOne-Setup-x64.exe" -Destination "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe" -Force
           }
 
-          # 2. WiX MSI (EULA already accepted during the install step above)
+          # 2. WiX MSI Setup
           if (Test-Path "installer.wxs") {
             wix build installer.wxs -ext WixToolset.UI.wixext -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi"
           }
@@ -342,7 +341,7 @@ jobs:
               embeds: [{
                 title: ("✅ VoidOne " + $tag + " — Released!"),
                 url: $url,
-                description: "New enterprise release is live.",
+                description: "New release is live.",
                 color: 3066993,
                 author: { name: $actor, icon_url: $avatar },
                 fields: [
