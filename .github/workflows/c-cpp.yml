@@ -1,4 +1,4 @@
-Name: VoidOne Ultimate CI/CD (Production Ready)
+name: VoidOne Ultimate CI/CD (Production Ready)
 
 on:
   push:
