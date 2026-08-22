@@ -160,10 +160,10 @@ jobs:
 
           $wixVersion = (wix --version).Trim()
           $wixMajor = $wixVersion.Split('.')[0]
-          Write-Host "Installed WiX v$wixVersion — accepting EULA for wix$wixMajor"
-          wix eula accept "wix$wixMajor"
+          Write-Host "Installed WiX v$wixVersion — accepting EULA for wix$wixMajor[span_0](start_span)"[span_0](end_span)
+          wix eula accept "wix$wixMajor[span_1](start_span)"[span_1](end_span)
 
-          wix extension add -g WixToolset.UI.wixext
+          wix extension add -g WixToolset.UI.wixext[span_2](start_span)[span_2](end_span)
 
       - uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -211,16 +211,16 @@ jobs:
         shell: pwsh
         run: |
           if (-not (Test-Path "package\platforms\qwindows.dll")) {
-            Write-Error "CRITICAL: qwindows.dll is missing! windeployqt failed."
+            Write-Error "CRITICAL: qwindows.dll is missing! windeployqt failed.[span_3](start_span)"[span_3](end_span)
             exit 1
           }
           if (-not (Test-Path "package\$env:APP_NAME.exe")) {
-            Write-Error "CRITICAL: Executable is missing!"
+            Write-Error "CRITICAL: Executable is missing[span_4](start_span)!"[span_4](end_span)
             exit 1
           }
-          Write-Host "✅ All critical files are present in the package folder."
+          Write-Host "✅ All critical files are present in the package folder.[span_5](start_span)"[span_5](end_span)
 
-      - name: Build Dual Installers (NSIS + WiX MSI)
+      - name: Build Dual Installers (NSIS EXE + WiX MSI)
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
@@ -231,9 +231,11 @@ jobs:
             Move-Item -Path "dist\VoidOne-Setup-x64.exe" -Destination "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe" -Force
           }
 
-          # 2. WiX MSI Setup
+          # 2. WiX MSI Setup (با پشتیبانی از نسخه پویا و تزریق نسخه)
           if (Test-Path "installer.wxs") {
-            wix build installer.wxs -ext WixToolset.UI.wixext -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi"
+            wix build installer.wxs -ext WixToolset.UI.wixext -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi[span_6](start_span)"[span_6](end_span)
+          } else {
+            Write-Warning "installer.wxs not found. Skipping MSI build."
           }
 
       - name: Create ZIP Archive & Checksums
