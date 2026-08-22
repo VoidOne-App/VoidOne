@@ -39,11 +39,11 @@
 <p align="center">
   <a href="#-about">About</a> •
   <a href="#-why-voidone">Why VoidOne?</a> •
+  <a href="#-voidones-promise--gamer-to-gamer">Manifesto</a> •
   <a href="#-key-features">Features</a> •
   <a href="#-tech-stack--architecture">Tech Stack</a> •
   <a href="#-download--install">Download</a> •
   <a href="#-building-from-source">Building</a> •
-  <a href="#-autonomous-ai-repair-system">AI Engine</a> •
   <a href="#-engineering-roadmap">Roadmap</a> •
   <a href="#-contributing">Contributing</a>
 </p>
@@ -62,25 +62,46 @@ The application operates with near-zero idle resource utilization, prioritizing 
 
 <br/>
 
+## 🛡️ VoidOne's Promise — Gamer to Gamer
+
+VoidOne isn't built from a boardroom. It's built by a gamer who understands what gamers actually need. 
+
+I believe gaming software should respect the people who use it — their privacy, their hardware, their data, and their freedom.
+
+- ♾️ **Always Free & Open Source** — No hidden paywalls, forced subscriptions, or enterprise lock-ins.
+- 🔒 **Privacy & Offline First** — Zero ads and zero telemetry. Your database stays 100% local on your machine.
+- ⚡ **Lightweight Architecture** — Ultra-low memory usage (under 50 MB RAM) with sub-second cold starts and zero background bloat.
+- 🎮 **Full Data Ownership** — Your games, configurations, mods, and local files belong entirely to you.
+- 🧩 **No Ecosystem Traps** — Your gaming setup should never depend on proprietary lock-ins or mandatory online accounts.
+- 🛠️ **Transparent Development** — Built entirely in the open so the community can inspect, trust, and contribute.
+
+> **"I stand with gamers, forever."**
+
+<br/>
+
 ## ⚡ Why VoidOne?
 
-| | VoidOne | Official Store Launchers | Other Open-Source Launchers |
+| Feature / Metric | VoidOne | Official Store Launchers | Other Open-Source Launchers |
 | :--- | :---: | :---: | :---: |
-| Idle RAM footprint | 🟢 Under 50 MB | 🔴 200+ MB | 🟡 Varies |
-| Telemetry & tracking | 🟢 Zero | 🔴 Present | 🟡 Project-dependent |
-| Unified multi-store library | 🟢 Yes | 🔴 No | 🟡 Limited |
-| Fully open-source (MIT) | 🟢 Yes | 🔴 No | 🟢 Yes |
-| GPU-accelerated QML interface | 🟢 Yes | 🟡 Varies | 🔴 Often absent |
-| Integrated mod management | 🟢 In development | 🔴 No | 🟡 Limited |
+| **Cold Start Time** | 🟢 Sub-second (~1s) | 🔴 5 to 15+ seconds | 🟡 2 to 5 seconds |
+| **Idle RAM Footprint** | 🟢 Under 50 MB | 🔴 300+ MB | 🟡 100 - 200 MB |
+| **Telemetry & Tracking** | 🟢 Zero | 🔴 Mandatory | 🟡 Project-dependent |
+| **Launcher Bypass (Ghost Launch)**| 🟢 Built-in | 🔴 Impossible | 🔴 Rare |
+| **Fully Open-Source (MIT)** | 🟢 Yes | 🔴 No | 🟢 Yes |
+| **GPU-Accelerated QML UI** | 🟢 Yes | 🔴 Electron / WebViews | 🔴 Often absent |
 
 <br/>
 
 ## ✨ Key Features
 
+### 👻 Ghost Launch & Launcher Bypass (In Development)
+- **Direct Binary Execution:** Launch DRM-Free Steam, Epic, and GOG titles directly via local executables and launch args, bypassing bloatware.
+- **Silent Background Orchestration:** Run mandatory third-party clients in headless/minimized mode and automatically kill their processes upon game exit to release 100% system RAM back to your game.
+
 ### 🎮 Unified Game Aggregator
 - **Auto-Discovery Engine:** Systematically scans local storage drives, custom directory trees, and external platform manifests (Steam VDF, Epic AppData, GOG Galaxy SQLite) to automatically populate a master game registry.
-- **Rich Metadata Enrichment:** Asynchronously fetches high-resolution cover artwork, panoramic hero images, metacritic ratings, release timelines, and publisher details via cached API connections.
-- **Session Analytics & Telemetry-Free Metrics:** Localized tracking of per-game execution sessions, playtime accumulation, launch frequency, and personal usage trends stored entirely within an encrypted local database.
+- **Rich Metadata Enrichment:** Asynchronously fetches high-resolution cover artwork, panoramic hero images, ratings, release timelines, and publisher details via cached connections.
+- **Session Analytics & Local Metrics:** Localized tracking of per-game execution sessions, playtime accumulation, and launch frequency stored entirely within an encrypted local database.
 
 ### 🎨 Cyberpunk QML Interface
 - **Hardware-Accelerated Visuals:** High-performance QML/QtQuick presentation layer backed by direct GPU rendering, supporting fluid 60+ FPS animations, hardware shaders, and customizable particle effects.
@@ -144,7 +165,7 @@ Two distribution formats are provided with every release:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/VoidOne-App/VoidOne.git
+git clone [https://github.com/VoidOne-App/VoidOne.git](https://github.com/VoidOne-App/VoidOne.git)
 cd VoidOne
 
 # 2. Configure the project with the C++23 standard and Ninja generator
@@ -152,76 +173,45 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=23
 
 # 3. Build optimized binaries in parallel
 cmake --build build --config Release --parallel
-```
 
-<br/>
-
-## 🤖 Autonomous AI Repair System
-
+🤖 Autonomous AI Repair System
 VoidOne features an automated self-healing CI pipeline designed to diagnose build regressions instantly:
-
-```mermaid
 flowchart LR
     A[❌ CI Build Failure<br/>GitHub Workflow] --> B[🧠 Lead Diagnostic Model<br/>Gemini 2.5 Pro]
     B --> C[💻 Code Generation Model<br/>Qwen2.5-Coder]
     C --> D[✅ Patch Review & Validation]
     D --> E[🔀 Automated<br/>Pull Request]
-```
 
-Every AI-generated patch is manually reviewed by the core team before merge — AI accelerates diagnosis, it doesn't make the final call.
-
-<br/>
-
-## 🗺️ Engineering Roadmap
-
-- [x] **Phase 1 — Core Foundation:** CMake C++23 build harness, Qt 6.8/QML scaffolding, automated cross-compilation CI pipelines
-- [ ] **Phase 2 — Database & Scanning Engine:** Thread-safe SQLite database schema, multi-threaded disk scanners, manifest parsing algorithms
-- [ ] **Phase 3 — Storefront Connectors:** Native API and filesystem hooks for Steam, Epic Games Launcher, GOG Galaxy, and manual executables
-- [ ] **Phase 4 — Advanced Mod Engine:** Dynamic plugin loader, mod dependency graph resolution, virtual filesystem overlay mechanics
-- [ ] **Phase 5 — Ecosystem Expansion:** Customizable QML theme development SDK, RGB hardware synchronization (OpenRGB), cloud configuration sync
-
-<br/>
-
-## 🤝 Contributing
-
+Every AI-generated patch is manually reviewed before merge — AI accelerates diagnosis, it doesn't make the final call.
+🗺️ Engineering Roadmap
+ * [x] Phase 1 — Core Foundation: CMake C++23 build harness, Qt 6.8/QML scaffolding, automated cross-compilation CI pipelines
+ * [ ] Phase 2 — Database & Scanning Engine: Thread-safe SQLite database schema, multi-threaded disk scanners, manifest parsing algorithms
+ * [ ] Phase 3 — Storefront Connectors: Native API and filesystem hooks for Steam, Epic Games Launcher, GOG Galaxy, and manual executables
+ * [ ] Phase 4 — Ghost Launch Engine: Direct execution mode, Steam API stub integration, and auto-killing background store processes
+ * [ ] Phase 5 — Advanced Mod Engine: Dynamic plugin loader, mod dependency graph resolution, virtual filesystem overlay mechanics
+ * [ ] Phase 6 — Ecosystem Expansion: Customizable QML theme development SDK, RGB hardware synchronization (OpenRGB), cloud configuration sync
+🤝 Contributing
 Contributions are fundamental to the growth of open-source software. Whether fixing bugs, refining UI components, or implementing store integration logic, your efforts are welcome.
-
-1. Fork the project repository.
-2. Create your feature branch: `git checkout -b feature/NewFeature`
-3. Commit your changes: `git commit -m 'feat: implement new game scanner'`
-4. Push to your branch: `git push origin feature/NewFeature`
-5. Submit a detailed Pull Request.
-
-<br/>
-
-## 👨‍💻 Project Background
-
+ * Fork the project repository.
+ * Create your feature branch: git checkout -b feature/NewFeature
+ * Commit your changes: git commit -m 'feat: implement new game scanner'
+ * Push to your branch: git push origin feature/NewFeature
+ * Submit a detailed Pull Request.
+👨‍💻 Project Background
 VoidOne originated as an ambitious initiative to build a modern, high-performance, bloat-free alternative to traditional PC game launchers. The project serves as a practical implementation platform for exploring modern low-level system design patterns in C++23 alongside declarative UI design via Qt 6 / QML. Artificial intelligence is used as a collaborative pair-programming tool during architecture drafting and automated testing, with all code subject to manual auditing, profiling, and iterative optimization.
-
-<br/>
-
-## 📄 License
-
-```
+📄 License
 +--------------------------------------------------------------+
 |                    [ V O I D O N E   E N G I N E ]           |
 +--------------------------------------------------------------+
 | Copyright (c) 2026 VoidOne-App Core Team                     |
-| Repo: github.com/VoidOne-App/VoidOne                         |
+| Repo: [github.com/VoidOne-App/VoidOne](https://github.com/VoidOne-App/VoidOne)                         |
 | Tech: Modern C++23 & Qt 6 / QML                               |
 +--------------------------------------------------------------+
-```
 
-VoidOne is released under the terms of the **MIT License**. For complete terms and permissions, consult the [LICENSE](LICENSE) file in the repository root.
-
-<br/>
-
+VoidOne is released under the terms of the MIT License. For complete terms and permissions, consult the LICENSE file in the repository root.
 <div align="center">
-
+Built by a gamer. Built for gamers. Built in the open.
 <sub>Engineered with precision, ❤️, and modern C++23 by the VoidOne-App Core Team.</sub>
-
-<br/><br/>
-
 ⭐ If you like VoidOne, consider giving it a star!
-
 </div>
+
