@@ -34,6 +34,8 @@ env:
   QT_VERSION: "6.8.0"
   QT_ARCH: win64_msvc2022_64
   APP_NAME: VoidOne
+  WIX_ACCEPT_EULA: "true"
+  WIX_ACCEPT_OSMF_EULA: "true"
 
 jobs:
 
@@ -180,6 +182,9 @@ jobs:
 
       - name: Build Dual Installers (NSIS EXE + WiX MSI)
         shell: pwsh
+        env:
+          WIX_ACCEPT_EULA: "true"
+          WIX_ACCEPT_OSMF_EULA: "true"
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
 
@@ -189,9 +194,9 @@ jobs:
             Move-Item -Path "dist\VoidOne-Setup-x64.exe" -Destination "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe" -Force
           }
 
-          # 2. ساخت نسخه MSI با WiX v4
+          # 2. ساخت نسخه MSI با WiX (تایید لایسنس EULA جهت رفع WIX7015)
           if (Test-Path "installer.wxs") {
-            wix build installer.wxs -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi"
+            wix build installer.wxs --accept-eula -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi"
           }
 
       - name: Create ZIP Archive (Portable) & Checksums
