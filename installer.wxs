@@ -13,17 +13,17 @@
                   
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
-    <!-- مشخصات رسمی در Control Panel / Add-Remove Programs -->
+    <!-- Control Panel / Add-Remove Programs Properties -->
     <Property Id="ARPCOMMENTS" Value="VoidOne Open-Source High-Performance Engine" />
     <Property Id="ARPCONTACT" Value="VoidOne-App Team" />
     <Property Id="ARPHELPLINK" Value="https://github.com/VoidOne-App/VoidOne" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/VoidOne-App/VoidOne" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
 
-    <!-- آیکون برنامه -->
-    <Icon Id="AppIcon.ico" SourceFile="assets/app_icon.ico" />
+    <!-- Application Icon (Points directly to root app-icon.ico) -->
+    <Icon Id="AppIcon.ico" SourceFile="app-icon.ico" />
 
-    <!-- ساختار پوشه‌های نصب -->
+    <!-- Target Directory Structure -->
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="VoidOne" />
     </StandardDirectory>
@@ -34,41 +34,45 @@
 
     <StandardDirectory Id="DesktopFolder" />
 
-    <!-- ۱. فایل‌های برنامه (محتویات پوشه package) -->
+    <!-- 1. Application Core Files (Package output directory) -->
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
       <Files Include="package\**" />
     </ComponentGroup>
 
-    <!-- ۲. شورت‌کات‌های استارت منو و دسکتاپ -->
-    <ComponentGroup Id="ShortcutComponents" Directory="ApplicationProgramsFolder">
-      <Component Id="ApplicationShortcut" Guid="A1B2C3D4-E5F6-7A8B-9C0D-1E2F3A4B5C6D">
-        
-        <!-- شورت‌کات Start Menu -->
+    <!-- 2. Start Menu & Desktop Shortcuts -->
+    <ComponentGroup Id="ShortcutComponents">
+      
+      <!-- Start Menu Shortcut -->
+      <Component Id="ApplicationShortcut" Directory="ApplicationProgramsFolder" Guid="A1B2C3D4-E5F6-7A8B-9C0D-1E2F3A4B5C6D">
         <Shortcut Id="ApplicationStartMenuShortcut"
                   Name="VoidOne (Beta)"
                   Description="Launch VoidOne Application"
                   Target="[INSTALLFOLDER]VoidOne.exe"
                   WorkingDirectory="INSTALLFOLDER"
                   Icon="AppIcon.ico" />
+        
+        <RemoveFolder Id="CleanUpStartMenuFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKMU" Key="Software\VoidOne-App\VoidOne" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
 
-        <!-- شورت‌کات Desktop -->
+      <!-- Desktop Shortcut -->
+      <Component Id="DesktopShortcutComponent" Directory="DesktopFolder" Guid="B2C3D4E5-F6A7-8B9C-0D1E-2F3A4B5C6D7E">
         <Shortcut Id="DesktopShortcut"
-                  Directory="DesktopFolder"
                   Name="VoidOne (Beta)"
                   Description="Launch VoidOne Application"
                   Target="[INSTALLFOLDER]VoidOne.exe"
                   WorkingDirectory="INSTALLFOLDER"
                   Icon="AppIcon.ico" />
-
-        <RemoveFolder Id="CleanUpShortcuts" Directory="ApplicationProgramsFolder" On="uninstall" />
-        <RegistryValue Root="HKCU" Key="Software\VoidOne-App\VoidOne" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+                  
+        <RegistryValue Root="HKMU" Key="Software\VoidOne-App\VoidOne" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
+      
     </ComponentGroup>
 
-    <!-- UI گرافیکی ویزارد نصب -->
+    <!-- Graphical UI Wizard -->
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
     
-    <!-- فیچر اصلی برنامه -->
+    <!-- Main Feature Definition -->
     <Feature Id="MainFeature" Title="VoidOne Core" Level="1" ConfigurableDirectory="INSTALLFOLDER">
       <ComponentGroupRef Id="ProductComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
