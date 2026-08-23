@@ -1,8 +1,10 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/VoidOne-App/VoidOne/main/.github/assets/banner.png" alt="VoidOne" width="100%" />
+
 # 🌌 VoidOne
 
-### The Next-Generation, Open-Source, High-Performance PC Game Launcher & Library Aggregator
+### The Open-Source Game Launcher Built Around Your Games — Not Around a Store
 
 <p align="center">
   <b>🇬🇧 English</b> •
@@ -16,243 +18,1082 @@
   <a href="https://github.com/VoidOne-App/VoidOne/releases">
     <img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?style=for-the-badge&logo=rocket&logoColor=white&color=FF2E63" alt="Latest Release"/>
   </a>
+  <a href="https://github.com/VoidOne-App/VoidOne/stargazers">
+    <img src="https://img.shields.io/github/stars/VoidOne-App/VoidOne?style=for-the-badge&logo=github&color=FFD700" alt="GitHub Stars"/>
+  </a>
   <a href="https://github.com/VoidOne-App/VoidOne/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-FFD60A?style=for-the-badge" alt="MIT License"/>
   </a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/C%2B%2B-23-00599C?style=for-the-badge&logo=cplusplus&logoColor=white" alt="C++23 Standard"/>
-  <img src="https://img.shields.io/badge/Qt-6.8-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="Qt 6.8 Framework"/>
-  <img src="https://img.shields.io/badge/Packaging-NSIS%20%7C%20WiX%20v4-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Dual Packaging"/>
-  <img src="https://img.shields.io/badge/Security-CodeQL%20%7C%20ASan-2EA043?style=for-the-badge&logo=github&logoColor=white" alt="Security Hardened"/>
-  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D6?style=for-the-badge&logo=linux&logoColor=white" alt="Cross Platform"/>
+  <img src="https://img.shields.io/badge/C%2B%2B-23-00599C?style=for-the-badge&logo=cplusplus&logoColor=white" alt="C++23"/>
+  <img src="https://img.shields.io/badge/Qt-6.8-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="Qt 6.8"/>
+  <img src="https://img.shields.io/badge/QML-QtQuick-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="Qt QML"/>
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D6?style=for-the-badge" alt="Windows and Linux"/>
+  <img src="https://img.shields.io/badge/SQLite-Local%20First-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite"/>
 </p>
 
 <br/>
 
 <p align="center">
-  <a href="#-about-voidone">About</a> •
-  <a href="#-the-manifesto--gamer-to-gamer">Manifesto</a> •
-  <a href="#-architectural-superiority">Architecture</a> •
-  <a href="#-comprehensive-feature-set">Features</a> •
-  <a href="#-automated-cicd--quality-assurance">CI/CD & Security</a> •
-  <a href="#-download--deployment">Installation</a> •
-  <a href="#-building-from-source">Compilation</a> •
-  <a href="#-strategic-roadmap">Roadmap</a> •
-  <a href="#-contributing">Contributing</a>
+
+**One Library. Your Games. Your Hardware. Your Rules.**
+
+</p>
+
+<p align="center">
+  <a href="#-what-is-voidone">About</a> •
+  <a href="#-the-voidone-philosophy">Philosophy</a> •
+  <a href="#-core-features">Features</a> •
+  <a href="#-ghost-launch">Ghost Launch</a> •
+  <a href="#-performance-first">Performance</a> •
+  <a href="#-security--ci">Security</a> •
+  <a href="#-roadmap">Roadmap</a> •
+  <a href="#-build-from-source">Build</a>
 </p>
 
 </div>
 
 <br/>
 
-## 👁️ About VoidOne
+# 👁️ What is VoidOne?
 
-**VoidOne** is an ultra-optimized, comprehensive open-source PC gaming hub and library manager, meticulously engineered from the ground up using **C++23** and **Qt 6.8 / QML**. Designed to serve as the ultimate unified desktop ecosystem, VoidOne completely bridges the gap between heavily fragmented commercial game distribution platforms (such as Steam, Epic Games Launcher, GOG Galaxy, and EA App) and pure, unadulterated local execution.
+**VoidOne** is an open-source PC game launcher and local game library manager built from the ground up with **modern C++23, Qt 6.8 and QML**.
 
-Unlike traditional Electron-based launchers that consume vast amounts of system resources just to render a user interface, VoidOne utilizes hardware-accelerated rendering decoupled from its low-level execution logic. This ensures a near-zero idle RAM footprint while delivering a visually stunning, cyberpunk-inspired graphical interface that runs flawlessly at 60+ FPS on any resolution or display scale.
+The idea is simple:
 
-> ⚠️ **Development Status:** VoidOne is currently in aggressive active development. Core engine APIs, database schemas, and background worker threads are evolving rapidly. Please refer to the [Strategic Roadmap](#-strategic-roadmap) for real-time progression tracking.
+> **Your games should be the center of your gaming PC — not the stores that distribute them.**
 
-<br/>
+Modern PC gaming is fragmented across multiple launchers, accounts, background services, overlays, update systems and storefronts.
 
-## 🛡️ The Manifesto — Gamer to Gamer
+Steam.
 
-VoidOne was not conceived in a corporate boardroom; it was forged by a gamer who deeply understands the intrinsic value of software integrity and user autonomy. We believe that gaming software should operate transparently, respecting the user's privacy, system resources, and independence. The modern landscape of mandatory always-online DRM clients and telemetry-heavy storefronts ends here.
+Epic Games.
 
-- ♾️ **Eternally Free & Open Source** — Zero paywalls, zero mandatory subscriptions, and absolutely no proprietary enterprise lock-ins.
-- 🔒 **Absolute Privacy & Offline-First Design** — Zero telemetry engines, zero usage tracking, and no hidden analytic pixels. Your entire database and playtime history remain securely encrypted on your local machine.
-- ⚡ **Ultra-Lightweight Execution Architecture** — Engineered for sub-second cold startup times and an idle memory consumption consistently maintained under 50 MB.
-- 🎮 **Unrestricted Local Sovereignty** — Complete, unchallenged ownership over your local game registries, configuration files, and modding directory trees.
-- 🧩 **Zero Ecosystem Lock-In** — An independent, autonomous library management system that operates with 100% functionality without an internet connection.
-- 🛠️ **Transparent Open Development** — A fully accessible code structure submitted for public inspection, strict security validation, and community-driven contribution.
+GOG.
 
-> **"I stand with gamers, forever. Your hardware, your rules."**
+EA.
 
-<br/>
+Ubisoft.
 
-## 🏗️ Architectural Superiority
+Xbox.
 
-| Performance Metric | VoidOne Core Engine | Traditional Store Launchers | Electron-Based Alternatives |
-| :--- | :---: | :---: | :---: |
-| **Cold Start Initialization** | 🟢 Sub-second (~0.8s - 1.2s) | 🔴 5 to 15+ seconds | 🟡 3 to 6 seconds |
-| **Idle Memory Consumption** | 🟢 30 MB - 50 MB | 🔴 350+ MB | 🟡 150 MB - 250 MB |
-| **Telemetry & Analytics** | 🟢 Non-Existent | 🔴 Mandatory & Heavy | 🟡 Project-Dependent |
-| **Ghost Launch Execution** | 🟢 Native Built-in API | 🔴 Blocked/Unsupported | 🔴 Rarely Implemented |
-| **Licensing Structure** | 🟢 Open-Source (MIT) | 🔴 Proprietary / Closed | 🟢 Open-Source |
-| **UI Rendering Pipeline** | 🟢 GPU-Accelerated QML | 🔴 WebViews / Chromium | 🔴 Software Rendered |
-| **Memory Safety Diagnostics**| 🟢 ASan & CodeQL Hardened | 🔴 Internal / Closed | 🟡 Web V8 Sandboxed |
-| **Offline Functionality** | 🟢 100% Operational | 🔴 Heavily Restricted | 🟡 Partially Operational |
+Different launchers.  
+Different interfaces.  
+Different background services.  
+Different update systems.
 
-<br/>
+VoidOne is being built to bring your locally installed games into **one fast, lightweight, privacy-focused interface**.
 
-## ✨ Comprehensive Feature Set
+Instead of making your gaming experience revolve around a storefront, VoidOne focuses on the thing that actually matters:
 
-### 👻 The Ghost Launch & Process Orchestration Engine
-- **Direct Binary Execution:** Bypasses storefront overhead entirely by spawning games directly via their native executables (`.exe`, `.elf`) utilizing custom Command Line Interface (CLI) arguments.
-- **Background RAM Reclamation:** Automatically detects mandatory DRM clients during active gameplay, forcing them into a minimized headless state, and ruthlessly terminating background storefront processes upon game exit to release 100% of system RAM back to your operating system.
-- **Process Priority Injection:** Allows users to automatically inject High or Real-Time CPU priority flags into launched games directly from the UI.
+# 🎮 The Game.
 
-### 🎮 Unified Multi-Store Game Aggregator
-- **Deep Storage Scanning:** Multi-threaded algorithms recursively scan physical system drives, customized game partitions, and complex platform manifests (Steam `appmanifest_*.acf`, Epic Games `.item`, GOG Galaxy `SQLite` databases) to instantly build a consolidated, unified library.
-- **Rich Metadata Acquisition:** Asynchronously fetches high-resolution poster artwork, panoramic hero banners, localized game descriptions, historical play-time records, and metacritic metadata via highly optimized, cached background network workers.
-- **Localized Analytics Engine:** Tracks your personal gaming habits—including session lengths, launch frequencies, and crash logs—storing everything securely within an optimized, thread-safe local SQLite database.
+---
 
-### 🎨 Cyberpunk-Inspired QML Interface
-- **Hardware Native Acceleration:** A purely hardware-rendered Qt/QML interface utilizing OpenGL/Vulkan backends. Delivers buttery-smooth 60+ FPS cinematic animations, custom real-time particle shaders, and industry-leading low GUI thread latency.
-- **Modular Customization:** A dynamic UI ecosystem supporting complete layout restructuring, dynamic RGB theme palettes, custom font-weight scaling, and flawless native dark mode integration.
+# 🛡️ The VoidOne Philosophy
 
-### 🧩 Advanced Integrated Mod Engine
-- **Atomic Profile Configuration:** Construct isolated, per-game modding profiles with instant single-click activation and deactivation.
-- **Non-Destructive VFS Mapping:** Utilizes advanced Virtual File System (VFS) symbolic linkage to inject mods into game directories without ever permanently overwriting or corrupting base vanilla game files.
-- **Conflict Resolution Matrix:** Automatically verifies file load orders, detects deep mod conflicts, and validates directory linkage structures prior to allowing the game engine to initialize.
+VoidOne wasn't born inside a corporate boardroom.
 
-### 🤖 Autonomous AI Diagnostic & Repair Integration
-- **Self-Healing CI/CD Pipeline:** Integrated multi-agent LLM workflows utilizing a Gemini diagnostic pipeline alongside local patching tools.
-- **Automated Remediation:** Instantly parses complex CMake/C++ compiler errors from GitHub Actions, identifies the exact line of code causing the regression, and proposes functional fixes via automated Pull Requests.
+It started with a gamer asking a simple question:
 
-<br/>
+> **Why should launching a game require an entire ecosystem running around it?**
 
-## 🔄 Automated CI/CD & Quality Assurance
+We believe gaming software should respect the player.
 
-VoidOne enforces strict production-grade DevOps standards via a multi-layered GitHub Actions automated pipeline (`voidone-ci.yml`)[span_0](start_span)[span_0](end_span):
+Your hardware.
 
+Your privacy.
+
+Your storage.
+
+Your bandwidth.
+
+Your time.
+
+And your freedom to use your own computer the way you want.
+
+## ♾️ Free & Open Source
+
+VoidOne is released under the **MIT License**.
+
+No mandatory subscriptions.
+
+No premium tier required for the core launcher.
+
+No proprietary enterprise lock-in.
+
+The source code is publicly available for inspection, contribution and improvement.
+
+---
+
+## 🔒 Privacy by Design
+
+VoidOne follows a **local-first architecture**.
+
+Your core library and configuration data are designed to remain on your own machine.
+
+No advertising engine.
+
+No unnecessary telemetry.
+
+No hidden analytics system.
+
+No requirement to make the core launcher dependent on cloud services.
+
+---
+
+## 📴 Offline-First
+
+Offline operation is not an afterthought.
+
+It is part of the architecture.
+
+VoidOne is designed so that your locally installed games and local library remain useful even when an internet connection is unavailable.
+
+Online services can enhance the experience with things such as artwork and metadata.
+
+But:
+
+> **The core launcher should not stop being useful just because the internet does.**
+
+### Important distinction
+
+VoidOne does **not** attempt to bypass DRM, authentication systems or platform security.
+
+If a specific game legitimately requires an external service, that requirement remains a requirement.
+
+The goal is to remove **unnecessary launcher overhead**, not to defeat security systems.
+
+---
+
+## ⚡ Performance Comes First
+
+VoidOne is written in **C++23** and uses **Qt/QML** instead of a browser-based application runtime.
+
+The engineering target is straightforward:
+
+> **Keep VoidOne under 50 MB of RAM during normal idle operation.**
+
+If we exceed that target, we don't simply call it acceptable.
+
+We investigate it.
+
+We profile it.
+
+We optimize it.
+
+And we try again.
+
+### The 50 MB Rule
+
+If VoidOne starts consuming RAM like a browser with 47 tabs open...
+
+**we have failed the mission. 😂**
+
+The objective isn't merely to make a small executable.
+
+The objective is to make a launcher that spends system resources where they actually matter:
+
+# 🎮 Your Game.
+
+---
+
+# 🎮 Gamer to Gamer
+
+VoidOne is being built from the perspective of someone who actually plays games.
+
+That means questioning things that have become "normal":
+
+- Why does a launcher need hundreds of MB of RAM?
+- Why does a simple game launch require multiple background services?
+- Why should a local game library depend entirely on an online interface?
+- Why should privacy be considered a premium feature?
+- Why should users need six different applications just to manage their games?
+
+VoidOne is our attempt to build a different answer.
+
+> **"I stand with gamers, forever."**
+
+---
+
+# 🏗️ What VoidOne Is Building
+
+VoidOne is not intended to become another storefront.
+
+It is intended to become a **unified local gaming layer**.
+
+A place where games from different platforms can coexist inside one interface.
+
+```text
+                    ┌─────────────────────┐
+                    │       VoidOne       │
+                    │   Unified Library   │
+                    └──────────┬──────────┘
+                               │
+          ┌────────────────────┼────────────────────┐
+          │                    │                    │
+          ▼                    ▼                    ▼
+     Steam Games         Epic Games           GOG Games
+          │                    │                    │
+          └────────────────────┼────────────────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  Local Game Engine  │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                         🎮 Your Game
 ```
-[ 🏷️ SemVer Tag Validation ] ──► [ 🔒 CodeQL & Cppcheck Static Analysis ]
-                                                 │
-                                                 ▼
-[ 🚀 Dual Installers (NSIS EXE + WiX MSI) ] ◄── [ 🧪 Debug Build & ASan Memory Testing ]
-                      │
-                      ▼
-[ 📦 Draft Release + SHA-256 Checksums ] ──► [ 🔔 Discord Webhook Notification ]
+
+The long-term vision is to make the launcher **platform-aware without making it platform-dependent**.
+
+---
+
+# ✨ Core Features
+
+## 🎮 Unified Game Library
+
+Bring your games into one place.
+
+VoidOne is being designed to discover locally installed games through:
+
+- Steam installation data
+- Epic Games metadata
+- GOG installations
+- Custom game directories
+- Manually added executables
+- Local manifests
+- Platform-specific installation metadata
+
+The goal:
+
+> **One library instead of five launchers.**
+
+---
+
+# 👻 Ghost Launch
+
+## The Long-Term Vision
+
+One of VoidOne's most ambitious features is **Ghost Launch**.
+
+The philosophy is simple:
+
+> **If a game can legitimately run without unnecessary storefront overhead, don't make the player launch an entire storefront just to play it.**
+
+The target architecture looks like this:
+
+### Traditional
+
+```text
+Game
+  ▲
+  │
+Store Launcher
+  ▲
+  │
+Background Services
+  ▲
+  │
+User
 ```
 
-1. **Strict Version Enforcement:** Enforces valid Semantic Versioning tags (e.g., `v1.0.0`, `v1.0.0-beta.1`)[span_1](start_span)[span_1](end_span).
-2. **Static Code Analysis:** Automated security scanning powered by **GitHub CodeQL** and **Cppcheck** to detect potential vulnerabilities prior to compilation[span_2](start_span)[span_2](end_span).
-3. **Debug & Sanitizer Pipeline (PR Gate):** Runs isolated Debug builds instrumented with **AddressSanitizer (ASan)** and **CTest** on all Pull Requests to catch memory leaks, dangling pointers, and undefined behavior early[span_3](start_span)[span_3](end_span).
-4. **Optimized Multi-Format Packaging:** Automatically compiles Release binaries using `ccache` and packages them simultaneously into **NSIS EXE**, **WiX v4 MSI**, and **Portable ZIP** formats[span_4](start_span)[span_4](end_span).
-5. **Human-In-The-Loop Draft Releases:** New tagged releases are created in **Draft mode** first, giving maintainers complete control for a final check before public visibility[span_5](start_span)[span_5](end_span).
-6. **Nightly Integrity Checks:** Scheduled weekly cron builds proactively catch breaking upstream changes in Qt or toolchains[span_6](start_span)[span_6](end_span).
+### VoidOne Vision
 
-<br/>
+```text
+User
+  │
+  ▼
+VoidOne
+  │
+  ▼
+Game
+```
 
-## 📥 Download & Deployment
+For games that can legitimately be launched directly, VoidOne aims to provide a clean direct-launch experience.
 
-Three primary distribution options are officially compiled and published for Windows environments[span_7](start_span)[span_7](end_span):
+For games that genuinely require an external client, authentication or DRM service, VoidOne will respect those requirements.
 
-| Package Type | File Name | Description |
-| :--- | :--- | :--- |
-| **Standard Setup (NSIS)** | `VoidOne-Setup-x64-<version>.exe`[span_8](start_span)[span_8](end_span) | Recommended for most users. Lightweight, customizable installer with Start Menu & Uninstaller shortcuts[span_9](start_span)[span_9](end_span). |
-| **Enterprise Installer (WiX)** | `VoidOne-Setup-x64-<version>.msi`[span_10](start_span)[span_10](end_span) | Native Windows Installer package ideal for enterprise environments, quiet GPO rollouts, and registry tracking[span_11](start_span)[span_11](end_span). |
-| **Portable Archive (Zero-Install)** | `VoidOne-Windows-x64-Portable-<version>.zip`[span_12](start_span)[span_12](end_span) | Portable folder bundle. Zero installer overhead—run directly from external drives or USB sticks[span_13](start_span)[span_13](end_span). |
+### Ghost Launch Goals
 
-> 🔐 **Security Checksum Verification:** Always check file integrity prior to execution. Run the following command in PowerShell:
-> ```powershell
-> Get-FileHash VoidOne-Setup-x64-1.0.0.exe -Algorithm SHA256
-> ```
+- Direct executable launching
+- Custom launch arguments
+- Per-game launch profiles
+- Working-directory configuration
+- Environment variables
+- Process monitoring
+- Game-session detection
+- Optional launcher minimization
+- Resource-aware process management
+- Cleanup of processes started by VoidOne
 
-<br/>
+### What Ghost Launch is NOT
 
-## 🔨 Compiling & Building from Source
+Ghost Launch is **not** intended to bypass:
 
-For developers, contributors, and security auditors wishing to compile VoidOne locally.
+- DRM
+- Authentication
+- Ownership verification
+- Platform security
+- Anti-cheat protections
+- Paid licensing requirements
 
-### Prerequisites
-- **Compiler:** MSVC 2022 (v17.8+), GCC 13+, or Clang 17+ with C++23 support.
-- **Framework:** Qt 6.8+ (Desktop, QtQuick, QML modules required).
-- **Toolchain:** CMake 3.25+, Ninja Build Engine, `ccache` (optional, for fast rebuilds).
-- **Packaging Dependencies (Optional):** NSIS 3.x and WiX Toolset v4[span_14](start_span)[span_14](end_span).
+VoidOne is an open-source launcher, not a DRM circumvention tool.
 
-### 1. Compile Debug Version with Sanitizers (Testing)
+Compatibility will always depend on the individual game and platform.
+
+---
+
+# 🧠 Intelligent Game Detection
+
+VoidOne is being designed with a dedicated discovery engine capable of scanning local storage and known game installation structures.
+
+The system will be able to identify:
+
+- Installed games
+- Executable paths
+- Installation directories
+- Platform information
+- Launch configurations
+- Game metadata
+- Custom user-defined locations
+
+Instead of manually adding hundreds of games:
+
+> **Let VoidOne find them.**
+
+---
+
+# 🗂️ Local Game Database
+
+VoidOne uses **SQLite** as the foundation for local game data.
+
+The database can store information such as:
+
+- Game paths
+- Installation locations
+- Launch settings
+- User preferences
+- Categories
+- Play sessions
+- Mod profiles
+- Cached metadata
+
+The database is local-first and designed for fast access.
+
+No cloud database is required for the core library.
+
+---
+
+# 🎨 Modern QML Interface
+
+VoidOne uses **Qt 6.8 / QML** to create a native desktop experience without relying on a browser-based application shell.
+
+The interface is designed around:
+
+- Hardware acceleration
+- Smooth animations
+- Responsive layouts
+- Dark-first visual design
+- Cyberpunk-inspired aesthetics
+- Custom themes
+- Keyboard navigation
+- Game-focused information hierarchy
+
+The goal isn't to create another website that happens to launch games.
+
+The goal is to build a **native gaming application**.
+
+---
+
+# 🧩 Game Profiles
+
+Every game should be configurable independently.
+
+Future game profiles will support options such as:
+
+- Launch arguments
+- Working directory
+- Environment variables
+- Process priority
+- Compatibility settings
+- Custom artwork
+- Custom categories
+- Mod profiles
+- Launcher behavior
+
+This allows advanced users to configure individual games without changing global launcher settings.
+
+---
+
+# 🧩 Advanced Mod Architecture
+
+Mod management is part of the long-term VoidOne vision.
+
+Planned capabilities include:
+
+### Mod Profiles
+
+Create isolated configurations for different mod setups.
+
+```text
+Cyberpunk 2077
+
+├── Vanilla
+├── Visual Overhaul
+├── Performance
+└── Experimental
+```
+
+### Conflict Detection
+
+Identify potential conflicts between installed modifications.
+
+### Non-Destructive Deployment
+
+Where technically appropriate, VoidOne can use virtualized or linked file structures rather than permanently overwriting original game files.
+
+### Load Order
+
+Manage mod priority and deployment order.
+
+The objective:
+
+> **Experiment with your games without destroying your original installation.**
+
+---
+
+# 📊 Local Gaming Analytics
+
+VoidOne can provide optional local statistics around your own gaming activity.
+
+Potential statistics include:
+
+- Session duration
+- Number of launches
+- Last played
+- Total playtime
+- Game frequency
+- Crash information
+
+These statistics are intended to remain **local to the user's machine**.
+
+Your gaming history should belong to you.
+
+---
+
+# 🌐 Optional Online Features
+
+Offline-first does not mean online features are forbidden.
+
+The internet can be used when it provides value.
+
+For example:
+
+- Game artwork
+- Metadata
+- Descriptions
+- Screenshots
+- Community information
+- Optional integrations
+
+VoidOne's philosophy is:
+
+```text
+Internet available?
+        │
+        ├── Yes ──► Enhance the experience
+        │
+        └── No ───► Keep the core experience working
+```
+
+Online services should enhance the launcher.
+
+They should not define whether the launcher is usable.
+
+---
+
+# ⚡ Performance First
+
+Performance is an engineering requirement.
+
+Not a marketing slogan.
+
+VoidOne is designed around several principles:
+
+| Principle | Engineering Goal |
+| :--- | :--- |
+| Native C++ core | Minimize runtime overhead |
+| Qt/QML interface | Modern native desktop rendering |
+| SQLite | Fast local persistence |
+| Async workers | Keep UI responsive |
+| Lazy loading | Avoid unnecessary work |
+| Caching | Reduce repeated operations |
+| Minimal background work | Reduce idle resource usage |
+| Target <50 MB idle RAM | Keep the launcher lightweight |
+
+### Performance Targets
+
+| Metric | VoidOne Target |
+| :--- | :---: |
+| Idle RAM | **< 50 MB** |
+| Cold startup | **Sub-second target** |
+| Background services | **Minimal** |
+| Core library | **Local-first** |
+| UI | **Hardware accelerated** |
+
+> ⚠️ Performance figures are engineering targets and should be validated through reproducible benchmarks on real hardware before being treated as official benchmarks.
+
+---
+
+# 🔐 Privacy & Security
+
+Privacy and security are built into the development process.
+
+VoidOne's engineering stack includes:
+
+- GitHub CodeQL
+- Cppcheck
+- AddressSanitizer
+- Automated testing
+- Dependency scanning
+- Build verification
+- SHA-256 checksums
+- SBOM generation
+- Build provenance
+
+The goal is not to claim that software can ever be perfectly secure.
+
+The goal is to make security **visible, testable and continuously reviewed**.
+
+---
+
+# 🔄 Automated CI/CD
+
+VoidOne uses GitHub Actions as part of its development and release infrastructure.
+
+The pipeline is designed around automated validation:
+
+```text
+                    ┌─────────────────────┐
+                    │     Source Push     │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Version Validation  │
+                    └──────────┬──────────┘
+                               │
+              ┌────────────────┴────────────────┐
+              ▼                                 ▼
+     ┌─────────────────┐               ┌─────────────────┐
+     │ Static Analysis │               │ Dependency Scan │
+     │ CodeQL/Cppcheck │               │     Trivy       │
+     └────────┬────────┘               └────────┬────────┘
+              │                                 │
+              └────────────────┬────────────────┘
+                               ▼
+                    ┌─────────────────────┐
+                    │ Build & Test        │
+                    │ C++ / Qt / CTest    │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Package & Verify    │
+                    │ ZIP / Installers    │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Release & Artifacts │
+                    └─────────────────────┘
+```
+
+### Current CI/CD Areas
+
+- Semantic Version validation
+- Windows build automation
+- Qt deployment
+- C++ compilation
+- CTest
+- Static analysis
+- CodeQL
+- Cppcheck
+- Dependency scanning
+- Build caching
+- Installer generation
+- Portable packaging
+- SHA-256 checksums
+- SBOM generation
+- Build provenance
+- Release automation
+
+---
+
+# 🤖 AI-Assisted CI Diagnostics
+
+VoidOne also experiments with **AI-assisted development infrastructure**.
+
+The long-term objective is to make CI failures easier to diagnose.
+
+The workflow can be conceptually represented as:
+
+```text
+CI Failure
+    │
+    ▼
+Log Collection
+    │
+    ▼
+Error Classification
+    │
+    ▼
+AI-Assisted Diagnosis
+    │
+    ▼
+Potential Patch
+    │
+    ▼
+Validation
+    │
+    ▼
+Pull Request
+    │
+    ▼
+Human Review
+```
+
+AI is treated as an engineering assistant.
+
+Not as an authority.
+
+No automated suggestion should be considered trusted simply because an AI model produced it.
+
+---
+
+# 📦 Windows Distribution
+
+VoidOne is designed to support several Windows distribution formats.
+
+| Package | Purpose |
+| :--- | :--- |
+| **NSIS EXE** | Standard user installation |
+| **WiX MSI** | Native Windows Installer distribution |
+| **Portable ZIP** | Zero-install portable usage |
+
+### Portable Edition
+
+The portable build is intended for users who want to:
+
+- Run VoidOne without installation
+- Keep it on another drive
+- Use external storage
+- Maintain a self-contained launcher directory
+
+---
+
+# 🔐 Release Integrity
+
+Release artifacts can be accompanied by cryptographic integrity information such as:
+
+- SHA-256 checksums
+- SBOM
+- Build provenance
+- Artifact signatures where configured
+
+Example:
+
 ```powershell
-# Clone repository with submodules
-git clone [https://github.com/VoidOne-App/VoidOne.git](https://github.com/VoidOne-App/VoidOne.git)
+Get-FileHash VoidOne-Setup-x64-1.0.0.exe -Algorithm SHA256
+```
+
+Always verify release artifacts using information published alongside the official release.
+
+---
+
+# 🏗️ Architecture
+
+VoidOne follows a layered architecture designed to keep the UI separate from the underlying game-management engine.
+
+```text
+┌─────────────────────────────────────────────┐
+│                  QML / UI                   │
+├─────────────────────────────────────────────┤
+│             Application Layer               │
+├─────────────────────────────────────────────┤
+│        Game Library / Launch Engine         │
+├─────────────────────────────────────────────┤
+│       Platform Detection / Scanners         │
+├─────────────────────────────────────────────┤
+│        SQLite / Local Persistence           │
+├─────────────────────────────────────────────┤
+│        C++23 / OS Integration Layer         │
+├─────────────────────────────────────────────┤
+│       Windows / Linux Operating System      │
+└─────────────────────────────────────────────┘
+```
+
+The separation allows the UI to evolve without forcing the core engine to depend on presentation logic.
+
+---
+
+# 🧰 Technology Stack
+
+| Component | Technology |
+| :--- | :--- |
+| Core Language | C++23 |
+| UI Framework | Qt 6.8 |
+| UI Technology | QML / Qt Quick |
+| Database | SQLite |
+| Build System | CMake |
+| Build Generator | Ninja |
+| Testing | CTest |
+| Memory Diagnostics | AddressSanitizer |
+| Static Analysis | Cppcheck |
+| Security Analysis | GitHub CodeQL |
+| Dependency Scanning | Trivy |
+| Windows Packaging | NSIS / WiX |
+| CI/CD | GitHub Actions |
+
+---
+
+# 🗺️ Roadmap
+
+VoidOne is still early.
+
+That's intentional.
+
+We're building the foundation before attempting to build the complete ecosystem.
+
+## Phase 1 — Foundation
+
+- [x] C++23 project foundation
+- [x] Qt/QML architecture
+- [x] CMake build system
+- [x] Automated CI/CD
+- [x] Static analysis
+- [x] Security analysis
+- [x] Testing infrastructure
+- [x] Windows packaging infrastructure
+
+## Phase 2 — Game Discovery
+
+- [ ] Local game scanner
+- [ ] Steam manifest parser
+- [ ] Epic metadata detection
+- [ ] GOG detection
+- [ ] Custom directory scanning
+- [ ] SQLite library database
+- [ ] Automatic game discovery
+
+## Phase 3 — Library Experience
+
+- [ ] Full game library
+- [ ] Game detail pages
+- [ ] Search
+- [ ] Filtering
+- [ ] Categories
+- [ ] Favorites
+- [ ] Artwork management
+- [ ] Metadata cache
+
+## Phase 4 — Ghost Launch
+
+- [ ] Direct game launching
+- [ ] Launch profiles
+- [ ] Process monitoring
+- [ ] Launcher compatibility modes
+- [ ] Resource management
+- [ ] Game-session lifecycle management
+
+## Phase 5 — Mod Engine
+
+- [ ] Mod profiles
+- [ ] Load-order management
+- [ ] Conflict detection
+- [ ] Non-destructive deployment
+- [ ] Virtual filesystem architecture where appropriate
+
+## Phase 6 — Ecosystem
+
+- [ ] Plugin architecture
+- [ ] Community themes
+- [ ] Developer SDK
+- [ ] Additional platform integrations
+- [ ] Optional cloud features
+- [ ] Cross-platform improvements
+
+---
+
+# 🧪 Development Status
+
+VoidOne is currently under **active development**.
+
+Some features described above are currently implemented.
+
+Others are active development targets.
+
+The project intentionally distinguishes between:
+
+**Implemented**
+
+**In Development**
+
+**Planned**
+
+This distinction matters.
+
+We would rather build a smaller number of reliable features than fill the README with features that don't actually exist.
+
+---
+
+# 🔨 Build From Source
+
+## Requirements
+
+### Windows
+
+- Windows 10 / 11
+- MSVC 2022
+- C++23 support
+- Qt 6.8+
+- CMake 3.25+
+- Ninja
+- Git
+
+### Linux
+
+- GCC 13+ or Clang 17+
+- Qt 6.8+
+- CMake 3.25+
+- Ninja
+- Git
+
+---
+
+## Clone the Repository
+
+```bash
+git clone https://github.com/VoidOne-App/VoidOne.git
 cd VoidOne
-
-# Configure Debug build with AddressSanitizer & Tests enabled
-cmake -S . -B build-debug -G Ninja `
-  -DCMAKE_BUILD_TYPE=Debug `
-  -DVOIDONE_ENABLE_SANITIZERS=ON `
-  -DVOIDONE_BUILD_TESTS=ON
-
-# Compile and run CTest suite
-cmake --build build-debug --config Debug --parallel
-ctest --test-dir build-debug -C Debug --output-on-failure
 ```
 
-### 2. Compile Release Version & Build Installers
-```powershell
-# Configure Release build
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+---
 
-# Compile binaries
-cmake --build build --config Release --parallel
+## Configure
 
-# Deploy Qt dependencies to package directory
-windeployqt --release --compiler-runtime package/VoidOne.exe
-
-# Generate NSIS EXE Installer
-& "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
-
-# Generate WiX v4 MSI Installer
-wix build installer.wxs -ext WixToolset.UI.wixext -o dist/VoidOne-Setup-x64.msi
+```bash
+cmake -S . -B build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release
 ```
 
-<br/>
+---
 
-## 🗺️ Strategic Engineering Roadmap
+## Build
 
-- [x] **Phase 1 — Architectural Foundation:** C++23 build harness, Qt 6.8/QML UI scaffolding, file-backed logging, and multi-format NSIS/WiX CI/CD pipelines[span_15](start_span)[span_15](end_span).
-- [x] **Phase 2 — Quality & Security Gating:** Integration of CodeQL static security analysis, Cppcheck, AddressSanitizer testing, and automated CTest validation[span_16](start_span)[span_16](end_span).
-- [ ] **Phase 3 — The Scanning Engine:** Multi-threaded storage scanning algorithms, manifest parsers (Steam VDF, Epic, GOG), and SQLite database optimization.
-- [ ] **Phase 4 — UI & UX Maturation:** Cyberpunk QML dynamic theming, fluid grid responsiveness, and asynchronous background artwork downloading.
-- [ ] **Phase 5 — The Ghost Launch Protocol:** Direct process launch bypass hooks, background storefront suppression, and RAM reclamation subroutines.
-- [ ] **Phase 6 — Advanced Mod Engine:** Virtual Filesystem (VFS) symbolic linkage mechanics and mod conflict resolution trees.
-
-<br/>
-
-## 🤝 Community Contribution Guidelines
-
-VoidOne thrives on open-source collaboration. Contributions of any scale—ranging from bug fixes and documentation enhancements to major feature implementations—are welcome!
-
-1. **Fork** the official VoidOne repository.
-2. **Create** a feature branch off `main`:
-   ```bash
-   git checkout -b feature/MultiThreadScanner
-   ```
-3. **Commit** your changes with clear messages:
-   ```bash
-   git commit -m 'feat: add multi-threaded scanner for Steam libraries'
-   ```
-4. **Push** your branch and submit a Pull Request. *(Note: Ensure your PR passes the automated Debug + ASan CI check!)*[span_17](start_span)[span_17](end_span)
-
-<br/>
-
-## 📄 Licensing & Legal
-
+```bash
+cmake --build build --parallel
 ```
+
+---
+
+## Run Tests
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+---
+
+# 🤝 Contributing
+
+VoidOne is open source because the project should belong to its community.
+
+Contributions are welcome in:
+
+- C++
+- Qt / QML
+- UI/UX
+- Game detection
+- Platform integration
+- Testing
+- Security
+- Documentation
+- Performance optimization
+- Localization
+
+## Development Workflow
+
+Create a feature branch:
+
+```bash
+git checkout -b feature/my-feature
+```
+
+Make your changes and test them.
+
+Then:
+
+```bash
+git add .
+git commit -m "feat: implement my feature"
+git push origin feature/my-feature
+```
+
+Open a Pull Request.
+
+CI will validate the changes automatically where applicable.
+
+---
+
+# 🧑‍💻 For Developers
+
+VoidOne is also intended to be a practical engineering project.
+
+It combines:
+
+- Modern C++23
+- Qt/QML
+- Native process management
+- SQLite
+- CMake
+- Cross-platform architecture
+- Automated testing
+- Static analysis
+- Security tooling
+- Windows packaging
+- CI/CD automation
+
+The project is intentionally built in the open so developers can inspect the architecture, learn from it and contribute to it.
+
+---
+
+# 🌍 Localization
+
+VoidOne is intended to become accessible to gamers around the world.
+
+Current documentation includes:
+
+- 🇬🇧 English
+- 🇮🇷 Persian
+
+Additional translations can be contributed by the community.
+
+---
+
+# 📜 License
+
+VoidOne is released under the **MIT License**.
+
+```text
 +--------------------------------------------------------------+
-|                    [ V O I D O N E   E N G I N E ]           |
+|                    [ V O I D O N E ]                         |
 +--------------------------------------------------------------+
-| Copyright (c) 2026 VoidOne-App Core Team                     |
-| Repository: [https://github.com/VoidOne-App/VoidOne](https://github.com/VoidOne-App/VoidOne)           |
-| Core Tech: Modern C++23 & Qt 6.8 / QML                       |
+| Open Source • MIT License                                   |
+| Modern C++23 • Qt 6.8 / QML                                 |
+| Built for gamers. Built in the open.                       |
 +--------------------------------------------------------------+
 ```
 
-VoidOne is strictly open-source software, freely distributed under the terms of the **MIT License**. Refer to the [LICENSE](LICENSE) file for complete legal details.
+See [`LICENSE`](LICENSE) for the complete license text.
 
-<br/>
+---
+
+# ❓ Why VoidOne?
+
+Because launching a game shouldn't feel like launching an operating system.
+
+Because a launcher shouldn't need hundreds of megabytes of memory just to display a library.
+
+Because your games shouldn't be scattered across six different applications.
+
+Because privacy shouldn't be a premium feature.
+
+Because offline capability shouldn't be treated as a luxury.
+
+Because open-source software should be able to compete on:
+
+**Performance.**
+
+**Privacy.**
+
+**Design.**
+
+**Freedom.**
+
+And because sometimes...
+
+> **We just want to click PLAY and play the damn game. 🎮**
+
+---
+
+# 🌌 The Vision
+
+VoidOne isn't trying to become another Steam.
+
+It isn't trying to become another Epic Games Launcher.
+
+It isn't trying to replace every platform.
+
+The vision is different.
+
+### Build the layer that sits above them.
+
+A lightweight, open-source, local-first gaming environment where your games can live together regardless of where they came from.
+
+```text
+                ┌──────────────────────┐
+                │       GAMER          │
+                └──────────┬───────────┘
+                           │
+                           ▼
+                ┌──────────────────────┐
+                │       VOIDONE        │
+                │                      │
+                │  Library • Launch    │
+                │  Profiles • Mods     │
+                │  Local Data          │
+                └──────────┬───────────┘
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+          ▼                ▼                ▼
+        Steam            Epic              GOG
+          │                │                │
+          └────────────────┼────────────────┘
+                           │
+                           ▼
+                     🎮 YOUR GAMES
+```
+
+---
 
 <div align="center">
 
-**Forged by gamers. Engineered for absolute performance. Built completely in the open.**
+# 🌌 VoidOne
 
-<sub>Architected with uncompromising precision, ❤️, and modern C++23 by the VoidOne-App Core Team.</sub>
+### Your Games. Your Hardware. Your Rules.
+
+**Open Source. Offline-First. Performance-Driven.**
+
+<br/>
+
+**Forged by a gamer. Built for gamers.**
+
+<br/>
+
+<a href="https://github.com/VoidOne-App/VoidOne">
+  <img src="https://img.shields.io/badge/⭐_Star_VoidOne_on_GitHub-FFD700?style=for-the-badge&logo=github&logoColor=black" alt="Star VoidOne on GitHub"/>
+</a>
 
 <br/><br/>
 
-⭐ **If you stand with the vision of VoidOne, please consider starring the repository on GitHub!** ⭐
+<sub>
+Built with ❤️, C++23, Qt/QML and a ridiculous obsession with performance.
+</sub>
 
 </div>
