@@ -1,1 +1,84 @@
+name: 🐛 Bug Report
+description: Report something that's broken or not working as expected.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug — this helps VoidOne get better for everyone.
+        Before submitting, please search [existing issues](https://github.com/VoidOne-App/VoidOne/issues) to avoid duplicates.
 
+  - type: input
+    id: version
+    attributes:
+      label: VoidOne Version
+      description: Found in Settings, or via `VoidOne.exe --version`
+      placeholder: "v0.1.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Installation Method
+      options:
+        - Installer (.exe / NSIS)
+        - Installer (.msi / WiX)
+        - Portable ZIP
+        - Built from source
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Open VoidOne
+        2. Click on...
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log File
+      description: |
+        VoidOne writes a log file to `%AppData%/VoidOne/logs/voidone.log`.
+        Please paste the relevant section (or attach the file) — this is usually the fastest way to diagnose the issue.
+      render: shell
+
+  - type: input
+    id: os
+    attributes:
+      label: Windows Version
+      placeholder: "Windows 11 24H2"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this hasn't been reported yet
+          required: true
+        - label: I'm using the latest released version of VoidOne
+          required: false

@@ -1,1 +1,47 @@
+name: 💡 Feature Request
+description: Suggest an idea or improvement for VoidOne.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea for VoidOne? We'd love to hear it. Please check the
+        [roadmap](https://github.com/VoidOne-App/VoidOne#-engineering-roadmap)
+        first — it might already be planned.
 
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What's the pain point or missing capability?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: What would you like to see happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any other approaches you thought about?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area does this affect?
+      multiple: true
+      options:
+        - Game Library / Scanning
+        - UI / Theming
+        - Mod Engine
+        - Save Backup
+        - Store Integration
+        - CI / Build System
+        - Other
