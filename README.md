@@ -10,20 +10,23 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/VoidOne-App/VoidOne/actions/workflows/c.cpp.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/VoidOne-App/VoidOne/c.cpp.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI%2FCD&color=7C3AED" alt="CI/CD Status"/>
+  <a href="https://github.com/VoidOne-App/VoidOne/actions/workflows/voidone-ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/VoidOne-App/VoidOne/voidone-ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI%2FCD&color=7C3AED" alt="CI/CD Status"/>
   </a>
   <a href="https://github.com/VoidOne-App/VoidOne/releases">
-    <img src="https://img.shields.io/badge/Release-v0.0.1--alpha-FF2E63?style=for-the-badge&logo=rocket&logoColor=white" alt="Latest Release"/>
+    <img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?style=for-the-badge&logo=rocket&logoColor=white&color=FF2E63" alt="Latest Release"/>
+  </a>
+  <a href="https://github.com/VoidOne-App/VoidOne/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-FFD60A?style=for-the-badge" alt="MIT License"/>
   </a>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/C%2B%2B-23-00599C?style=for-the-badge&logo=cplusplus&logoColor=white" alt="C++23 Standard"/>
   <img src="https://img.shields.io/badge/Qt-6.8-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="Qt 6.8 Framework"/>
-  <img src="https://img.shields.io/badge/WiX_Toolset-v4-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="WiX Toolset v4"/>
+  <img src="https://img.shields.io/badge/Packaging-NSIS%20%7C%20WiX%20v4-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Dual Packaging"/>
+  <img src="https://img.shields.io/badge/Security-CodeQL%20%7C%20ASan-2EA043?style=for-the-badge&logo=github&logoColor=white" alt="Security Hardened"/>
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D6?style=for-the-badge&logo=linux&logoColor=white" alt="Cross Platform"/>
-  <img src="https://img.shields.io/badge/License-MIT-FFD60A?style=for-the-badge" alt="MIT License"/>
 </p>
 
 <br/>
@@ -33,9 +36,9 @@
   <a href="#-the-manifesto--gamer-to-gamer">Manifesto</a> •
   <a href="#-architectural-superiority">Architecture</a> •
   <a href="#-comprehensive-feature-set">Features</a> •
+  <a href="#-automated-cicd--quality-assurance">CI/CD & Security</a> •
   <a href="#-download--deployment">Installation</a> •
   <a href="#-building-from-source">Compilation</a> •
-  <a href="#-autonomous-ai-healing-pipeline">AI Diagnostics</a> •
   <a href="#-strategic-roadmap">Roadmap</a> •
   <a href="#-contributing">Contributing</a>
 </p>
@@ -46,7 +49,7 @@
 
 ## 👁️ About VoidOne
 
-**VoidOne** is an ultra-optimized, comprehensive open-source PC gaming hub and library manager, meticulously engineered from the ground up using **C++23** and **Qt 6 / QML**. Designed to serve as the ultimate unified desktop ecosystem, VoidOne completely bridges the gap between heavily fragmented commercial game distribution platforms (such as Steam, Epic Games Launcher, GOG Galaxy, and EA App) and pure, unadulterated local execution. 
+**VoidOne** is an ultra-optimized, comprehensive open-source PC gaming hub and library manager, meticulously engineered from the ground up using **C++23** and **Qt 6.8 / QML**. Designed to serve as the ultimate unified desktop ecosystem, VoidOne completely bridges the gap between heavily fragmented commercial game distribution platforms (such as Steam, Epic Games Launcher, GOG Galaxy, and EA App) and pure, unadulterated local execution.
 
 Unlike traditional Electron-based launchers that consume vast amounts of system resources just to render a user interface, VoidOne utilizes hardware-accelerated rendering decoupled from its low-level execution logic. This ensures a near-zero idle RAM footprint while delivering a visually stunning, cyberpunk-inspired graphical interface that runs flawlessly at 60+ FPS on any resolution or display scale.
 
@@ -79,6 +82,7 @@ VoidOne was not conceived in a corporate boardroom; it was forged by a gamer who
 | **Ghost Launch Execution** | 🟢 Native Built-in API | 🔴 Blocked/Unsupported | 🔴 Rarely Implemented |
 | **Licensing Structure** | 🟢 Open-Source (MIT) | 🔴 Proprietary / Closed | 🟢 Open-Source |
 | **UI Rendering Pipeline** | 🟢 GPU-Accelerated QML | 🔴 WebViews / Chromium | 🔴 Software Rendered |
+| **Memory Safety Diagnostics**| 🟢 ASan & CodeQL Hardened | 🔴 Internal / Closed | 🟡 Web V8 Sandboxed |
 | **Offline Functionality** | 🟢 100% Operational | 🔴 Heavily Restricted | 🟡 Partially Operational |
 
 <br/>
@@ -104,38 +108,48 @@ VoidOne was not conceived in a corporate boardroom; it was forged by a gamer who
 - **Non-Destructive VFS Mapping:** Utilizes advanced Virtual File System (VFS) symbolic linkage to inject mods into game directories without ever permanently overwriting or corrupting base vanilla game files.
 - **Conflict Resolution Matrix:** Automatically verifies file load orders, detects deep mod conflicts, and validates directory linkage structures prior to allowing the game engine to initialize.
 
-### 🤖 Autonomous AI Diagnostic & Repair System
-- **Self-Healing CI/CD Pipeline:** Integrated multi-agent LLM workflows utilizing a Gemini 2.5 Pro diagnostic pipeline alongside a local Qwen2.5-Coder patching agent.
+### 🤖 Autonomous AI Diagnostic & Repair Integration
+- **Self-Healing CI/CD Pipeline:** Integrated multi-agent LLM workflows utilizing a Gemini diagnostic pipeline alongside local patching tools.
 - **Automated Remediation:** Instantly parses complex CMake/C++ compiler errors from GitHub Actions, identifies the exact line of code causing the regression, and proposes functional fixes via automated Pull Requests.
 
 <br/>
 
-## ⚙️ Technology Stack & Engine Infrastructure
+## 🔄 Automated CI/CD & Quality Assurance
 
-- **Core Logic & Systems Engine:** `C++23` — Ensures zero-overhead abstractions, ultra-low latency system calls, rigorous process management, and heavily asynchronous I/O operations.
-- **Presentation & GUI Framework:** `Qt 6.8 / QML` — Provides a declarative, GPU-accelerated interface with a highly modular, signal-and-slot based component architecture.
-- **Relational Database Management:** `SQLite3` — A lightweight, thread-safe embedded storage solution for handling massive libraries of local game records and persistent application states.
-- **Build Automation & Orchestration:** `CMake 3.25+ / Ninja` — A robust, scalable, and cross-platform build configuration pipeline ensuring reproducible builds.
-- **Deployment & Packaging:** `WiX Toolset v4 / MSI` — Compiles a native, heavily optimized 64-bit Windows Installer with secure Start Menu, Registry, and Desktop integration.
-- **Continuous Integration (CI/CD):** `GitHub Actions` — Orchestrates automated multi-platform compilation, static code analysis via CodeQL and Cppcheck, and zero-touch automated deployment to release channels.
+VoidOne enforces strict production-grade DevOps standards via a multi-layered GitHub Actions automated pipeline (`voidone-ci.yml`)[span_0](start_span)[span_0](end_span):
+
+```
+[ 🏷️ SemVer Tag Validation ] ──► [ 🔒 CodeQL & Cppcheck Static Analysis ]
+                                                 │
+                                                 ▼
+[ 🚀 Dual Installers (NSIS EXE + WiX MSI) ] ◄── [ 🧪 Debug Build & ASan Memory Testing ]
+                      │
+                      ▼
+[ 📦 Draft Release + SHA-256 Checksums ] ──► [ 🔔 Discord Webhook Notification ]
+```
+
+1. **Strict Version Enforcement:** Enforces valid Semantic Versioning tags (e.g., `v1.0.0`, `v1.0.0-beta.1`)[span_1](start_span)[span_1](end_span).
+2. **Static Code Analysis:** Automated security scanning powered by **GitHub CodeQL** and **Cppcheck** to detect potential vulnerabilities prior to compilation[span_2](start_span)[span_2](end_span).
+3. **Debug & Sanitizer Pipeline (PR Gate):** Runs isolated Debug builds instrumented with **AddressSanitizer (ASan)** and **CTest** on all Pull Requests to catch memory leaks, dangling pointers, and undefined behavior early[span_3](start_span)[span_3](end_span).
+4. **Optimized Multi-Format Packaging:** Automatically compiles Release binaries using `ccache` and packages them simultaneously into **NSIS EXE**, **WiX v4 MSI**, and **Portable ZIP** formats[span_4](start_span)[span_4](end_span).
+5. **Human-In-The-Loop Draft Releases:** New tagged releases are created in **Draft mode** first, giving maintainers complete control for a final check before public visibility[span_5](start_span)[span_5](end_span).
+6. **Nightly Integrity Checks:** Scheduled weekly cron builds proactively catch breaking upstream changes in Qt or toolchains[span_6](start_span)[span_6](end_span).
 
 <br/>
 
 ## 📥 Download & Deployment
 
-Two primary distribution channels are officially provided for Windows operating systems:
+Three primary distribution options are officially compiled and published for Windows environments[span_7](start_span)[span_7](end_span):
 
-**1. The Standard Installer (Recommended)**
-Provides a complete ecosystem setup, including Start Menu shortcuts, Desktop integration, automatic Visual C++ Redistributable checks, and a clean uninstallation wizard.
-File: `VoidOne-Setup-v0.0.1.msi`
+| Package Type | File Name | Description |
+| :--- | :--- | :--- |
+| **Standard Setup (NSIS)** | `VoidOne-Setup-x64-<version>.exe`[span_8](start_span)[span_8](end_span) | Recommended for most users. Lightweight, customizable installer with Start Menu & Uninstaller shortcuts[span_9](start_span)[span_9](end_span). |
+| **Enterprise Installer (WiX)** | `VoidOne-Setup-x64-<version>.msi`[span_10](start_span)[span_10](end_span) | Native Windows Installer package ideal for enterprise environments, quiet GPO rollouts, and registry tracking[span_11](start_span)[span_11](end_span). |
+| **Portable Archive (Zero-Install)** | `VoidOne-Windows-x64-Portable-<version>.zip`[span_12](start_span)[span_12](end_span) | Portable folder bundle. Zero installer overhead—run directly from external drives or USB sticks[span_13](start_span)[span_13](end_span). |
 
-**2. The Portable Archive (Zero-Install)**
-A completely standalone, zero-installation archive designed for deployment on external SSDs, USB flash drives, or highly restricted environments without administrative privileges.
-File: `VoidOne-Windows-x64-Portable.zip`
-
-> 🔐 **Security Checksum Verification:** We strongly mandate checking file integrity prior to execution to prevent tampering. Run the following command in PowerShell:
+> 🔐 **Security Checksum Verification:** Always check file integrity prior to execution. Run the following command in PowerShell:
 > ```powershell
-> Get-FileHash VoidOne-Setup-v0.0.1.msi -Algorithm SHA256
+> Get-FileHash VoidOne-Setup-x64-1.0.0.exe -Algorithm SHA256
 > ```
 
 <br/>
@@ -144,99 +158,90 @@ File: `VoidOne-Windows-x64-Portable.zip`
 
 For developers, contributors, and security auditors wishing to compile VoidOne locally.
 
-### Comprehensive System Prerequisites
-- **Compiler Requirements:**
-  - **Windows OS:** Microsoft Visual Studio 2022 (v17.8 or newer) with standard C++23 flags enabled.
-  - **Linux OS:** GCC 13+ or Clang 17+ with robust standard library support.
-- **Framework Installation:** Qt 6.8+ (Ensure Desktop Development, QtQuick, and QML modules are explicitly selected during installation).
-- **Packaging Dependencies:** WiX Toolset v4 (Strictly required only if compiling the Windows MSI installer).
-- **Build Utilities:** CMake 3.25+, the Ninja Build Engine, and Git 2.40+.
+### Prerequisites
+- **Compiler:** MSVC 2022 (v17.8+), GCC 13+, or Clang 17+ with C++23 support.
+- **Framework:** Qt 6.8+ (Desktop, QtQuick, QML modules required).
+- **Toolchain:** CMake 3.25+, Ninja Build Engine, `ccache` (optional, for fast rebuilds).
+- **Packaging Dependencies (Optional):** NSIS 3.x and WiX Toolset v4[span_14](start_span)[span_14](end_span).
 
-### Step-by-Step Compilation Pipeline
-
-```bash
-# 1. Clone the master repository and navigate into the project root
+### 1. Compile Debug Version with Sanitizers (Testing)
+```powershell
+# Clone repository with submodules
 git clone [https://github.com/VoidOne-App/VoidOne.git](https://github.com/VoidOne-App/VoidOne.git)
 cd VoidOne
 
-# 2. Configure the build environment utilizing CMake and the Ninja generator
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=23
+# Configure Debug build with AddressSanitizer & Tests enabled
+cmake -S . -B build-debug -G Ninja `
+  -DCMAKE_BUILD_TYPE=Debug `
+  -DVOIDONE_ENABLE_SANITIZERS=ON `
+  -DVOIDONE_BUILD_TESTS=ON
 
-# 3. Compile the optimized application binaries utilizing all available CPU cores
+# Compile and run CTest suite
+cmake --build build-debug --config Debug --parallel
+ctest --test-dir build-debug -C Debug --output-on-failure
+```
+
+### 2. Compile Release Version & Build Installers
+```powershell
+# Configure Release build
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+# Compile binaries
 cmake --build build --config Release --parallel
 
-# 4. Generate the official WiX v4 MSI Installer (Windows environments only)
-wix build -ext WixToolset.UI.wixext installer.wxs -o build/VoidOne-Setup-v0.0.1.msi
+# Deploy Qt dependencies to package directory
+windeployqt --release --compiler-runtime package/VoidOne.exe
+
+# Generate NSIS EXE Installer
+& "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+
+# Generate WiX v4 MSI Installer
+wix build installer.wxs -ext WixToolset.UI.wixext -o dist/VoidOne-Setup-x64.msi
 ```
-
-<br/>
-
-## 🤖 Autonomous AI Diagnostic Workflow
-
-VoidOne pioneers the use of an automated build-diagnostic pipeline. During continuous integration, if a codebase change causes a compilation regression, the following autonomous sequence is triggered:
-
-```
-[ ❌ CI Pipeline Detects C++ Build Failure ] 
-                      |
-                      v
-[ 🧠 Gemini Engine Analyzes Stack Trace & Parses Logs ]
-                      |
-                      v
-[ 💻 Qwen Coder Agent Generates C++ Code Patch ]
-                      |
-                      v
-[ 🔍 Automated PR Submission for Human Maintainer Review ]
-```
-
-> *Security Note: The AI acts exclusively in an advisory and generation capacity. Zero AI-generated code is merged into the master branch without rigorous manual inspection and approval by a core maintainer.*
 
 <br/>
 
 ## 🗺️ Strategic Engineering Roadmap
 
-- [x] **Phase 1 — Architectural Foundation:** Establishment of the modern C++23 build harness, Qt 6.8/QML interface scaffolding, sophisticated File-Backed Logging, and the WiX v4 CI/CD installer workflow.
-- [ ] **Phase 2 — The Scanning Engine:** Implementation of multi-threaded storage scanning algorithms, external manifest parsers (Steam VDF, Epic, GOG), and stabilization of the SQLite database schema.
-- [ ] **Phase 3 — UI & UX Maturation:** Finalizing the cyberpunk QML dynamic theming, grid layout responsiveness, and integrating asynchronous background image fetching.
-- [ ] **Phase 4 — The Ghost Launch Protocol:** Execution of direct process launch bypass hooks, automated background storefront management, and RAM reclamation subroutines.
-- [ ] **Phase 5 — Advanced Mod Engine:** Establishing the Virtual Filesystem (VFS) linkage mechanics, resolving dependency tree validation algorithms, and implementing UI profile configuration managers.
-- [ ] **Phase 6 — Ecosystem Expansion:** Publishing the Theme Customization SDK, establishing RGB hardware synchronization hooks (via OpenRGB), and enabling localized encrypted configuration backups.
+- [x] **Phase 1 — Architectural Foundation:** C++23 build harness, Qt 6.8/QML UI scaffolding, file-backed logging, and multi-format NSIS/WiX CI/CD pipelines[span_15](start_span)[span_15](end_span).
+- [x] **Phase 2 — Quality & Security Gating:** Integration of CodeQL static security analysis, Cppcheck, AddressSanitizer testing, and automated CTest validation[span_16](start_span)[span_16](end_span).
+- [ ] **Phase 3 — The Scanning Engine:** Multi-threaded storage scanning algorithms, manifest parsers (Steam VDF, Epic, GOG), and SQLite database optimization.
+- [ ] **Phase 4 — UI & UX Maturation:** Cyberpunk QML dynamic theming, fluid grid responsiveness, and asynchronous background artwork downloading.
+- [ ] **Phase 5 — The Ghost Launch Protocol:** Direct process launch bypass hooks, background storefront suppression, and RAM reclamation subroutines.
+- [ ] **Phase 6 — Advanced Mod Engine:** Virtual Filesystem (VFS) symbolic linkage mechanics and mod conflict resolution trees.
 
 <br/>
 
 ## 🤝 Community Contribution Guidelines
 
-VoidOne thrives on open-source collaboration. Contributions of any scale—ranging from bug fixes and documentation enhancements to major feature implementations and UI overhauls—are highly encouraged and deeply appreciated.
+VoidOne thrives on open-source collaboration. Contributions of any scale—ranging from bug fixes and documentation enhancements to major feature implementations—are welcome!
 
-1. **Fork** the official VoidOne repository to your personal GitHub account.
-2. **Create** a dedicated feature branch from `main`:
+1. **Fork** the official VoidOne repository.
+2. **Create** a feature branch off `main`:
    ```bash
-   git checkout -b feature/AdvancedGameScanner
+   git checkout -b feature/MultiThreadScanner
    ```
-3. **Commit** your logically grouped changes with clear, descriptive messages:
+3. **Commit** your changes with clear messages:
    ```bash
-   git commit -m 'feat: implement multi-threaded directory scanning for Steam libraries'
+   git commit -m 'feat: add multi-threaded scanner for Steam libraries'
    ```
-4. **Push** the branch to your forked repository:
-   ```bash
-   git push origin feature/AdvancedGameScanner
-   ```
-5. **Submit** a comprehensive Pull Request detailing your changes, the rationale, and any necessary testing steps.
+4. **Push** your branch and submit a Pull Request. *(Note: Ensure your PR passes the automated Debug + ASan CI check!)*[span_17](start_span)[span_17](end_span)
 
 <br/>
 
-## 📄 Licensing & Copyright
+## 📄 Licensing & Legal
 
 ```
 +--------------------------------------------------------------+
 |                    [ V O I D O N E   E N G I N E ]           |
 +--------------------------------------------------------------+
 | Copyright (c) 2026 VoidOne-App Core Team                     |
-| Repository: [github.com/VoidOne-App/VoidOne](https://github.com/VoidOne-App/VoidOne)                   |
-| Core Tech: Modern C++23 & Qt 6 / QML                         |
+| Repository: [https://github.com/VoidOne-App/VoidOne](https://github.com/VoidOne-App/VoidOne)           |
+| Core Tech: Modern C++23 & Qt 6.8 / QML                       |
 +--------------------------------------------------------------+
 ```
 
-VoidOne is strictly open-source software, freely distributed under the terms of the **MIT License**. This grants you extensive permissions for commercial use, modification, distribution, and private utilization. Please refer to the [LICENSE](LICENSE) file located in the root of the repository for complete legal details.
+VoidOne is strictly open-source software, freely distributed under the terms of the **MIT License**. Refer to the [LICENSE](LICENSE) file for complete legal details.
 
 <br/>
 
