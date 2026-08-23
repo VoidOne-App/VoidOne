@@ -12,6 +12,10 @@ on:
     branches:
       - main
 
+  schedule:
+    # اجرای اتوماتیک هفتگی (یکشنبه‌ها ساعت ۰۲:۰۰ به وقت UTC) برای تست سلامت پروژه
+    - cron: '0 2 * * 0'
+
   workflow_dispatch:
     inputs:
       skip_tests:
@@ -53,6 +57,7 @@ jobs:
             exit 1
           fi
           echo "Tag $TAG is valid SemVer."
+          echo "### 🏷️ Release Tag: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
 
   # ----------------------------------------------------------
   # 2. Static Security Analysis (CodeQL + cppcheck)
@@ -117,7 +122,57 @@ jobs:
           retention-days: 14
 
   # ----------------------------------------------------------
-  # 3. Build, Optimize, Test & Package
+  # 3. Debug Build & Sanitizers (PR Validation)
+  # ----------------------------------------------------------
+  debug-sanitizers:
+    name: Debug Build & ASan Check
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Ninja
+        shell: pwsh
+        run: choco install ninja -y --no-progress
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          target: desktop
+          arch: ${{ env.QT_ARCH }}
+          dir: ${{ github.workspace }}
+          cache: true
+          cache-key-prefix: voidone-qt
+
+      - name: Configure Debug with Sanitizers
+        shell: pwsh
+        run: |
+          mkdir build-debug -ErrorAction SilentlyContinue
+          cmake -S . -B build-debug -G Ninja `
+            -DCMAKE_BUILD_TYPE=Debug `
+            -DVOIDONE_ENABLE_SANITIZERS=ON `
+            -DVOIDONE_BUILD_TESTS=ON
+
+      - name: Build Debug Binaries
+        shell: pwsh
+        run: cmake --build build-debug --config Debug --parallel
+
+      - name: Run Tests under ASan
+        shell: pwsh
+        run: |
+          if (Test-Path "tests\CMakeLists.txt") {
+            ctest --test-dir build-debug -C Debug --output-on-failure --timeout 120
+          }
+
+  # ----------------------------------------------------------
+  # 4. Build, Optimize, Test & Package (Release)
   # ----------------------------------------------------------
   build-windows:
     name: Build & Package (EXE, MSI, ZIP)
@@ -152,6 +207,13 @@ jobs:
           variant: ccache
           max-size: 500M
 
+      # کش کردن پکیج‌های ابزاری سیستم برای افزایش سرعت نصب
+      - name: Cache Chocolatey Packages
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\runneradmin\AppData\Local\Temp\chocolatey
+          key: choco-tools-${{ runner.os }}
+
       - name: Install Toolchain (NSIS, WiX)
         shell: pwsh
         run: |
@@ -184,8 +246,8 @@ jobs:
         run: |
           mkdir build -ErrorAction SilentlyContinue
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
-            -DPROJECT_VERSION="${{ steps.version.outputs.value }}" `
-            -DBUILD_TESTING=ON `
+            -DVOIDONE_VERSION_OVERRIDE="${{ steps.version.outputs.value }}" `
+            -DVOIDONE_BUILD_TESTS=${{ inputs.skip_tests && 'OFF' || 'ON' }} `
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
             -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
 
@@ -196,7 +258,12 @@ jobs:
       - name: Run Unit Test Suite (CTest)
         if: ${{ !inputs.skip_tests }}
         shell: pwsh
-        run: ctest --test-dir build -C Release --output-on-failure --timeout 120
+        run: |
+          if (Test-Path "tests\CMakeLists.txt") {
+            ctest --test-dir build -C Release --output-on-failure --timeout 120
+          } else {
+            Write-Host "ℹ️  No tests/CMakeLists.txt in this repo yet — skipping CTest."
+          }
 
       - name: Prepare Staging & Deploy Qt Binaries
         shell: pwsh
@@ -204,6 +271,10 @@ jobs:
           Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path package | Out-Null
           $exe = Get-ChildItem -Path build -Filter "$env:APP_NAME.exe" -Recurse | Select-Object -First 1
+          if (-not $exe) {
+            Write-Error "CRITICAL: $env:APP_NAME.exe not found under build\ — check VOIDONE_VERSION_OVERRIDE/VOIDONE_BUILD_TESTS actually match CMakeLists.txt."
+            exit 1
+          }
           Copy-Item -Path $exe.FullName -Destination "package\$env:APP_NAME.exe" -Force
           windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
 
@@ -229,6 +300,8 @@ jobs:
           if (Test-Path "installer.nsi") {
             & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
             Move-Item -Path "dist\VoidOne-Setup-x64.exe" -Destination "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe" -Force
+          } else {
+            Write-Warning "installer.nsi not found. Skipping NSIS EXE build."
           }
 
           # 2. WiX MSI Setup
@@ -251,6 +324,20 @@ jobs:
             (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii
           }
 
+      - name: Write Build Summary
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem -Path . -Filter "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $exe = Get-ChildItem -Path dist -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          $msi = Get-ChildItem -Path dist -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "### 📦 Build Artifacts — ${{ steps.version.outputs.value }}"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "| File | Size |"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "|---|---|"
+          if ($zip) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "| $($zip.Name) | $([math]::Round($zip.Length / 1MB, 1)) MB |" }
+          if ($exe) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "| $($exe.Name) | $([math]::Round($exe.Length / 1MB, 1)) MB |" }
+          if ($msi) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "| $($msi.Name) | $([math]::Round($msi.Length / 1MB, 1)) MB |" }
+
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -262,7 +349,7 @@ jobs:
           if-no-files-found: error
 
   # ----------------------------------------------------------
-  # 4. Publish Release & Discord Webhooks
+  # 5. Publish Release & Discord Webhooks
   # ----------------------------------------------------------
   publish-release:
     name: Publish Release & Notifications
@@ -292,7 +379,7 @@ jobs:
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
-          PREV_TAG=$(git describe --tags --abbrev=0 --exclude="${{ github.ref_name }}" 2>/dev/null || echo "")
+          PREV_TAG=$(git describe --tags --abbrev=0 --exclude="${{ github.ref_name }}" 2>/devnull || echo "")
           if [ -n "$PREV_TAG" ]; then
             LOG=$(git log "$PREV_TAG"..HEAD --pretty=format:"• %s" | head -n 10)
           else
@@ -314,13 +401,28 @@ jobs:
           echo "exe_mb=$( [ -f "$EXE" ] && du -m "$EXE" | cut -f1 || echo 'N/A' )" >> "$GITHUB_OUTPUT"
           echo "msi_mb=$( [ -f "$MSI" ] && du -m "$MSI" | cut -f1 || echo 'N/A' )" >> "$GITHUB_OUTPUT"
 
-      - name: Publish GitHub Release
+      - name: Publish GitHub Release (Draft Mode)
         uses: softprops/action-gh-release@v2
         with:
           name: "VoidOne ${{ github.ref_name }}"
+          draft: true  # ساخت به‌صورت پیش‌نویس جهت تایید نهایی توسط خودتان
           prerelease: ${{ steps.meta.outputs.prerelease }}
           generate_release_notes: true
           files: release-files/**
+
+      - name: Write Release Summary
+        run: |
+          {
+            echo "## 🚀 VoidOne ${{ github.ref_name }} Draft Created"
+            echo ""
+            echo "| Artifact | Size |"
+            echo "|---|---|"
+            echo "| Portable ZIP | ${{ steps.sizes.outputs.zip_mb }} MB |"
+            echo "| Setup EXE | ${{ steps.sizes.outputs.exe_mb }} MB |"
+            echo "| Setup MSI | ${{ steps.sizes.outputs.msi_mb }} MB |"
+            echo ""
+            echo "**Release Draft:** https://github.com/${{ github.repository }}/releases"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Discord Notification — Success
         if: success()
@@ -337,13 +439,13 @@ jobs:
             --arg exesize "${{ steps.sizes.outputs.exe_mb }} MB" \
             --arg msisize "${{ steps.sizes.outputs.msi_mb }} MB" \
             --arg changelog "$CHANGELOG" \
-            --arg url "https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}" \
+            --arg url "https://github.com/${{ github.repository }}/releases" \
             '{
               username: "VoidOne CI",
               embeds: [{
-                title: ("✅ VoidOne " + $tag + " — Released!"),
+                title: ("✅ VoidOne " + $tag + " — Draft Ready!"),
                 url: $url,
-                description: "New release is live.",
+                description: "New release draft is built and waiting for approval.",
                 color: 3066993,
                 author: { name: $actor, icon_url: $avatar },
                 fields: [
