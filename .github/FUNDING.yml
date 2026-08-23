@@ -1,1 +1,10 @@
+# These are supported funding model platforms
 
+# ⚠️ REPLACE THESE PLACEHOLDERS with your real accounts before committing.
+# Leaving a fake/unclaimed username here is worse than leaving it blank —
+# GitHub will render a broken/misleading Sponsor button.
+
+github: [] # e.g. [mohammadmk47]  — requires GitHub Sponsors enrollment first
+open_collective: # e.g. voidone   — requires an Open Collective created first
+ko_fi: # e.g. voidoneapp
+custom: # e.g. ["https://voidone.app/donate"]
