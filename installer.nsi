@@ -3,7 +3,7 @@
 !include "x64.nsh"
 
 ; ============================================
-; Application & Company Configuration
+; Application & Dynamic Version Configuration
 ; ============================================
 !define APP_NAME "VoidOne"
 !define COMPANY_NAME "VoidOne_app"
@@ -13,12 +13,13 @@
 !define FILE_EXT "vone"
 !define PROTOCOL_SCHEME "voidone"
 
+; دریافت خودکار نسخه از CLI (در صورت عدم ارسال، نسخه پیش‌فرض اعمال می‌شود)
 !ifndef VERSION
   !define VERSION "0.1.0"
 !endif
 
 Name "${APP_NAME} ${VERSION}"
-OutFile "dist\VoidOne-Setup-x64.exe"
+OutFile "dist\VoidOne-Setup-${VERSION}-x64.exe"
 
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
 InstallDirRegKey HKLM "Software\${COMPANY_NAME}\${APP_NAME}" "InstallDir"
@@ -100,34 +101,60 @@ Section "MainSection" SEC01
         CopyFiles "$PLUGINSDIR\UserDataBackup\config.json" "$APPDATA\VoidOne\"
     ${EndIf}
 
-    ; 5. VC++ Redistributable Silent Setup
-    ${If} ${FileExists} "$INSTDIR\VC_redist.x64.exe"
-        DetailPrint "Installing Microsoft Visual C++ Redistributable (Silent)..."
-        nsExec::ExecToLog '"$INSTDIR\VC_redist.x64.exe" /install /quiet /norestart'
-        Delete "$INSTDIR\VC_redist.x64.exe"
+    ; 5. Smart VC++ Redistributable Check & Setup
+    ClearErrors
+    ReadRegDword $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
+    ${If} $0 != 1
+        ${If} ${FileExists} "$INSTDIR\VC_redist.x64.exe"
+            DetailPrint "Installing Visual C++ Redistributable Runtime..."
+            nsExec::ExecToLog '"$INSTDIR\VC_redist.x64.exe" /install /quiet /norestart'
+            Delete "$INSTDIR\VC_redist.x64.exe"
+        ${EndIf}
+    ${Else}
+        DetailPrint "Visual C++ Runtime already installed. Skipping..."
+        ${If} ${FileExists} "$INSTDIR\VC_redist.x64.exe"
+            Delete "$INSTDIR\VC_redist.x64.exe"
+        ${EndIf}
     ${EndIf}
 
-    ; 6. Create Uninstaller Executable
+    ; 6. Configure Windows Firewall Exception
+    DetailPrint "Configuring Windows Firewall rules..."
+    nsExec::Exec 'netsh advfirewall firewall add rule name="VoidOne Engine Service" dir=in action=allow program="$INSTDIR\${EXE_NAME}" enable=yes'
+
+    ; 7. High Performance Gaming Optimization RegKeys
+    DetailPrint "Optimizing system preferences for VoidOne Engine..."
+    WriteRegDword HKCU "Software\Microsoft\DirectX\UserGpuPreferences" "$INSTDIR\${EXE_NAME}" 2
+    WriteRegDword HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" "GPU Priority" 8
+
+    ; 8. Create Uninstaller Executable
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-    ; 7. Create Start Menu Shortcuts
+    ; 9. Create Start Menu Shortcuts
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
     CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${EXE_NAME}" "" "$INSTDIR\${EXE_NAME}" 0
     CreateShortCut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
 
-    ; 8. Register Custom URI Protocol (voidone://)
+    ; 10. Register Custom URI Protocol (voidone://)
     WriteRegStr HKCR "${PROTOCOL_SCHEME}" "" "URL:${APP_NAME} Protocol"
     WriteRegStr HKCR "${PROTOCOL_SCHEME}" "URL Protocol" ""
     WriteRegStr HKCR "${PROTOCOL_SCHEME}\DefaultIcon" "" "$INSTDIR\${EXE_NAME},0"
     WriteRegStr HKCR "${PROTOCOL_SCHEME}\shell\open\command" "" '"$INSTDIR\${EXE_NAME}" "%1"'
 
-    ; 9. Register Custom File Extension (.vone)
+    ; 11. Register Custom File Extension (.vone)
     WriteRegStr HKCR ".${FILE_EXT}" "" "${APP_NAME}.ProjectFile"
     WriteRegStr HKCR "${APP_NAME}.ProjectFile" "" "${APP_NAME} Project File"
     WriteRegStr HKCR "${APP_NAME}.ProjectFile\DefaultIcon" "" "$INSTDIR\${EXE_NAME},0"
     WriteRegStr HKCR "${APP_NAME}.ProjectFile\shell\open\command" "" '"$INSTDIR\${EXE_NAME}" "%1"'
 
-    ; 10. Register in Windows Add/Remove Programs (Control Panel)
+    ; 12. Register Context Menu (Right-Click Directory Option)
+    WriteRegStr HKCR "Directory\shell\VoidOne" "" "Open with VoidOne"
+    WriteRegStr HKCR "Directory\shell\VoidOne" "Icon" "$INSTDIR\${EXE_NAME},0"
+    WriteRegStr HKCR "Directory\shell\VoidOne\command" "" '"$INSTDIR\${EXE_NAME}" "--game-path=%1"'
+
+    ; 13. Optional Auto-Start Entry
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}" '"$INSTDIR\${EXE_NAME}" --autostart'
+
+    ; 14. Register in Windows Add/Remove Programs (Control Panel)
     !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
     WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
     WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${VERSION}"
@@ -153,6 +180,10 @@ Section "Uninstall"
     nsExec::Exec 'taskkill /F /IM "${EXE_NAME}" /T'
     Sleep 500
 
+    ; Remove Firewall Exception
+    DetailPrint "Removing Windows Firewall rules..."
+    nsExec::Exec 'netsh advfirewall firewall delete rule name="VoidOne Engine Service"'
+
     ; Delete Shortcuts
     Delete "$DESKTOP\${APP_NAME}.lnk"
     RMDir /r "$SMPROGRAMS\${APP_NAME}"
@@ -161,9 +192,11 @@ Section "Uninstall"
     DeleteRegKey HKCR "${PROTOCOL_SCHEME}"
     DeleteRegKey HKCR ".${FILE_EXT}"
     DeleteRegKey HKCR "${APP_NAME}.ProjectFile"
+    DeleteRegKey HKCR "Directory\shell\VoidOne"
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
     DeleteRegKey HKLM "Software\${COMPANY_NAME}\${APP_NAME}"
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}"
+    DeleteRegValue HKCU "Software\Microsoft\DirectX\UserGpuPreferences" "$INSTDIR\${EXE_NAME}"
 
     ; Remove Application Files
     RMDir /r "$INSTDIR"
