@@ -13,7 +13,7 @@ on:
       - main
 
   schedule:
-    - cron: '0 2 * * 0' # هفتگی: اسکن امنیتی و بیلد آزمایشی
+    - cron: '0 2 * * 0'
 
   workflow_dispatch:
     inputs:
@@ -50,9 +50,6 @@ env:
 
 jobs:
 
-  # ==========================================================
-  # 1. SemVer Governance & Standard Validation
-  # ==========================================================
   governance:
     name: 🛡️ Enterprise Governance & SemVer Check
     if: startsWith(github.ref, 'refs/tags/v')
@@ -67,9 +64,6 @@ jobs:
           fi
           echo "### 🏷️ Verified Enterprise Release Tag: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
 
-  # ==========================================================
-  # 2. C++ Static Analysis (Cppcheck & Clang-Format)
-  # ==========================================================
   code-quality:
     name: 🔬 Deep C++ Static Analysis (Cppcheck)
     runs-on: ubuntu-24.04
@@ -95,9 +89,6 @@ jobs:
           name: Cppcheck-Quality-Report
           path: cppcheck_report.txt
 
-  # ==========================================================
-  # 3. Security Audit & Vulnerability Scanning (Trivy + CodeQL)
-  # ==========================================================
   security-audit:
     name: 🔒 Zero-Trust Security Audit (Trivy & CodeQL)
     runs-on: windows-2025
@@ -139,9 +130,6 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
 
-  # ==========================================================
-  # 4. Multi-Arch Production Engine Build & Packaging
-  # ==========================================================
   build-production:
     name: ⚙️ Build Engine, Packaging & Sign (MSVC 2022)
     needs: [code-quality, security-audit]
@@ -156,7 +144,7 @@ jobs:
       - name: Start Telemetry Clock
         id: telemetry_start
         shell: pwsh
-        run: echo "start_time=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_ENV
+        run: Out-File -InputObject "start_time=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - uses: actions/checkout@v4
         with:
@@ -172,7 +160,7 @@ jobs:
           } else {
             $ver = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
           }
-          "value=$ver" \vert{} Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Out-File -InputObject "value=$ver" -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - uses: hendrikmuhs/ccache-action@v1.2
         with:
@@ -286,9 +274,8 @@ jobs:
         run: |
           $exePath = "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe"
           $hash = if (Test-Path $exePath) { (Get-FileHash -Path$exePath -Algorithm SHA256).Hash } else { "HASH_PLACEHOLDER" }
-          "exe_sha256=$hash" \vert{} Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Out-File -InputObject "exe_sha256=$hash" -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-          # 1. Winget Manifest
           $winget = @"
           PackageIdentifier: VoidOneApp.VoidOne
           PackageVersion: ${{ steps.version.outputs.value }}
@@ -304,9 +291,8 @@ jobs:
           ManifestType: singleton
           ManifestVersion: 1.4.0
           "@
-          $winget | Out-File -FilePath "dist\VoidOne.winget.yaml" -Encoding utf8
+          Out-File -InputObject $winget -FilePath "dist\VoidOne.winget.yaml" -Encoding utf8
 
-          # 2. Scoop Manifest
           $scoop = @{
             version = "${{ steps.version.outputs.value }}"
             architecture = @{
@@ -318,16 +304,15 @@ jobs:
             bin = "VoidOne.exe"
             shortcuts = @( @("VoidOne.exe", "VoidOne Engine") )
           } | ConvertTo-Json -Depth 4
-          $scoop | Out-File -FilePath "dist\VoidOne.scoop.json" -Encoding utf8
+          Out-File -InputObject $scoop -FilePath "dist\VoidOne.scoop.json" -Encoding utf8
 
-          # 3. Auto-Updater AppCast JSON Manifest
           $appcast = @{
             version = "${{ steps.version.outputs.value }}"
             pub_date = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
             url = "https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.value }}/VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe"
             signature = $hash
           } | ConvertTo-Json
-          $appcast | Out-File -FilePath "dist\appcast.json" -Encoding utf8
+          Out-File -InputObject $appcast -FilePath "dist\appcast.json" -Encoding utf8
 
       - name: Compress Portables & Generate Hash Files
         shell: pwsh
@@ -335,8 +320,14 @@ jobs:
           Compress-Archive -Path package\* -DestinationPath "VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip" -CompressionLevel Optimal
           Compress-Archive -Path pdb-symbols\* -DestinationPath "VoidOne-Windows-x64-Symbols-${{ steps.version.outputs.value }}.zip" -CompressionLevel Optimal
 
-          Get-ChildItem -Path . -Filter "*.zip" | ForEach-Object { ((Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash) + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
-          Get-ChildItem -Path dist -Filter "*.*" -Include "*.exe","*.msi" | ForEach-Object { ((Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash) + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
+          Get-ChildItem -Path . -Filter "*.zip" | ForEach-Object { 
+            $h = (Get-FileHash -Path$_.FullName -Algorithm SHA256).Hash
+            Out-File -InputObject "$h  $($_.Name)" -FilePath "$($_.FullName).sha256" -Encoding ascii
+          }
+          Get-ChildItem -Path dist -Filter "*.*" -Include "*.exe","*.msi" | ForEach-Object { 
+            $h = (Get-FileHash -Path$_.FullName -Algorithm SHA256).Hash
+            Out-File -InputObject "$h  $($_.Name)" -FilePath "$($_.FullName).sha256" -Encoding ascii
+          }
 
       - name: Generate CycloneDX / SPDX SBOM
         uses: anchore/sbom-action@v0
@@ -352,7 +343,7 @@ jobs:
           $end_time = [int][double]::Parse((Get-Date -UFormat \%s))$start_time = [int]$env:start_time$duration = $end_time -$start_time
           $min = [math]::Floor($duration / 60)
           $sec =$duration % 60
-          "duration=${min}m ${sec}s" \vert{} Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Out-File -InputObject "duration=${min}m ${sec}s" -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Generate GitHub Step Summary Dashboard
         shell: pwsh
@@ -373,7 +364,7 @@ jobs:
           EXE SHA256 : ${{ steps.hashes.outputs.exe_sha256 }}
           ```
           "@
-          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          Out-File -InputObject $summary -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -385,9 +376,6 @@ jobs:
             dist/*.*
           retention-days: 30
 
-  # ==========================================================
-  # 5. Doxygen API Docs Generator & Deployment (GitHub Pages)
-  # ==========================================================
   generate-docs:
     name: 📚 Build & Deploy API Documentation
     if: inputs.build_docs || startsWith(github.ref, 'refs/tags/v')
@@ -414,9 +402,6 @@ jobs:
           name: API-Documentation
           path: html/
 
-  # ==========================================================
-  # 6. Enterprise Publishing, SLSA & Omni-Channel Alerts
-  # ==========================================================
   publish-release:
     name: 🌐 Global Release & God-Tier Notifications
     needs: [build-production]
