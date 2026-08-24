@@ -169,14 +169,16 @@ jobs:
           variant: ccache
           max-size: 2000M
 
-      - name: Setup Full Enterprise Toolchain (NSIS, WiX v4, Dotnet)
+      - name: Setup Full Enterprise Toolchain (NSIS, WiX v7, Dotnet)
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           choco install ninja nsis dotnet-8.0-sdk doxygen.install -y --no-progress
-          dotnet tool install --global wix --ignore-failed-sources || dotnet tool update --global wix
           
-          wix eula accept "wix4" -ErrorAction SilentlyContinue
+          # تایید خودکار لایسنس نسخه ۷ برای جلوگیری از ارور WIX7015
+          $env:WIX_ACCEPT_OSMF_EULA = "yes"
+
+          dotnet tool install --global wix --ignore-failed-sources || dotnet tool update --global wix
           
           wix extension add -g WixToolset.UI.wixext
           wix extension add -g WixToolset.Util.wixext
