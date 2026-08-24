@@ -1,4 +1,3 @@
-// SystemTelemetryWidget.qml
 import QtQuick
 import QtQuick.Layouts
 
