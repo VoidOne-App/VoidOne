@@ -2,131 +2,549 @@ name: VoidOne Autonomous AI CI Repair Engine
 
 on:
   workflow_run:
-    workflows: ["VoidOne CI/CD"]
-    types: [completed]
+    workflows:
+      - "Voidone CI/CD"
+    types:
+      - completed
+
   workflow_dispatch:
     inputs:
       failed_run_id:
-        description: "Target Failed Workflow Run ID (Leave empty to test current commit)"
+        description: "Failed GitHub Actions Run ID"
         required: false
         type: string
 
+      force_repair:
+        description: "Run repair even if the selected workflow was successful"
+        required: false
+        type: boolean
+        default: false
+
+
+# ---------------------------------------------------------------------------
+# Global permissions
+# ---------------------------------------------------------------------------
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+
+# ---------------------------------------------------------------------------
+# Concurrency
+# ---------------------------------------------------------------------------
+
+concurrency:
+  group: voidone-ai-repair-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+
 jobs:
+
+  # =========================================================================
+  # AI REPAIR
+  # =========================================================================
+
   ai-repair:
-    name: Execute AI Repair Loop
+
+    name: Autonomous AI Repair
+
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'failure' &&
-       github.event.workflow_run.head_branch == 'main')
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: write
-      pull-requests: write
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'failure' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
+
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 45
 
     steps:
-      - name: Resolve Target Commit SHA
+
+      # ---------------------------------------------------------------------
+      # Resolve failed workflow
+      # ---------------------------------------------------------------------
+
+      - name: Resolve Target Workflow Run
+        id: target
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_RUN_ID: ${{ inputs.failed_run_id }}
+          INPUT_FORCE_REPAIR: ${{ inputs.force_repair }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          CURRENT_SHA: ${{ github.sha }}
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            if [ -n "${{ inputs.failed_run_id }}" ]; then
-              RUN_ID="${{ inputs.failed_run_id }}"
-              HEAD_SHA=$(gh run view "$RUN_ID" --json headSha --jq '.headSha')
+
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+
+            RUN_ID="$WORKFLOW_RUN_ID"
+            HEAD_SHA="$WORKFLOW_HEAD_SHA"
+
+          else
+
+            if [[ -n "$INPUT_RUN_ID" ]]; then
+
+              RUN_ID="$INPUT_RUN_ID"
+
+              HEAD_SHA="$(
+                gh run view "$RUN_ID" \
+                  --json headSha \
+                  --jq '.headSha'
+              )"
+
             else
-              RUN_ID="${{ github.run_id }}"
-              HEAD_SHA="${{ github.sha }}"
+
+              RUN_ID="$GITHUB_RUN_ID"
+              HEAD_SHA="$CURRENT_SHA"
+
             fi
-          else
-            RUN_ID="${{ github.event.workflow_run.id }}"
-            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
-          fi
-          echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
-          echo "HEAD_SHA=$HEAD_SHA" >> $GITHUB_ENV
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Checkout Exact Broken Commit
-        uses: actions/checkout@v4
+          fi
+
+          if [[ -z "$RUN_ID" || -z "$HEAD_SHA" ]]; then
+            echo "::error::Unable to resolve target workflow run."
+            exit 1
+          fi
+
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+          echo "### 🎯 Target CI Run" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Run ID: \`$RUN_ID\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`$HEAD_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+
+
+      # ---------------------------------------------------------------------
+      # Checkout exact broken commit
+      # ---------------------------------------------------------------------
+
+      - name: Checkout Failed Commit
+        uses: actions/checkout@v5
         with:
-          ref: ${{ env.HEAD_SHA }}
+          ref: ${{ steps.target.outputs.head_sha }}
           fetch-depth: 0
+          submodules: recursive
 
-      - name: Install C++/Qt6 Toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang clang-tidy \
-            qt6-base-dev qt6-declarative-dev libgl1-mesa-dev
 
-      - name: Setup Python Environment
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      # ---------------------------------------------------------------------
+      # Fetch CI logs
+      # ---------------------------------------------------------------------
 
-      - name: Install Agent Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f scripts/requirements-ai-repair.txt ]; then
-            python -m pip install -r scripts/requirements-ai-repair.txt
-          else
-            python -m pip install google-genai requests
-          fi
-
-      - name: Setup Local Model via Ollama
-        run: |
-          curl -fsSL https://ollama.com/install.sh | sh
-          ollama serve &
-          sleep 5
-          # استفاده از مدل سبک‌تر برای جلوگیری از OOM و کندی روی CPU رانر
-          ollama pull qwen2.5-coder:1.5b || ollama pull qwen2.5-coder:7b
-
-      - name: Fetch CI Failure Logs
-        run: |
-          gh run view "$RUN_ID" --log-failed > ci-failure.log || echo "Failed to fetch logs" > ci-failure.log
-          tail -n 1000 ci-failure.log > ci-failure-tail.log
+      - name: Download Failed CI Logs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ steps.target.outputs.run_id }}
+        shell: bash
+        run: |
 
-      - name: Run AI Repair Pipeline
+          set -euo pipefail
+
+          gh run view "$RUN_ID" \
+            --log-failed \
+            > ci-failure.log
+
+          if [[ ! -s ci-failure.log ]]; then
+            echo "::error::Failed CI log is empty."
+            exit 1
+          fi
+
+          tail -n 4000 ci-failure.log \
+            > ci-failure-tail.log
+
+          echo "### 📋 CI Failure Log" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 80 ci-failure-tail.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+
+      # ---------------------------------------------------------------------
+      # Toolchain
+      # ---------------------------------------------------------------------
+
+      - name: Install Build Toolchain
+        shell: bash
+        run: |
+
+          set -euo pipefail
+
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            clang \
+            clang-tidy \
+            ccache \
+            qt6-base-dev \
+            qt6-declarative-dev \
+            qt6-tools-dev \
+            libgl1-mesa-dev
+
+
+      # ---------------------------------------------------------------------
+      # Python
+      # ---------------------------------------------------------------------
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+
+      # ---------------------------------------------------------------------
+      # Dependencies
+      # ---------------------------------------------------------------------
+
+      - name: Install AI Dependencies
+        shell: bash
+        run: |
+
+          set -euo pipefail
+
+          python -m pip install --upgrade pip
+
+          if [[ -f scripts/requirements-ai-repair.txt ]]; then
+
+            python -m pip install \
+              -r scripts/requirements-ai-repair.txt
+
+          else
+
+            python -m pip install \
+              requests
+
+          fi
+
+
+      # ---------------------------------------------------------------------
+      # Ollama
+      # ---------------------------------------------------------------------
+
+      - name: Install Ollama
+        shell: bash
+        run: |
+
+          set -euo pipefail
+
+          curl -fsSL \
+            https://ollama.com/install.sh \
+            | sh
+
+
+      - name: Start Ollama
+        shell: bash
+        run: |
+
+          set -euo pipefail
+
+          nohup ollama serve \
+            > ollama.log 2>&1 &
+
+          for i in {1..30}; do
+
+            if curl -sf \
+              http://127.0.0.1:11434/api/tags \
+              >/dev/null; then
+
+              echo "Ollama is ready."
+              exit 0
+
+            fi
+
+            sleep 2
+
+          done
+
+          echo "::error::Ollama failed to start."
+          cat ollama.log || true
+
+          exit 1
+
+
+      # ---------------------------------------------------------------------
+      # Pull local model
+      # ---------------------------------------------------------------------
+
+      - name: Prepare Local AI Model
+        id: model
+        shell: bash
+        run: |
+
+          set -euo pipefail
+
+          MODEL="qwen2.5-coder:1.5b"
+
+          if ollama pull "$MODEL"; then
+
+            echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+
+          else
+
+            echo "::warning::1.5B model unavailable."
+
+            MODEL="qwen2.5-coder:7b"
+
+            ollama pull "$MODEL"
+
+            echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+
+          fi
+
+
+      # ---------------------------------------------------------------------
+      # Verify repository state
+      # ---------------------------------------------------------------------
+
+      - name: Verify Clean Repository
+        shell: bash
+        run: |
+
+          set -euo pipefail
+
+          if [[ -n "$(git status --porcelain)" ]]; then
+
+            echo "::error::Repository is not clean before AI repair."
+
+            git status --short
+
+            exit 1
+
+          fi
+
+
+      # ---------------------------------------------------------------------
+      # Run AI repair
+      # ---------------------------------------------------------------------
+
+      - name: Execute AI Repair Engine
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: "gemini-2.5-pro"
-          LOCAL_MODEL_URL: "http://127.0.0.1:11434/v1"
-          LOCAL_MODEL_NAME: "qwen2.5-coder:1.5b"
-        run: |
-          python3 scripts/ai_repair.py --log-file ci-failure-tail.log
 
-      - name: Push Branch and Open Draft PR
+          LOCAL_MODEL_URL: "http://127.0.0.1:11434/v1"
+          LOCAL_MODEL_NAME: ${{ steps.model.outputs.model }}
+
+          AI_REPAIR_BUILD_TIMEOUT: "900"
+          AI_REPAIR_TEST_TIMEOUT: "600"
+
+        shell: bash
+        run: |
+
+          set -euo pipefail
+
+          python3 \
+            scripts/ai_repair.py \
+            --repo . \
+            --log-file ci-failure-tail.log
+
+
+      # ---------------------------------------------------------------------
+      # Generate repair report
+      # ---------------------------------------------------------------------
+
+      - name: Generate Repair Report
+        if: success()
+        shell: bash
+        run: |
+
+          set -euo pipefail
+
+          echo "### 🤖 VoidOne AI Repair" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+          echo "AI-generated repair successfully passed:" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- 🛡️ Patch security validation" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- 🔧 CMake configuration" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- 🏗️ C++ build" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- 🧪 CTest" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+          echo "- 🧠 Local AI review" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+
+      # ---------------------------------------------------------------------
+      # Create branch
+      # ---------------------------------------------------------------------
+
+      - name: Create AI Repair Branch
+        if: success()
+        id: branch
+        shell: bash
+        env:
+          RUN_ID: ${{ steps.target.outputs.run_id }}
+        run: |
+
+          set -euo pipefail
+
+          BRANCH="ai-repair/${RUN_ID}"
+
+          git config user.name \
+            "VoidOne AI Engine"
+
+          git config user.email \
+            "ai-repair@voidone.internal"
+
+          git checkout -b "$BRANCH"
+
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+
+
+      # ---------------------------------------------------------------------
+      # Commit
+      # ---------------------------------------------------------------------
+
+      - name: Commit AI Repair
+        if: success()
+        shell: bash
+        run: |
+
+          set -euo pipefail
+
+          if [[ -z "$(git status --porcelain)" ]]; then
+
+            echo "::warning::AI produced no repository changes."
+
+            exit 1
+
+          fi
+
+          git add -A
+
+          git commit \
+            -m "fix: automated CI repair [ai-repair]"
+
+
+      # ---------------------------------------------------------------------
+      # Push branch
+      # ---------------------------------------------------------------------
+
+      - name: Push Repair Branch
+        if: success()
+        shell: bash
+        env:
+          BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+
+          set -euo pipefail
+
+          git push \
+            origin \
+            "$BRANCH"
+
+
+      # ---------------------------------------------------------------------
+      # Create Draft PR
+      # ---------------------------------------------------------------------
+
+      - name: Create Draft Pull Request
+        if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          BRANCH: ${{ steps.branch.outputs.name }}
+
+          RUN_ID: ${{ steps.target.outputs.run_id }}
+
+          HEAD_SHA: ${{ steps.target.outputs.head_sha }}
+
+        shell: bash
         run: |
-          # بررسی اینکه آیا تغییراتی توسط هوش مصنوعی ایجاد شده است یا خیر
-          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
-            echo "No changes were made by the AI Repair Engine. Skipping PR creation."
-            exit 0
-          fi
 
-          REPAIR_BRANCH="ai-repair/${{ env.RUN_ID }}"
-          git config user.name "VoidOne AI Engine"
-          git config user.email "ai-repair@voidone.internal"
-          
-          git checkout -b "$REPAIR_BRANCH"
-          git add -A
-          git commit -m "fix: resolve VoidOne CI build failure [ai-repair]"
-          git push origin "$REPAIR_BRANCH" --force
+          set -euo pipefail
 
-          # ایجاد PR در صورت عدم وجود PR قبلی
-          if ! gh pr view "$REPAIR_BRANCH" >/dev/null 2>&1; then
-            gh pr create \
+          EXISTING_PR="$(
+            gh pr list \
+              --head "$BRANCH" \
               --base main \
-              --head "$REPAIR_BRANCH" \
-              --title "fix(ci): Automated AI Repair for Run #${{ env.RUN_ID }}" \
-              --body "## 🤖 VoidOne Autonomous Repair Engine Report
+              --state open \
+              --json number \
+              --jq '.[0].number'
+          )"
 
-            The AI Repair Engine has analyzed the build failure and applied auto-remediation.
-            - **Lead Engineer**: Gemini 2.5 Pro
-            - **Code Reviewer**: Qwen2.5-Coder (Local)
-            - **Validation**: Passed Local C++/Qt6 Inspection" \
-              --draft
-          else
-            echo "PR already exists for branch $REPAIR_BRANCH."
+          if [[ -n "$EXISTING_PR" ]]; then
+
+            echo "PR #$EXISTING_PR already exists."
+
+            exit 0
+
           fi
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --draft \
+            --title \
+              "fix(ci): Autonomous AI repair for Run #${RUN_ID}" \
+            --body \
+              "## 🤖 VoidOne Autonomous AI Repair
+
+          The VoidOne AI Repair Engine detected a CI failure and generated a candidate remediation.
+
+          ### Target
+
+          - **Workflow Run:** #${RUN_ID}
+          - **Broken Commit:** \`${HEAD_SHA}\`
+          - **Repair Branch:** \`${BRANCH}\`
+
+          ### Validation
+
+          - 🛡️ Patch security validation
+          - 🔧 CMake configuration
+          - 🏗️ Release build
+          - 🧪 CTest
+          - 🧠 Local Qwen review
+
+          ### Safety
+
+          The AI engine cannot modify:
+
+          - \`.git/\`
+          - \`.github/\`
+          - \`scripts/\`
+
+          The repair was generated automatically, but **human review is required before merge**.
+
+          > VoidOne AI Repair Engine — Diagnose. Repair. Validate. Review."
+
+
+      # ---------------------------------------------------------------------
+      # Failure report
+      # ---------------------------------------------------------------------
+
+      - name: Repair Failure Report
+        if: failure()
+        shell: bash
+        run: |
+
+          echo "### ❌ VoidOne AI Repair Failed" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" \
+            >> "$GITHUB_STEP_SUMMARY"
+
+          echo "The engine failed closed." \
+            >> "$GITHUB_STEP_SUMMARY"
+
+          echo "No automatic merge was performed." \
+            >> "$GITHUB_STEP_SUMMARY"
