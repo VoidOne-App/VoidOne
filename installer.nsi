@@ -8,11 +8,14 @@
 !define APP_NAME "VoidOne"
 !define COMPANY_NAME "VoidOne_app"
 !define EXE_NAME "VoidOne.exe"
-!define VERSION "1.0.0"
 !define PUBLISHER "VoidOne_app"
 !define WEB_SITE "https://github.com/VoidOne-App/VoidOne"
 !define FILE_EXT "vone"
 !define PROTOCOL_SCHEME "voidone"
+
+; دریافت اتوماتیک نسخه از روی فایل VoidOne.exe
+!getdllversion "package\${EXE_NAME}" Expv
+!define VERSION "${Expv1}.${Expv2}.${Expv3}"
 
 Name "${APP_NAME} ${VERSION}"
 
@@ -28,10 +31,6 @@ RequestExecutionLevel admin
 ; ============================================
 !define MUI_ICON "app-icon.ico"
 !define MUI_UNICON "app-icon.ico"
-
-; در صورت داشتن تصاویر برندینگ در پروژه، این دو خط را فعال کنید:
-; !define MUI_HEADERIMAGE
-; !define MUI_HEADERIMAGE_BITMAP "assets\header.bmp"
 
 !define MUI_ABORTWARNING
 
@@ -80,7 +79,7 @@ FunctionEnd
 ; ============================================
 Section "MainSection" SEC01
     SetOutPath "$INSTDIR"
-    
+
     ; 1. Terminate running instances silently
     nsExec::Exec 'taskkill /F /IM "${EXE_NAME}" /T'
     Sleep 1000
@@ -107,32 +106,17 @@ Section "MainSection" SEC01
     WriteRegStr HKCR "${PROTOCOL_SCHEME}\DefaultIcon" "" "$INSTDIR\${EXE_NAME},0"
     WriteRegStr HKCR "${PROTOCOL_SCHEME}\shell\open\command" "" '"$INSTDIR\${EXE_NAME}" "%1"'
 
-    ; 7. Register Custom File Association (.vone)
-    WriteRegStr HKCR ".${FILE_EXT}" "" "${APP_NAME}.ProjectFile"
-    WriteRegStr HKCR "${APP_NAME}.ProjectFile" "" "${APP_NAME} Project File"
-    WriteRegStr HKCR "${APP_NAME}.ProjectFile\DefaultIcon" "" "$INSTDIR\${EXE_NAME},0"
-    WriteRegStr HKCR "${APP_NAME}.ProjectFile\shell\open\command" "" '"$INSTDIR\${EXE_NAME}" "%1"'
-    nsExec::Exec 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
+    ; 7. Windows Add/Remove Programs (Control Panel Integration)
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayName" "${APP_NAME}"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "Publisher" "${PUBLISHER}"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayVersion" "${VERSION}"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayIcon" "$INSTDIR\${EXE_NAME},0"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "InstallLocation" "$INSTDIR"
+    WriteRegDword HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoModify" 1
+    WriteRegDword HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoRepair" 1
 
-    ; 8. Register Windows Firewall Exception
-    nsExec::Exec 'netsh advfirewall firewall add rule name="${APP_NAME} Engine" dir=in action=allow program="$INSTDIR\${EXE_NAME}" enable=yes profile=any'
-
-    ; 9. Auto-Startup Registration
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}" '"$INSTDIR\${EXE_NAME}" --autostart'
-
-    ; 10. Register in Windows Programs & Features (Control Panel / ARP)
-    !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
-    WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
-    WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${VERSION}"
-    WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${PUBLISHER}"
-    WriteRegStr HKLM "${UNINST_KEY}" "URLInfoAbout" "${WEB_SITE}"
-    WriteRegStr HKLM "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\${EXE_NAME}"
-    WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
-    WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
-    WriteRegDWORD HKLM "${UNINST_KEY}" "NoModify" 1
-    WriteRegDWORD HKLM "${UNINST_KEY}" "NoRepair" 1
-
-    ; Save installation directory
+    ; 8. Save Install Directory in Registry
     WriteRegStr HKLM "Software\${COMPANY_NAME}\${APP_NAME}" "InstallDir" "$INSTDIR"
 SectionEnd
 
@@ -140,25 +124,19 @@ SectionEnd
 ; Uninstallation Section
 ; ============================================
 Section "Uninstall"
-    ; 1. Terminate running instances
+    ; 1. Terminate running instance before uninstalling
     nsExec::Exec 'taskkill /F /IM "${EXE_NAME}" /T'
+    Sleep 1000
 
-    ; 2. Remove Windows Firewall Rule
-    nsExec::Exec 'netsh advfirewall firewall delete rule name="${APP_NAME} Engine"'
-
-    ; 3. Remove Registry & Associations
-    DeleteRegKey HKCR "${PROTOCOL_SCHEME}"
-    DeleteRegKey HKCR ".${FILE_EXT}"
-    DeleteRegKey HKCR "${APP_NAME}.ProjectFile"
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}"
-
-    ; 4. Remove Shortcuts
+    ; 2. Delete Shortcuts
     Delete "$DESKTOP\${APP_NAME}.lnk"
     RMDir /r "$SMPROGRAMS\${APP_NAME}"
 
-    ; 5. Remove Installed Directory & System Registry Entries
+    ; 3. Delete Installed Files & Directory
     RMDir /r "$INSTDIR"
+
+    ; 4. Clean Registry Entries
+    DeleteRegKey HKCR "${PROTOCOL_SCHEME}"
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
     DeleteRegKey HKLM "Software\${COMPANY_NAME}\${APP_NAME}"
-    DeleteRegKey /ifempty HKLM "Software\${COMPANY_NAME}"
 SectionEnd
