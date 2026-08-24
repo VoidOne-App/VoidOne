@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- تعریف متغیر پیش‌فرض در صورت عدم ارسال از CLI -->
+<!-- تعریف متغیر پیش‌فرض نسخه -->
 <?ifndef ProductVersion ?>
   <?define ProductVersion = "0.0.1.0" ?>
 <?endif ?>
@@ -17,34 +17,34 @@
            Arch="x64"
            InstallerVersion="500">
 
-    <!-- 1. بررسی سیستم‌عامل 64 بیتی -->
+    <!-- ۱. بررسی سیستم‌عامل 64 بیتی -->
     <Launch Message="این نرم‌افزار نیازمند سیستم‌عامل 64 بیتی (Windows 10/11 x64) است." 
             Condition="VersionNT64" />
 
-    <!-- 2. بستن خودکار برنامه در صورت باز بودن هنگام نصب/ارتقاء -->
+    <!-- ۲. بستن خودکار پروسه‌های قبلی -->
     <util:CloseApplication Id="CloseVoidoneApp"
                            Target="VoidOne.exe"
                            CloseMessage="yes"
                            PromptToContinue="yes"
                            Description="جهت ادامه فرایند، نرم‌افزار VoidOne باید بسته شود." />
 
-    <!-- 3. مدیریت ارتقاء خودکار (Major Upgrade) -->
+    <!-- ۳. مدیریت ارتقاء خودکار (Major Upgrade) -->
     <MajorUpgrade DowngradeErrorMessage="نسخه جدیدتری از VoidOne قبلاً روی سیستم شما نصب شده است."
                   Schedule="afterInstallInitialize" />
 
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
-    <!-- 4. تنظیمات Control Panel / Add-Remove Programs -->
-    <Property Id="ARPCOMMENTS" Value="VoidOne High-Performance Engine" />
+    <!-- ۴. تنظیمات کامل Control Panel -->
+    <Property Id="ARPCOMMENTS" Value="VoidOne High-Performance Gamer Engine" />
     <Property Id="ARPCONTACT" Value="VoidOne_app Support Team" />
-    <Property Id="ARPHELPLINK" Value="https://github.com/VoidOne-App/VoidOne/issues" />
-    <Property Id="ARPURLINFOABOUT" Value="https://github.com/VoidOne-App/VoidOne" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/VoidOne-App/NeonLauncher-Qt/issues" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/VoidOne-App/NeonLauncher-Qt" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Property Id="ARPNOMODIFY" Value="1" />
 
     <Icon Id="AppIcon.ico" SourceFile="app-icon.ico" />
 
-    <!-- 5. ساختار پوشه‌های مقصد -->
+    <!-- ۵. ساختار پوشه‌ها -->
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="VoidOne" />
     </StandardDirectory>
@@ -55,26 +55,27 @@
 
     <StandardDirectory Id="DesktopFolder" />
 
-    <!-- 6. بسته‌بندی فایل‌ها + فایروال + پروتکل URI + پسوند اختصاصی فایل -->
+    <!-- ۶. بسته‌بندی فایل‌ها + فایروال + پروتکل URI + پسوند اختصاصی + راست‌کلیک ویندوز -->
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
       <Files Include="package\**" />
 
-      <Component Id="EnterpriseIntegration" Guid="C3D4E5F6-A7B8-9C0D-1E2F-3A4B5C6D7E8F">
-        <!-- ثبت استثنا در فایروال windows -->
+      <Component Id="GamerIntegrationComponent" Guid="C3D4E5F6-A7B8-9C0D-1E2F-3A4B5C6D7E8F">
+        
+        <!-- استثنا در فایروال ویندوز برای بازی آنلاین بی‌دردسر -->
         <fw:FirewallException Id="VoidoneFirewallRule"
                               Name="VoidOne Engine Service"
                               Target="[INSTALLFOLDER]VoidOne.exe"
                               Scope="any"
                               IgnoreFailure="yes" />
 
-        <!-- ثبت پسوند اختصاصی فایل پروژه (.vone) -->
+        <!-- ثبت پسوند اختصاصی (.vone) -->
         <ProgId Id="VoidOne.ProjectFile" Description="VoidOne Project File" Icon="AppIcon.ico">
           <Extension Id="vone" ContentType="application/x-voidone">
             <Verb Id="open" Command="Open with VoidOne" Target="[INSTALLFOLDER]VoidOne.exe" Argument="&quot;%1&quot;" />
           </Extension>
         </ProgId>
 
-        <!-- ثبت پروتکل اختصاصی URI (voidone://) -->
+        <!-- ثبت پروتکل اختصاصی URI (voidone://) برای دیسکورد و وب -->
         <RegistryKey Root="HKCR" Key="voidone">
           <RegistryValue Type="string" Value="URL:VoidOne Protocol" />
           <RegistryValue Type="string" Name="URL Protocol" Value="" />
@@ -86,11 +87,20 @@
           </RegistryKey>
         </RegistryKey>
 
+        <!-- اضافه شدن به راست‌کلیک ویندوز (Context Menu) برای راحتی گیمر -->
+        <RegistryKey Root="HKCR" Key="Directory\shell\VoidOne">
+          <RegistryValue Type="string" Value="Open with VoidOne" />
+          <RegistryValue Type="string" Name="Icon" Value="[INSTALLFOLDER]VoidOne.exe,0" />
+          <RegistryKey Key="command">
+            <RegistryValue Type="string" Value="&quot;[INSTALLFOLDER]VoidOne.exe&quot; &quot;--game-path=%1&quot;" />
+          </RegistryKey>
+        </RegistryKey>
+
         <RegistryValue Root="HKMU" Key="Software\VoidOne_app\VoidOne" Name="EnterpriseIntegrated" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </ComponentGroup>
 
-    <!-- 7. شورت‌کت‌ها و استارت‌آپ -->
+    <!-- ۷. شورت‌کت‌ها و استارت‌آپ -->
     <ComponentGroup Id="ShortcutComponents">
 
       <Component Id="ApplicationShortcut" Directory="ApplicationProgramsFolder" Guid="A1B2C3D4-E5F6-7A8B-9C0D-1E2F3A4B5C6D">
@@ -114,14 +124,14 @@
         <RegistryValue Root="HKMU" Key="Software\VoidOne_app\VoidOne" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
 
-      <!-- ثبت اجرای خودکار در استارت‌آپ -->
+      <!-- اجرای خودکار اختیاری همراه ویندوز -->
       <Component Id="StartupShortcutComponent" Directory="INSTALLFOLDER" Guid="D4E5F6A7-B8C9-0D1E-2F3A-4B5C6D7E8F9A">
         <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="VoidOne" Type="string" Value="&quot;[INSTALLFOLDER]VoidOne.exe&quot; --autostart" KeyPath="yes" />
       </Component>
 
     </ComponentGroup>
 
-    <!-- 8. نصب اتوماتیک پیش‌نیاز VC++ Redistributable -->
+    <!-- ۸. نصب صامت پیش‌نیاز VC++ Redistributable -->
     <CustomAction Id="InstallVCRedist"
                   Directory="INSTALLFOLDER"
                   ExeCommand="&quot;[INSTALLFOLDER]VC_redist.x64.exe&quot; /install /quiet /norestart"
@@ -133,10 +143,10 @@
       <Custom Id="InstallVCRedist" Before="InstallFinalize" Condition="NOT Installed" />
     </InstallExecuteSequence>
 
-    <!-- 9. تنظیمات رابط گرافیکی و اجرای برنامه در پایان -->
+    <!-- ۹. رابط گرافیکی و تیک اجرای برنامه پس از نصب -->
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
 
-    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="اجرای VoidOne پس از اتمام نصب" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="اجرای فوری VoidOne" />
     <Property Id="WixShellExecTarget" Value="[INSTALLFOLDER]VoidOne.exe" />
     <CustomAction Id="LaunchApplication" BinaryRef="Wix4UtilCA_X86" DllEntry="WixShellExec" Impersonate="yes" />
 
@@ -144,7 +154,7 @@
       <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
     </UI>
 
-    <!-- 10. ساختار Feature اصلی -->
+    <!-- ۱۰. تعریف Feature اصلی -->
     <Feature Id="MainFeature" Title="VoidOne Core" Level="1" ConfigurableDirectory="INSTALLFOLDER">
       <ComponentGroupRef Id="ProductComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
