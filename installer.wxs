@@ -14,7 +14,6 @@
            Version="$(var.ProductVersion)" 
            UpgradeCode="B6E1A0B2-9F3D-4C7A-B1C2-3D4E5F6A7B8C" 
            Scope="perMachine"
-           Arch="x64"
            InstallerVersion="500">
 
     <!-- 1. بررسی سیستم‌عامل 64 بیتی -->
