@@ -156,7 +156,7 @@ jobs:
       - name: Start Telemetry Clock
         id: telemetry_start
         shell: pwsh
-        run: echo "start_time=$([int][double]::Parse((Get-Date -UFormat \%s)))" >> $env:GITHUB_ENV
+        run: echo "start_time=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_ENV
 
       - uses: actions/checkout@v4
         with:
@@ -181,7 +181,6 @@ jobs:
           variant: ccache
           max-size: 2000M
 
-      # 🔑 مرحله نصب ابزارها و تایید صریح لایسنس WiX v4
       - name: Setup Full Enterprise Toolchain (NSIS, WiX v4, Dotnet)
         shell: pwsh
         run: |
@@ -189,7 +188,6 @@ jobs:
           choco install ninja nsis dotnet-8.0-sdk doxygen.install -y --no-progress
           dotnet tool install --global wix --ignore-failed-sources || dotnet tool update --global wix
           
-          # 🔑 تایید لایسنس WiX v4 جهت جلوگیری از متوقف شدن بیلد
           wix eula accept "wix4" -ErrorAction SilentlyContinue
           
           wix extension add -g WixToolset.UI.wixext
@@ -287,7 +285,7 @@ jobs:
         shell: pwsh
         run: |
           $exePath = "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe"
-          $hash = if (Test-Path $exePath) { (Get-FileHash$exePath -Algorithm SHA256).Hash } else { "HASH_PLACEHOLDER" }
+          $hash = if (Test-Path $exePath) { (Get-FileHash -Path$exePath -Algorithm SHA256).Hash } else { "HASH_PLACEHOLDER" }
           "exe_sha256=$hash" \vert{} Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
           # 1. Winget Manifest
@@ -337,8 +335,8 @@ jobs:
           Compress-Archive -Path package\* -DestinationPath "VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip" -CompressionLevel Optimal
           Compress-Archive -Path pdb-symbols\* -DestinationPath "VoidOne-Windows-x64-Symbols-${{ steps.version.outputs.value }}.zip" -CompressionLevel Optimal
 
-          Get-ChildItem -Path . -Filter "*.zip" | ForEach-Object { (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
-          Get-ChildItem -Path dist -Filter "*.*" -Include "*.exe","*.msi" | ForEach-Object { (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
+          Get-ChildItem -Path . -Filter "*.zip" | ForEach-Object { ((Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash) + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
+          Get-ChildItem -Path dist -Filter "*.*" -Include "*.exe","*.msi" | ForEach-Object { ((Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash) + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii }
 
       - name: Generate CycloneDX / SPDX SBOM
         uses: anchore/sbom-action@v0
@@ -356,7 +354,6 @@ jobs:
           $sec =$duration % 60
           "duration=${min}m ${sec}s" \vert{} Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      # 📊 داشبورد اختصاصی داخل گیت‌هاب (GitHub Step Summary)
       - name: Generate GitHub Step Summary Dashboard
         shell: pwsh
         run: |
@@ -471,7 +468,6 @@ jobs:
           BUILD_TIME: ${{ needs.build-production.outputs.build-duration }}
           SHA_EXE: ${{ needs.build-production.outputs.sha256-exe }}
         run: |
-          # 1. Discord Webhook (Rich Embed UI)
           if [ -n "$DISCORD_WEBHOOK" ]; then
             PAYLOAD=$(jq -n \
               --arg tag "${{ github.ref_name }}" \
@@ -503,7 +499,6 @@ jobs:
             curl -sf -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK"
           fi
 
-          # 2. Telegram Bot Notification
           if [ -n "$TELEGRAM_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
             TG_MSG="🚀 *VoidOne Engine ${{ github.ref_name }} Released!*%0A%0A⏱️ *Duration:* $BUILD_TIME%0A👤 *Built by:* ${{ github.actor }}%0A🔗 [View Release Assets](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})"
             curl -sf "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${TG_MSG}&parse_mode=Markdown"
