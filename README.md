@@ -13,10 +13,10 @@
 
 <p>
   <a href="https://github.com/VoidOne-App/VoidOne/actions/workflows/c.cpp.yml">
-    <img src="https://github.com/VoidOne-App/VoidOne/actions/workflows/c.cpp.yml/badge.svg?branch=main" alt="CI" />
+    <img src="https://github.com/VoidOne-App/VoidOne/actions/workflows/c.cpp.yml/badge.svg?branch=main" alt="CI/CD" />
   </a>
   <a href="https://github.com/VoidOne-App/VoidOne/releases/latest">
-    <img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?display_name=tag&style=for-the-badge&logo=github&logoColor=white&label=Latest%20Release" alt="Latest Release" />
+    <img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=Latest%20Release" alt="Latest Release" />
   </a>
   <a href="https://github.com/VoidOne-App/VoidOne/stargazers">
     <img src="https://img.shields.io/github/stars/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=Stars" alt="GitHub Stars" />
@@ -29,9 +29,9 @@
 <p>
   <img src="https://img.shields.io/badge/C%2B%2B-23-00599C?style=for-the-badge&logo=cplusplus&logoColor=white" alt="C++23" />
   <img src="https://img.shields.io/badge/Qt-6-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="Qt 6" />
-  <img src="https://img.shields.io/badge/QML-QtQuick-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="Qt QML" />
-  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Platform" />
+  <img src="https://img.shields.io/badge/QML-QtQuick-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="QML / Qt Quick" />
   <img src="https://img.shields.io/badge/SQLite-Local%20Storage-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" />
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows and Linux" />
 </p>
 
 <br />
@@ -45,7 +45,7 @@
   <a href="#-vision">Vision</a> •
   <a href="#-gamer-to-gamer-commitment">Commitment</a> •
   <a href="#-current-foundation">Current</a> •
-  <a href="#-future-direction">Future</a> •
+  <a href="#-future-platform-direction">Future</a> •
   <a href="#-performance-goals">Performance</a> •
   <a href="#-architecture">Architecture</a> •
   <a href="#-engineering-infrastructure">Engineering</a> •
@@ -60,15 +60,15 @@
 
 ## 👁️ About
 
-**VoidOne** is an open-source, native PC gaming platform being built around one simple idea:
+**VoidOne** is an open-source, native PC gaming platform being engineered around a simple principle:
 
 > **Your games should be the center of your gaming experience — not the stores distributing them.**
 
-Modern PC gaming is fragmented across storefronts, launchers, installation directories, platform manifests, configuration systems, metadata services, and independent game executables.
+PC gaming is fragmented across storefronts, launchers, installation directories, platform manifests, configuration systems, metadata providers, and independent game executables.
 
-VoidOne is being engineered as a native layer that brings the player's local gaming environment into one coherent experience.
+VoidOne aims to provide a native layer between the player and that fragmented ecosystem.
 
-Built around:
+Built around modern technologies including:
 
 - **C++23**
 - **Qt 6**
@@ -77,11 +77,9 @@ Built around:
 - **CMake**
 - **Ninja**
 
-VoidOne is intended to grow from a native launcher foundation into a broader platform for game discovery, library management, execution, optimization, mod management, local intelligence, and future ecosystem extensibility.
+VoidOne is currently an actively developed project. Its long-term direction extends beyond a traditional launcher toward a unified platform for game discovery, library management, execution, optimization, mod management, local intelligence, and extensibility.
 
-The project is currently in active development.
-
-This README deliberately separates **what exists today** from **what VoidOne is being built toward**.
+The distinction between **current implementation** and **future direction** is intentional throughout this README.
 
 ---
 
@@ -91,7 +89,7 @@ VoidOne is not being built to become another storefront.
 
 It is being built to become the layer between:
 
-**the player → the operating system → the gaming ecosystem**
+**The Player → The Operating System → The Gaming Ecosystem**
 
 ```text
                          ┌───────────────────────┐
@@ -101,25 +99,25 @@ It is being built to become the layer between:
                                      ▼
                          ┌───────────────────────┐
                          │       VOIDONE         │
-                         │  Native Gaming Layer  │
+                         │   Native Game Layer   │
                          └───────────┬───────────┘
                                      │
-             ┌───────────────────────┼───────────────────────┐
-             │                       │                       │
-             ▼                       ▼                       ▼
-        GAME LIBRARY            EXECUTION              SERVICES
-             │                       │                       │
-             └───────────────────────┼───────────────────────┘
+                 ┌───────────────────┼───────────────────┐
+                 │                   │                   │
+                 ▼                   ▼                   ▼
+             LIBRARIES           EXECUTION          SERVICES
+                 │                   │                   │
+                 └───────────────────┼───────────────────┘
                                      │
                                      ▼
                          ┌───────────────────────┐
-                         │    OPERATING SYSTEM  │
+                         │    OPERATING SYSTEM   │
                          └───────────────────────┘
 ```
 
-The long-term objective is not to force players into another ecosystem.
+The goal is not to replace the gaming ecosystem with another closed ecosystem.
 
-It is to give players a native layer that can work with the ecosystem they already use.
+The goal is to give the player a native, open, and extensible layer that works with the ecosystem they already use.
 
 > **VoidOne is not being built to become another storefront. It is being built to become the layer between the player, the operating system, and the gaming ecosystem.**
 
@@ -129,9 +127,9 @@ It is to give players a native layer that can work with the ecosystem they alrea
 
 VoidOne is built **by a gamer, for gamers**.
 
-This is more than a product philosophy.
+This is not simply a marketing statement.
 
-It is a commitment.
+It is the project's commitment to the people who use it.
 
 ## ♾️ Free & Open-Source — Forever
 
@@ -147,9 +145,7 @@ No closed ecosystem designed to lock players in.
 
 **No Ads. No Telemetry.**
 
-VoidOne is not being built around advertising or player tracking.
-
-The principle is simple:
+VoidOne is not being built around advertising, behavioral tracking, or turning players into a monetized data source.
 
 > **You use VoidOne to manage your games — you don't become the product.**
 
@@ -177,16 +173,16 @@ Your data belongs to **you**.
 
 VoidOne is designed around local-first data ownership.
 
-The long-term goal is to keep your:
+The long-term objective is to keep your:
 
 - Game library
 - Settings
-- Profiles
 - Configuration
+- Profiles
 - Local statistics
 - Gaming data
 
-under your control.
+under your control whenever technically practical.
 
 ## 🎮 I Stand With Gamers
 
@@ -203,59 +199,57 @@ We are not building another ecosystem to control the player.
 
 We are building a tool to give players **more control over the ecosystem they already have**.
 
-### **Free and open-source — forever.**
-
-### **No Ads. No Telemetry.**
-
-### **Your data. Your control.**
-
-### **Built by a gamer. For gamers.**
-
-**I stand with gamers — always.**
+> ### **Free and open-source — forever.**
+>
+> ### **No Ads. No Telemetry.**
+>
+> ### **Your data. Your control.**
+>
+> ### **Built by a gamer. For gamers.**
+>
+> **I stand with gamers — always.**
 
 ---
 
 # 🧭 Product Principles
 
-The Gamer-to-Gamer Commitment guides the engineering decisions behind VoidOne.
-
-### Native First
+### 🧱 Native First
 
 Prefer native technologies and operating-system capabilities where they provide meaningful advantages in performance, integration, and maintainability.
 
-### Local First
-
-Prefer local processing and local persistence whenever practical.
-
-### Privacy by Design
+### 🔒 Privacy by Design
 
 Avoid unnecessary collection, tracking, or transmission of player data.
 
-### Lightweight by Design
+### 💾 Local First
 
-Every dependency, background process, and runtime component should justify its resource cost.
+Prefer local processing and local persistence whenever practical.
 
-### User Ownership
+### ⚡ Lightweight by Design
+
+Dependencies, services, runtimes, and background processes should justify their resource cost.
+
+### 🎮 User Ownership
 
 The player should remain in control of their games, data, configuration, and experience.
 
-### Open by Design
+### 🌐 Open by Design
 
-The project should remain transparent, inspectable, and accessible to its community.
+The project should remain transparent, inspectable, modifiable, and accessible to contributors.
 
-### Evidence Over Marketing
+### 📐 Evidence Over Marketing
 
-Technical claims should be supported by implementation, testing, or reproducible benchmarks.
+Technical claims should be backed by implementation, testing, or reproducible benchmarks.
 
 ---
 
-# 🎯 Current Foundation
+# ✅ Current Foundation
 
-This section describes the **current project foundation**.
+This section describes the project's **current engineering foundation**.
 
-It intentionally does not present roadmap items as completed functionality.
+Future capabilities are intentionally excluded from current-feature claims.
 
-## Native Application Foundation
+## 💻 Native Application
 
 VoidOne is built around:
 
@@ -266,31 +260,31 @@ VoidOne is built around:
 - **CMake**
 - **Ninja**
 
-## Native UI
+## 🎨 Native UI Foundation
 
-Qt Quick / QML provides the foundation for the graphical interface.
+Qt Quick / QML provides the graphical interface foundation.
 
-The project separates the visual layer from the native C++ application layer to keep the architecture maintainable and extensible.
+The project separates the visual layer from the native C++ application layer to support maintainability and future expansion.
 
-## Local Persistence
+## 💾 Local Persistence
 
-SQLite provides the foundation for local application persistence.
+SQLite provides local persistence for application data.
 
-The local-first architecture is intended to keep core application state independent from a mandatory remote backend.
+The architecture is designed around local ownership rather than requiring a mandatory remote backend for the core application.
 
-## Cross-Platform Build Foundation
+## 🔄 Cross-Platform Engineering
 
-VoidOne is currently developed and tested primarily on **Windows**, while Linux builds are also exercised through the project's CI infrastructure.
+VoidOne is primarily developed and tested on **Windows**, with Linux builds also exercised through the project's CI infrastructure.
 
 macOS is not currently part of the primary build/test configuration.
 
 ---
 
-# 🔭 Future Direction
+# 🔭 Future Platform Direction
 
 The following capabilities represent **planned, future, or long-term engineering directions**.
 
-> **These capabilities are not presented as generally available current functionality unless explicitly implemented and documented by the repository.**
+> **These are roadmap capabilities and must not be interpreted as generally available functionality in the current release unless the repository explicitly implements them.**
 
 Long-term platform direction includes:
 
@@ -300,7 +294,6 @@ Long-term platform direction includes:
 - CPU Priority Profiles
 - Resource Optimization
 - Multi-Store Aggregation
-- Steam ecosystem integration
 - Epic Games integration
 - GOG integration
 - EA App integration
@@ -322,13 +315,13 @@ Long-term platform direction includes:
 - Developer Ecosystem
 - Community Extensions
 
-These are product directions — **not claims about the current release**.
+These represent the **direction of the platform**, not claims about its current state.
 
 ---
 
 # 👻 Ghost Launch
 
-**Ghost Launch** is a planned execution architecture designed to give the player greater control over game startup and runtime behavior.
+**Ghost Launch** is a planned execution architecture intended to provide greater control over how games are started and managed.
 
 Potential capabilities include:
 
@@ -357,11 +350,13 @@ Execution Layer
 Game Process
 ```
 
-The objective is to create a controlled execution layer between the player and the game.
+The objective:
 
-VoidOne does not intend to bypass DRM, licensing systems, or required platform authentication.
+> **A controlled execution layer between the player and the game.**
 
-If a game legitimately requires another service, that dependency remains part of the execution environment.
+VoidOne does not intend to bypass DRM, licensing, or required platform authentication.
+
+If a game legitimately requires another platform or service, that dependency remains part of the execution environment.
 
 ---
 
@@ -407,7 +402,7 @@ Potential capabilities include:
 - Metadata normalization
 - Provider-aware launching
 
-The objective is to provide one consistent library without turning VoidOne into another storefront.
+The objective is to unify access without turning VoidOne into another storefront.
 
 ---
 
@@ -433,7 +428,7 @@ The planned architecture favors:
 - Non-blocking UI
 - Failure-tolerant network operations
 
-Metadata should enhance the library without becoming a mandatory dependency for basic local functionality.
+Metadata should enhance the experience without becoming a mandatory dependency for basic local operations.
 
 ---
 
@@ -451,7 +446,7 @@ Potential capabilities include:
 - Performance history
 - Local performance trends
 
-The guiding principle:
+Guiding principle:
 
 > **Useful analytics without turning the player into the product.**
 
@@ -482,7 +477,7 @@ Game
 └── Custom Profile
 ```
 
-The objective is to allow multiple configurations without unnecessarily modifying the original game installation.
+The objective is to allow multiple configurations without unnecessarily modifying the original installation.
 
 ---
 
@@ -519,7 +514,7 @@ Future diagnostic capabilities may include:
 - Per-game performance profiles
 - Benchmarking
 
-The goal is to make performance measurable rather than subjective.
+The objective is to make performance measurable rather than subjective.
 
 ---
 
@@ -563,34 +558,21 @@ Security, stability, and maintainability should remain requirements for any exte
 
 # ⚡ Performance Goals
 
-Performance is a **core engineering objective** of VoidOne.
+Performance is a core engineering objective.
 
-The following values are **long-term engineering targets**, not guaranteed specifications of the current release.
+The following values are **long-term targets**, not guaranteed specifications of the current release.
 
-| Metric | Target | Engineering Direction |
+| Metric | Engineering Target | Direction |
 | :--- | :--- | :--- |
-| **Idle Memory** | `< 50 MB` | Native C++ architecture and lightweight runtime design |
+| **Idle Memory** | `< 50 MB` | Native C++ architecture and lightweight runtime |
 | **Cold Startup** | `< 1.0s` | Lazy initialization and asynchronous startup |
 | **Database Operations** | Sub-millisecond target | Efficient SQLite queries and indexing |
 | **UI Rendering** | 60+ FPS target | Qt Quick scene graph and hardware acceleration |
 | **Library Scanning** | Minimal UI blocking | Asynchronous and incremental processing |
 
-## 🎯 What We Are Optimizing For
+These targets require reproducible benchmarks before being presented as official specifications.
 
-VoidOne aims to be:
-
-- Fast to start
-- Lightweight while idle
-- Responsive during library operations
-- Efficient with large libraries
-- Predictable under normal workloads
-- Native to the operating system
-
-These figures are **engineering goals**, not marketing specifications.
-
-Before any number becomes an official performance claim, it should be supported by reproducible benchmarks.
-
-Benchmark documentation should include:
+Benchmark reports should document:
 
 - Hardware
 - Operating system
@@ -609,7 +591,7 @@ Benchmark documentation should include:
 
 VoidOne is designed around a layered native architecture.
 
-## Core Architecture
+## Current Architectural Direction
 
 ```mermaid
 flowchart TB
@@ -630,6 +612,7 @@ flowchart TB
 ```mermaid
 flowchart TB
     PLAYER["Player"]
+
     UI["VoidOne UI"]
     APP["Application Layer"]
     LIB["Library Intelligence"]
@@ -637,6 +620,7 @@ flowchart TB
     EXEC["Execution Layer"]
     MOD["Mod Platform"]
     ANALYTICS["Local Analytics"]
+
     DB[("Local Storage")]
     OS["Operating System"]
     PROVIDERS["Game Providers"]
@@ -658,7 +642,7 @@ flowchart TB
     ANALYTICS --> DB
 ```
 
-The second diagram represents **long-term architecture**, not a claim that every component currently exists.
+The second diagram represents the **long-term platform architecture**, not a claim that every component currently exists.
 
 ---
 
@@ -667,67 +651,80 @@ The second diagram represents **long-term architecture**, not a claim that every
 | Technology | Role |
 | :--- | :--- |
 | **C++23** | Native application and systems development |
-| **Qt 6** | Native application framework |
+| **Qt 6** | Application framework |
 | **QML / Qt Quick** | Graphical interface |
 | **SQLite** | Local persistence |
 | **CMake** | Build configuration |
 | **Ninja** | Build execution |
-| **CTest** | Testing infrastructure where configured |
+| **CTest** | Test execution where configured |
 | **GitHub Actions** | CI/CD automation |
 | **Clang / clang-tidy** | Static analysis where configured |
-| **AddressSanitizer** | Runtime memory diagnostics where configured |
+| **AddressSanitizer** | Memory diagnostics where configured |
 | **UndefinedBehaviorSanitizer** | Undefined-behavior diagnostics where configured |
 
 ---
 
 # 🤖 Engineering Infrastructure
 
-VoidOne uses automation to improve the engineering lifecycle.
+VoidOne uses automation to improve the development lifecycle.
 
 This infrastructure is separate from the player's product experience.
 
-## GitHub Actions
+## 🔄 Automated CI/CD
 
-The repository uses GitHub Actions for automated development and validation workflows.
+The repository uses GitHub Actions for automated engineering workflows.
 
-The current project infrastructure includes automated builds and validation across Windows and Linux configurations, with additional checks depending on the active repository workflows.
+Depending on the active workflow configuration, automation can cover areas such as:
 
-The workflow definitions remain the authoritative source for exact CI behavior.
+- Windows builds
+- Linux builds
+- Debug builds
+- Release builds
+- Unit tests
+- Sanitizer builds
+- Static analysis
+- QML validation
+- Packaging
+- Artifact generation
+- SHA-256 checksum generation
 
-## AI Repair
+The repository's workflow definitions are the source of truth for the exact current CI configuration.
 
-VoidOne also includes an **AI Repair** workflow intended to assist with software-engineering failures.
+## 🧠 AI Repair
 
-AI Repair is **engineering infrastructure**, not a player-facing product feature.
+VoidOne also contains an **AI Repair** engineering workflow.
 
-Its purpose is to accelerate diagnosis and candidate repair while keeping engineering ownership with humans.
+AI Repair exists to assist with software-engineering failures such as diagnosis, candidate fixes, and validation.
 
-The intended lifecycle is:
+It is **not** presented as an autonomous authority.
+
+The intended engineering flow is:
 
 ```text
-                 CI Failure
-                     │
-                     ▼
-             AI-Assisted Diagnosis
-                     │
-                     ▼
-              Candidate Patch
-                     │
-                     ▼
-                 Validation
-                ┌────┴────┐
-                ▼         ▼
-              Build      Tests
-                │         │
-                └────┬────┘
-                     ▼
-                Human Review
-                     │
-                     ▼
-                   Merge
+CI Failure
+    │
+    ▼
+AI-Assisted Diagnosis
+    │
+    ▼
+Candidate Patch
+    │
+    ▼
+Validation
+    │
+    ├───────────────┐
+    ▼               ▼
+  Build           Tests
+    │               │
+    └───────┬───────┘
+            ▼
+      Human Review
+            │
+            ▼
+          Merge
 ```
 
-Potential engineering uses include:
+Potential uses include:
 
 - Failure diagnosis
 - Code analysis
@@ -743,31 +740,11 @@ AI-generated changes remain subject to validation, review, and repository policy
 
 ---
 
-# 🔄 CI/CD
-
-The project's GitHub Actions infrastructure is designed to automate repetitive engineering work.
-
-Depending on the active workflow configuration, the pipeline may include:
-
-- Windows builds
-- Linux builds
-- Unit tests
-- Static analysis
-- Sanitizer builds
-- QML validation
-- Release packaging
-- Artifact generation
-- SHA-256 checksum generation
-
-The repository's workflow definitions remain the authoritative source for current CI behavior.
-
----
-
 # 🛡️ Security
 
 Security is treated as an engineering concern throughout development.
 
-Current security-related validation depends on the active repository workflows and tooling.
+Current security-related validation depends on the active repository configuration.
 
 Long-term security direction includes:
 
@@ -785,17 +762,19 @@ VoidOne does not claim security certifications or absolute security guarantees u
 
 # 📥 Download
 
-## Latest Release
+## 🚀 Latest Release
 
-The following URL points to the repository's latest GitHub Release:
+Use the official GitHub **Latest Release** endpoint:
 
-**[Download the latest VoidOne release](https://github.com/VoidOne-App/VoidOne/releases/latest)**
+**https://github.com/VoidOne-App/VoidOne/releases/latest**
 
-## All Releases
+This automatically points to the latest published release without requiring the README to hardcode a version number.
 
-**[View all VoidOne releases](https://github.com/VoidOne-App/VoidOne/releases)**
+## 📦 All Releases
 
-Release assets depend on the specific published release and may include:
+**https://github.com/VoidOne-App/VoidOne/releases**
+
+Release assets depend on the individual release and may include:
 
 - Windows installers
 - Portable archives
@@ -808,7 +787,7 @@ Always use the assets published with the corresponding release.
 
 # 🔐 Verify Release Integrity
 
-When SHA-256 checksums are provided, verify the downloaded artifact locally.
+When SHA-256 checksums are provided, verify downloaded artifacts locally.
 
 ### PowerShell
 
@@ -824,9 +803,9 @@ Use the exact filename supplied by the release.
 
 # 🔨 Build From Source
 
-VoidOne is currently developed and tested primarily on **Windows**, while Linux builds are also exercised through CI.
+VoidOne is primarily developed and tested on Windows, with Linux builds also exercised through CI.
 
-For the most authoritative build instructions, see [`BUILD.md`](BUILD.md).
+Build requirements may evolve as the project develops.
 
 ## Windows
 
@@ -856,7 +835,9 @@ Recommended environment:
 
 macOS is not currently part of the primary build/test configuration.
 
-Future support may be considered as the build system and platform integration mature.
+Future platform support may be considered as the project matures.
+
+---
 
 ## 📥 Clone
 
@@ -869,19 +850,30 @@ cd VoidOne
 
 ### Windows
 
-If Qt is already available in your environment:
+If Qt is already discoverable by CMake:
 
 ```powershell
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=23
+cmake `
+  -S . `
+  -B build `
+  -G Ninja `
+  -DCMAKE_BUILD_TYPE=Release `
+  -DCMAKE_CXX_STANDARD=23
 ```
 
 If CMake cannot locate Qt automatically:
 
 ```powershell
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=23 -DCMAKE_PREFIX_PATH="C:\Qt\6.x.x\msvc2022_64"
+cmake `
+  -S . `
+  -B build `
+  -G Ninja `
+  -DCMAKE_BUILD_TYPE=Release `
+  -DCMAKE_CXX_STANDARD=23 `
+  -DCMAKE_PREFIX_PATH="C:\Qt\6.x.x\msvc2022_64"
 ```
 
-Replace the Qt path with the actual installation path on your system.
+Replace the Qt path with the actual installation path.
 
 ### Linux
 
@@ -894,7 +886,7 @@ cmake \
   -DCMAKE_CXX_STANDARD=23
 ```
 
-If Qt cannot be found automatically:
+If Qt is installed outside the standard environment:
 
 ```bash
 cmake \
@@ -912,19 +904,22 @@ cmake \
 cmake --build build --parallel
 ```
 
-## 🧪 Tests
+## 🧪 Test
 
-If tests are enabled in the current configuration:
+If tests are configured for the selected build:
 
 ```bash
-ctest --test-dir build --output-on-failure --parallel 2
+ctest \
+  --test-dir build \
+  --output-on-failure \
+  --parallel 2
 ```
 
 ---
 
 # 🔍 Static Analysis
 
-Where supported by the current build configuration, the project can be configured with Clang and `clang-tidy`.
+Where supported by the active build configuration, Clang and `clang-tidy` can be used for additional analysis.
 
 ```bash
 cmake \
@@ -945,11 +940,11 @@ cmake --build build-analysis --parallel
 
 ---
 
-# 📦 Release Packaging
+# 📦 Packaging
 
 ## Windows
 
-Qt's `windeployqt` can be used to deploy the Qt runtime alongside a Windows build.
+Qt's `windeployqt` can be used to deploy required Qt runtime components alongside a Windows build.
 
 Example:
 
@@ -962,11 +957,11 @@ windeployqt `
 
 The exact executable path depends on the current CMake configuration.
 
-The project's GitHub Actions infrastructure handles automated deployment and packaging for configured release builds.
+The repository's automated workflows handle configured packaging and artifact generation.
 
 ## Linux
 
-The CI pipeline may package Linux release builds into `.tar.gz` archives and generate SHA-256 checksums where configured.
+Configured CI workflows can package Linux release builds and generate SHA-256 checksums.
 
 ---
 
@@ -974,7 +969,7 @@ The CI pipeline may package Linux release builds into `.tar.gz` archives and gen
 
 Testing is part of the engineering lifecycle.
 
-Depending on the current project configuration, validation can include:
+Depending on the active configuration, validation may include:
 
 - Unit tests
 - Build validation
@@ -984,54 +979,7 @@ Depending on the current project configuration, validation can include:
 - QML validation
 - Cross-platform build verification
 
-Contributors should run the validation relevant to their changes before opening a pull request.
-
----
-
-# 📏 Benchmarking Policy
-
-VoidOne aims to make performance measurable.
-
-Future benchmark reports should document:
-
-```text
-Application Version
-        │
-        ▼
-Hardware
-        │
-        ▼
-Operating System
-        │
-        ▼
-Compiler / Toolchain
-        │
-        ▼
-Qt Version
-        │
-        ▼
-Build Configuration
-        │
-        ▼
-Benchmark Methodology
-        │
-        ▼
-Measured Result
-```
-
-Potential measurements include:
-
-- Cold startup
-- Warm startup
-- Idle memory
-- Peak memory
-- Library scan duration
-- Database performance
-- UI frame-time
-- CPU utilization
-- Background workload impact
-
-> **No performance number becomes an official specification until it can be reproduced.**
+Contributors should run the relevant validation before opening a pull request.
 
 ---
 
@@ -1039,7 +987,7 @@ Potential measurements include:
 
 VoidOne is being developed incrementally.
 
-Roadmap items represent engineering direction and should not be interpreted as guaranteed delivery dates.
+Roadmap items represent engineering direction and do not constitute guaranteed delivery dates.
 
 ## Phase I — Native Foundation
 
@@ -1121,7 +1069,7 @@ You can contribute through:
 
 ## Contribution Workflow
 
-Create a feature branch:
+Create a focused feature branch:
 
 ```bash
 git checkout main
@@ -1186,7 +1134,7 @@ Every feature should ultimately answer one question:
 
 ---
 
-# 🐛 Reporting Problems
+# 🐛 Reporting Issues
 
 When reporting a build or runtime problem, include:
 
@@ -1201,7 +1149,7 @@ When reporting a build or runtime problem, include:
 
 For runtime failures, include available terminal or debug output.
 
-Clear reports make it easier to reproduce and fix problems.
+Clear reports make issues easier to reproduce and resolve.
 
 ---
 
@@ -1209,9 +1157,9 @@ Clear reports make it easier to reproduce and fix problems.
 
 Additional project documentation may include:
 
-- [`BUILD.md`](BUILD.md) — Build and development guide
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — Contribution guidelines
-- [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — Troubleshooting information
+- `BUILD.md` — Build and development guidance
+- `CONTRIBUTING.md` — Contribution guidance
+- `TROUBLESHOOTING.md` — Troubleshooting information
 
 The repository remains the source of truth for current implementation details.
 
@@ -1223,7 +1171,9 @@ VoidOne is distributed under the **MIT License**.
 
 See [`LICENSE`](LICENSE) for the complete license text.
 
-Copyright © 2026 VoidOne-App Core Team.
+Repository:
+
+https://github.com/VoidOne-App/VoidOne
 
 ---
 
@@ -1249,7 +1199,8 @@ Copyright © 2026 VoidOne-App Core Team.
   <img src="https://img.shields.io/github/stars/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=Star%20VoidOne" alt="Star VoidOne" />
 </a>
 
-<br /><br />
+<br />
+<br />
 
 **Open Source · Native · Modular · Player-Focused**
 
