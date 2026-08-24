@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 # ============================================================================
-# 🌌 VOIDONE - ULTIMATE ENTERPRISE BUILD SYSTEM (PRODUCTION READY) 🌌
+# 🌌 VOIDONE - ULTIMATE ENTERPRISE BUILD SYSTEM (PRODUCTION READY v1.0.1) 🌌
 # ============================================================================
 
 message(STATUS "
@@ -11,7 +11,7 @@ message(STATUS "
     ╚██╗ ██╔╝██║   ██║██║██║  ██║██║   ██║██║╚██╗██║██╔══╝  
      ╚████╔╝ ╚██████╔╝██║██████╔╝╚██████╔╝██║ ╚████║███████╗
       ╚═══╝   ╚═════╝ ╚═╝╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝
-    :: VOIDONE-APP ENTERPRISE LAUNCHER BUILD ENGINE [v1.0.0-PRO] ::
+    :: VOIDONE-APP ENTERPRISE LAUNCHER BUILD ENGINE [v1.0.1-PRO] ::
 ")
 
 project(VoidOne
@@ -73,7 +73,6 @@ if(VOIDONE_ENABLE_CPPCHECK)
     endif()
 endif()
 
-# Strict Warnings Function for Targets
 function(voidone_set_warnings target_name)
     if(MSVC)
         target_compile_options(${target_name} PRIVATE /W4 /wx /permissive-)
@@ -131,7 +130,6 @@ target_precompile_headers(voidone_core PRIVATE
 
 voidone_set_warnings(voidone_core)
 
-# Enterprise Sanitizers Configuration (Debug mode memory safety)
 if(VOIDONE_ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     if(NOT MSVC)
         target_compile_options(voidone_core PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
@@ -141,24 +139,10 @@ if(VOIDONE_ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 # ============================================================================
-# 6. Localization Engine (i18n)
-# ============================================================================
-set(TS_FILES 
-    translations/voidone_fa_IR.ts
-    translations/voidone_en_US.ts
-)
-
-qt_add_translations(VoidOne_Translations
-    TS_FILES ${TS_FILES}
-    QM_FILES_OUTPUT_VARIABLE QM_FILES
-)
-
-# ============================================================================
-# 7. Main Executable & Modern QML Module (VoidOne)
+# 6 & 7. Main Executable, QML Module & Localization (Fixed Target Scope)
 # ============================================================================
 qt_add_executable(VoidOne 
     src/main.cpp
-    ${QM_FILES}
 )
 
 qt_add_qml_module(VoidOne
@@ -170,13 +154,22 @@ qt_add_qml_module(VoidOne
         src/ui/qml/Settings.qml
 )
 
+# تعریف فایل‌های ترجمه و اتصال امن آن‌ها به تارگت اصلی VoidOne
+set(TS_FILES 
+    translations/voidone_fa_IR.ts
+    translations/voidone_en_US.ts
+)
+
+qt_add_translations(VoidOne
+    TS_FILES ${TS_FILES}
+)
+
 set_target_properties(VoidOne PROPERTIES
     UNITY_BUILD ${VOIDONE_ENABLE_UNITY_BUILD}
 )
 
 target_link_libraries(VoidOne PRIVATE 
     voidone_core 
-    VoidOne_Translations 
     Qt6::Gui 
     Qt6::Quick 
     Qt6::QuickControls2
@@ -196,7 +189,6 @@ endif()
 # 8. Robust Automated Qt Deployment (windeployqt)
 # ============================================================================
 if(WIN32)
-    # Corrected target reference from 'Qt6::core' to 'Qt6::Core'
     if(TARGET Qt6::Core)
         get_target_property(_qt_core_location Qt6::Core LOCATION)
         if(_qt_core_location)
