@@ -1,3 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- تعریف متغیر پیش‌فرض در صورت عدم ارسال از CLI -->
+<?ifndef ProductVersion ?>
+  <?define ProductVersion = "0.0.1.0" ?>
+<?endif ?>
+
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
@@ -5,7 +11,7 @@
 
   <Package Name="VoidOne" 
            Manufacturer="VoidOne_app" 
-           Version="0.0.1.0" 
+           Version="$(var.ProductVersion)" 
            UpgradeCode="B6E1A0B2-9F3D-4C7A-B1C2-3D4E5F6A7B8C" 
            Scope="perMachine"
            Arch="x64"
@@ -54,7 +60,7 @@
       <Files Include="package\**" />
 
       <Component Id="EnterpriseIntegration" Guid="C3D4E5F6-A7B8-9C0D-1E2F-3A4B5C6D7E8F">
-        <!-- ثبت استثنا در فایروال وینوز -->
+        <!-- ثبت استثنا در فایروال windows -->
         <fw:FirewallException Id="VoidoneFirewallRule"
                               Name="VoidOne Engine Service"
                               Target="[INSTALLFOLDER]VoidOne.exe"
@@ -64,7 +70,7 @@
         <!-- ثبت پسوند اختصاصی فایل پروژه (.vone) -->
         <ProgId Id="VoidOne.ProjectFile" Description="VoidOne Project File" Icon="AppIcon.ico">
           <Extension Id="vone" ContentType="application/x-voidone">
-            <Verb Id="open" Command="Open with VoidOne" TargetFile="VoidOne.exe" Argument="&quot;%1&quot;" />
+            <Verb Id="open" Command="Open with VoidOne" Target="[INSTALLFOLDER]VoidOne.exe" Argument="&quot;%1&quot;" />
           </Extension>
         </ProgId>
 
@@ -118,7 +124,7 @@
     <!-- 8. نصب اتوماتیک پیش‌نیاز VC++ Redistributable -->
     <CustomAction Id="InstallVCRedist"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="[INSTALLFOLDER]VC_redist.x64.exe /install /quiet /norestart"
+                  ExeCommand="&quot;[INSTALLFOLDER]VC_redist.x64.exe&quot; /install /quiet /norestart"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
@@ -129,7 +135,7 @@
 
     <!-- 9. تنظیمات رابط گرافیکی و اجرای برنامه در پایان -->
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
-    
+
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="اجرای VoidOne پس از اتمام نصب" />
     <Property Id="WixShellExecTarget" Value="[INSTALLFOLDER]VoidOne.exe" />
     <CustomAction Id="LaunchApplication" BinaryRef="Wix4UtilCA_X86" DllEntry="WixShellExec" Impersonate="yes" />
