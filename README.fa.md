@@ -1,14 +1,14 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/VoidOne-App/VoidOne/main/.github/assets/banner.png" alt="بنر VoidOne" width="100%" />
+<img src="https://raw.githubusercontent.com/VoidOne-App/VoidOne/main/.github/assets/banner.png" alt="VoidOne Banner" width="100%" />
 
 # 🌌 VoidOne
 
-### پلتفرم متن‌باز و بومی گیمینگ PC؛ ساخته‌شده حول بازی‌های شما، نه فروشگاه‌ها
+### پلتفرم متن‌باز بازی‌های کامپیوتری که حول بازی‌های شما ساخته شده — نه حول فروشگاه‌ها
 
 <p>
-  <a href="README.md">🇬🇧 English</a> •
-  <b>🇮🇷 پارسی</b>
+  <b>🇮🇷 پارسی</b> •
+  <a href="README.md">🇬🇧 English</a>
 </p>
 
 <p>
@@ -16,13 +16,13 @@
     <img src="https://github.com/VoidOne-App/VoidOne/actions/workflows/c.cpp.yml/badge.svg?branch=main" alt="CI/CD" />
   </a>
   <a href="https://github.com/VoidOne-App/VoidOne/releases/latest">
-    <img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=آخرین%20انتشار" alt="آخرین انتشار" />
+    <img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=Latest%20Release" alt="Latest Release" />
   </a>
   <a href="https://github.com/VoidOne-App/VoidOne/stargazers">
-    <img src="https://img.shields.io/github/stars/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=ستاره‌ها" alt="ستاره‌های گیت‌هاب" />
+    <img src="https://img.shields.io/github/stars/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=Stars" alt="GitHub Stars" />
   </a>
   <a href="https://github.com/VoidOne-App/VoidOne/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/VoidOne-App/VoidOne?style=for-the-badge&label=مجوز" alt="مجوز MIT" />
+    <img src="https://img.shields.io/github/license/VoidOne-App/VoidOne?style=for-the-badge&label=License" alt="MIT License" />
   </a>
 </p>
 
@@ -31,26 +31,27 @@
   <img src="https://img.shields.io/badge/Qt-6.8-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="Qt 6.8" />
   <img src="https://img.shields.io/badge/QML-QtQuick-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="QML / Qt Quick" />
   <img src="https://img.shields.io/badge/SQLite-Local%20Storage-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" />
-  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows و Linux" />
-  <img src="https://img.shields.io/badge/License-MIT-FFD60A?style=for-the-badge" alt="مجوز MIT" />
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows and Linux" />
+  <img src="https://img.shields.io/badge/License-MIT-FFD60A?style=for-the-badge" alt="MIT License" />
 </p>
 
 <br />
 
-> **یک کتابخانه. بازی‌های شما. سخت‌افزار شما. قوانین شما.**
+**یک کتابخانه. بازی‌های شما. سخت‌افزار شما. قوانین شما.**
 
 <br />
 
 <p>
-  <a href="#-درباره">درباره</a> •
+  <a href="#-درباره-voidone">درباره</a> •
   <a href="#-چشم‌انداز">چشم‌انداز</a> •
-  <a href="#-فلسفه-محصول">فلسفه</a> •
-  <a href="#-وضعیت-نسخهها">نسخه‌ها</a> •
-  <a href="#-پایه-فعلی">وضعیت فعلی</a> •
+  <a href="#-تعهد-به-گیمرها">تعهد</a> •
+  <a href="#-وضعیت-نسخه‌ها">نسخه‌ها</a> •
+  <a href="#-پایه-فعلی-پروژه">پایه فعلی</a> •
   <a href="#-مسیر-آینده-پلتفرم">آینده</a> •
   <a href="#-معماری">معماری</a> •
   <a href="#-زیرساخت-مهندسی">مهندسی</a> •
-  <a href="#️-نقشه-راه">نقشه راه</a> •
+  <a href="#-عملکرد">عملکرد</a> •
+  <a href="#-نقشه-راه">نقشه راه</a> •
   <a href="#-ساخت-از-سورس">ساخت</a> •
   <a href="#-مشارکت">مشارکت</a>
 </p>
@@ -59,17 +60,19 @@
 
 ---
 
-# 👁️ درباره
+# 🌌 درباره VoidOne
 
-**VoidOne** یک پلتفرم متن‌باز و بومی برای گیمینگ روی PC است که حول یک ایده ساده ساخته می‌شود:
+**VoidOne** یک پلتفرم متن‌باز و بومی برای بازی‌های کامپیوتری است که با یک ایده ساده اما بلندپروازانه ساخته می‌شود:
 
-> **مرکز تجربه گیمینگ شما باید خود بازی‌ها باشند؛ نه فروشگاه‌هایی که آن‌ها را توزیع می‌کنند.**
+> **بازی‌های شما باید مرکز تجربه بازی باشند؛ نه فروشگاه‌هایی که آن‌ها را توزیع می‌کنند.**
 
-امروزه گیمینگ روی PC میان فروشگاه‌ها، لانچرها، مسیرهای نصب، Manifestها، سیستم‌های پیکربندی، سرویس‌های متادیتا، پردازش‌های پس‌زمینه و فایل‌های اجرایی مستقل بازی‌ها پراکنده شده است.
+دنیای PC Gaming بیش از هر زمان دیگری پراکنده شده است.
 
-VoidOne در حال ساخته‌شدن به‌عنوان یک **لایه بومی میان گیمر، سیستم‌عامل و اکوسیستم گیمینگ** است.
+بازی‌ها میان فروشگاه‌ها، لانچرها، پوشه‌های نصب، Manifestها، سرویس‌های پس‌زمینه، تنظیمات، سیستم‌های Metadata و فایل‌های اجرایی مختلف تقسیم شده‌اند.
 
-این پروژه بر پایه فناوری‌های مدرن بومی ساخته می‌شود:
+VoidOne با هدف ایجاد یک **لایه بومی، باز و قابل توسعه** میان گیمر و این اکوسیستم پراکنده در حال توسعه است.
+
+این پروژه بر پایه فناوری‌هایی مانند:
 
 - **C++23**
 - **Qt 6.8**
@@ -78,331 +81,350 @@ VoidOne در حال ساخته‌شدن به‌عنوان یک **لایه بوم
 - **CMake**
 - **Ninja**
 
-VoidOne در حال حاضر در مرحله **توسعه آزمایشی فعال** قرار دارد.
+ساخته می‌شود.
 
-هدف پروژه این است که به‌صورت مرحله‌ای از یک اپلیکیشن بومی مدیریت بازی، به یک پلتفرم گسترده برای مدیریت، اجرای، تحلیل، شخصی‌سازی و توسعه تجربه گیمینگ روی PC تبدیل شود.
+اما VoidOne قرار نیست صرفاً یک Game Launcher دیگر باشد.
+
+مسیر بلندمدت پروژه، ساخت یک **Gaming Platform Layer** است؛ لایه‌ای که بتواند مدیریت بازی‌ها، اجرای بازی، مدیریت فرایندها، Metadata، Modها، تحلیل محلی، یکپارچه‌سازی Providerها، ابزارهای توسعه و قابلیت‌های پیشرفته دیگر را در یک معماری واحد گرد هم آورد.
+
+---
+
+# 🧪 وضعیت پروژه و نسخه‌ها
+
+## ⚠️ VoidOne در حال توسعه است
+
+تمام نسخه‌های فعلی VoidOne **آزمایشی (Experimental)** هستند.
+
+این موضوع شامل نسخه‌هایی می‌شود که از طریق Releaseهای GitHub منتشر می‌شوند.
+
+نسخه‌های فعلی ممکن است:
+
+- باگ داشته باشند.
+- تغییرات معماری داشته باشند.
+- بعضی قابلیت‌ها ناقص باشند.
+- عملکردشان در نسخه‌های مختلف تغییر کند.
+- رابط کاربری آن‌ها تغییر کند.
+- برای استفاده روزمره کاملاً آماده نباشند.
+
+این موضوع بخشی طبیعی از توسعه VoidOne است.
+
+> **نسخه‌های فعلی برای آزمایش، توسعه و دریافت بازخورد هستند؛ نه به‌عنوان نسخه نهایی و پایدار محصول.**
+
+---
+
+## 🟢 نسخه پایدار
+
+**نسخه پایدار رسمی VoidOne هنوز ساخته و منتشر نشده است.**
+
+نسخه پایدار زمانی منتشر خواهد شد که پروژه به سطح مناسبی از:
+
+- پایداری
+- تست
+- عملکرد
+- امنیت
+- سازگاری
+- تجربه کاربری
+- کیفیت بسته‌بندی
+- مستندسازی
+
+برسد.
+
+تا آن زمان، نسخه‌های منتشرشده همچنان در چرخه توسعه و آزمایش قرار دارند.
+
+> **Stable Version — به‌زودی**
+
+---
+
+## 🔄 قابلیت‌ها قرار نیست حذف شوند
+
+VoidOne یک پروژه مرحله‌ای است.
+
+به همین دلیل بسیاری از قابلیت‌هایی که در این README به‌عنوان آینده پروژه معرفی شده‌اند، هنوز در نسخه فعلی وجود ندارند.
+
+اما این به معنی کنار گذاشته شدن آن‌ها نیست.
+
+قابلیت‌های آینده به‌صورت **مرحله‌به‌مرحله** و با رشد معماری پروژه اضافه خواهند شد.
+
+> **این README همزمان وضعیت فعلی و مسیر توسعه آینده VoidOne را مشخص می‌کند.**
 
 ---
 
 # 🎯 چشم‌انداز
 
-VoidOne قرار نیست **یک فروشگاه دیگر** باشد.
+VoidOne برای تبدیل شدن به یک Storefront دیگر ساخته نمی‌شود.
 
-هدف پروژه این نیست که اکوسیستم‌های فعلی گیمرها را با یک اکوسیستم بسته دیگر جایگزین کند.
+هدف این است که VoidOne به لایه‌ای میان:
 
-هدف این است که یک لایه بومی، متن‌باز و ماژولار میان گیمر و اکوسیستم پراکنده گیمینگ PC ایجاد شود.
+**گیمر → سیستم‌عامل → اکوسیستم بازی**
+
+تبدیل شود.
 
 ```text
                          ┌───────────────────────┐
-                         │         گیمر          │
+                         │        GAMER          │
+                         │        گیمر           │
                          └───────────┬───────────┘
                                      │
                                      ▼
                          ┌───────────────────────┐
                          │       VOIDONE         │
-                         │   لایه بومی گیمینگ   │
+                         │   Native Game Layer   │
                          └───────────┬───────────┘
                                      │
-              ┌──────────────────────┼──────────────────────┐
-              │                      │                      │
-              ▼                      ▼                      ▼
-          کتابخانه‌ها              اجرا                 سرویس‌ها
-              │                      │                      │
-              └──────────────────────┼──────────────────────┘
+                 ┌───────────────────┼───────────────────┐
+                 │                   │                   │
+                 ▼                   ▼                   ▼
+             LIBRARIES           EXECUTION          SERVICES
+             کتابخانه‌ها           اجرا              سرویس‌ها
+                 │                   │                   │
+                 └───────────────────┼───────────────────┘
                                      │
                                      ▼
                          ┌───────────────────────┐
-                         │      سیستم‌عامل       │
+                         │   OPERATING SYSTEM    │
+                         │       سیستم‌عامل      │
                          └───────────────────────┘
 ```
 
-هدف بلندمدت این است که VoidOne به یک لایه بومی قدرتمند تبدیل شود که گیمر بتواند از طریق آن اکوسیستم گیمینگ موجود خود را مدیریت کند، بدون اینکه کنترل، شفافیت یا مالکیت داده‌هایش را از دست بدهد.
+هدف VoidOne جایگزین کردن تمام اکوسیستم بازی نیست.
 
-> **نه یک فروشگاه دیگر.  
-> نه یک اکوسیستم بسته دیگر.  
-> یک پلتفرم بومی که حول گیمر ساخته شده است.**
+هدف، ساختن یک لایه باز و بومی است که بتواند با اکوسیستمی که گیمر **همین حالا دارد** کار کند.
 
 ---
 
-# 🧭 فلسفه محصول
+# 🛡️ تعهد به گیمرها
 
-VoidOne بر اساس چند اصل بلندمدت توسعه پیدا می‌کند.
+VoidOne از دید یک گیمر ساخته می‌شود.
 
-## 🧱 Native First — بومی در اولویت
+این پروژه فقط درباره تکنولوژی نیست.
 
-هرجا فناوری‌های بومی و قابلیت‌های خود سیستم‌عامل مزیت معناداری در عملکرد، یکپارچگی، پایداری یا نگهداری ایجاد کنند، اولویت با آن‌هاست.
-
-## 🔒 Privacy by Design — حریم خصوصی از ابتدا
-
-اطلاعات گیمر نباید بدون دلیل فنی معتبر جمع‌آوری، ارسال یا تجاری‌سازی شود.
-
-## 💾 Local First — محلی در اولویت
-
-هرجا از نظر فنی امکان‌پذیر باشد، اطلاعات مهم گیمر باید تحت کنترل محلی او باقی بماند.
-
-## ⚡ Lightweight by Design — سبک‌وزن از ابتدا
-
-هر وابستگی، پردازش پس‌زمینه، Runtime یا سرویس باید هزینه منابع خودش را توجیه کند.
-
-## 🎮 مالکیت گیمر
-
-گیمر باید کنترل بازی‌ها، تنظیمات، پروفایل‌ها و داده‌های خود را در اختیار داشته باشد.
-
-## 🌐 Open by Design — باز از ابتدا
-
-پروژه باید برای توسعه‌دهندگان و مشارکت‌کنندگان شفاف، قابل بررسی و قابل تغییر باقی بماند.
-
-## 📐 Evidence Over Marketing — مدرک مهم‌تر از تبلیغات
-
-ادعاهای فنی باید با پیاده‌سازی، تست یا Benchmark قابل تکرار پشتیبانی شوند.
-
-## 🧩 توسعه مرحله‌ای
-
-VoidOne عمداً به‌صورت مرحله‌ای توسعه داده می‌شود.
-
-قابلیت‌های بزرگ پلتفرم به‌مرور و هم‌زمان با بالغ‌شدن معماری زیرساختی آن اضافه خواهند شد.
-
-> **قابلیت‌های آینده قرار نیست حذف شوند؛ قرار است مرحله‌به‌مرحله ساخته و اضافه شوند.**
-
----
-
-# 🛡️ تعهد VoidOne به گیمرها
-
-VoidOne توسط **یک گیمر، برای گیمرها** ساخته می‌شود.
-
-این پروژه برای ساخت نرم‌افزاری ایجاد شده که به کاربرانش احترام می‌گذارد.
+درباره این است که نرم‌افزار بازی باید به کسی که از آن استفاده می‌کند احترام بگذارد.
 
 ## ♾️ رایگان و متن‌باز
 
-VoidOne متعهد است که **رایگان و متن‌باز** باقی بماند.
+VoidOne تحت **MIT License** منتشر می‌شود.
 
-هسته پروژه تحت **مجوز MIT** منتشر می‌شود.
+هدف پروژه این است که هسته اصلی پلتفرم:
 
-برای تجربه اصلی پلتفرم، اشتراک اجباری در نظر گرفته نشده است.
+- رایگان باشد.
+- متن‌باز باقی بماند.
+- قابل بررسی باشد.
+- قابل توسعه باشد.
+- وابسته به یک اکوسیستم بسته نباشد.
 
-قابلیت‌های بنیادی پروژه پشت Paywall قرار نخواهند گرفت.
+> **VoidOne قرار نیست برای تجربه اصلی خود یک دیوار پرداخت اجباری ایجاد کند.**
 
-هدف پروژه ایجاد اکوسیستمی بسته برای قفل‌کردن کاربران نیست.
+---
 
-> **رایگان و متن‌باز بودن، یکی از تعهدات اصلی VoidOne است.**
+## 🚫 بدون تبلیغات و Telemetry
 
-## 🚫 بدون تبلیغات. بدون Telemetry.
+VoidOne حول تبلیغات یا ردیابی رفتاری ساخته نمی‌شود.
 
-VoidOne بر پایه تبلیغات یا ردیابی رفتاری ساخته نمی‌شود.
+هدف این است که گیمر برای استفاده از نرم‌افزار مجبور نباشد تبدیل به منبع داده تجاری شود.
 
-اصل پروژه این است:
+> **شما از VoidOne برای مدیریت بازی‌هایتان استفاده می‌کنید؛ نه اینکه خودتان محصول باشید.**
 
-> **شما از VoidOne برای مدیریت بازی‌هایتان استفاده می‌کنید؛ خودتان محصول نیستید.**
+---
 
-## ⚡ سبک‌وزن از ابتدا
+## ⚡ سبک و کم‌مصرف
 
-VoidOne یک هدف بلندمدت جاه‌طلبانه برای عملکرد دارد:
+یکی از اهداف مهندسی بلندمدت VoidOne:
 
-> **مصرف RAM در حالت Idle کمتر از 50 MB.**
+> **مصرف RAM در حالت Idle کمتر از 50 MB**
 
-این مقدار یک **هدف مهندسی** است و مشخصات تضمین‌شده نسخه‌های فعلی نیست.
+این عدد **هدف مهندسی** است و مشخصات تضمین‌شده نسخه فعلی نیست.
 
-پروژه تلاش می‌کند موارد غیرضروری مانند موارد زیر را به حداقل برساند:
+برای رسیدن به این هدف، معماری پروژه تا حد امکان از موارد غیرضروری دوری می‌کند:
 
-- سرویس‌های پس‌زمینه
-- پردازش‌های دائمی
+- سرویس‌های دائمی
+- فرایندهای پس‌زمینه غیرضروری
 - Runtimeهای سنگین
-- اجزای پرمصرف
-- پردازش‌های پنهان
+- پردازش‌های بی‌دلیل
+- مصرف منابع بدون دلیل مشخص
 
-هر جزء باید دلیلی برای وجود داشته باشد.
+هر بخش از نرم‌افزار باید دلیل مشخصی برای وجود داشته باشد.
 
-## 🔒 داده‌های شما. کنترل شما.
+---
 
-VoidOne از رویکرد **Local-First** پیروی می‌کند.
+# 🔒 مالکیت داده
 
-در معماری بلندمدت، اطلاعات مهمی مانند:
+VoidOne با رویکرد **Local-First** طراحی می‌شود.
 
-- اطلاعات کتابخانه بازی
-- پروفایل‌ها
+هدف این است که داده‌هایی مانند:
+
+- کتابخانه بازی‌ها
 - تنظیمات
-- ترجیحات
+- پروفایل‌ها
+- Configuration
 - آمار محلی
-- تنظیمات اختصاصی بازی
-- پروفایل‌های Mod
+- تاریخچه اجرای بازی‌ها
+- تنظیمات Mod
 
-تا جای ممکن تحت کنترل خود گیمر باقی خواهند ماند.
-
-## 🎮 ساخته‌شده برای گیمرها
-
-VoidOne برای احترام به موارد زیر ساخته می‌شود:
-
-- سخت‌افزار شما
-- حریم خصوصی شما
-- زمان شما
-- داده‌های شما
-- بازی‌های شما
-- آزادی شما
-
-> **هدف کنترل گیمر نیست.  
-> هدف، دادن کنترل بیشتر به گیمر است.**
+تا حد امکان تحت کنترل خود کاربر باقی بمانند.
 
 ---
 
-# 📦 وضعیت نسخه‌ها
+# 🎮 Built by a Gamer. For Gamers.
 
-VoidOne در حال حاضر در مرحله **توسعه آزمایشی فعال** قرار دارد.
+VoidOne برای گیمرهایی ساخته می‌شود که می‌خواهند:
 
-تمام نسخه‌هایی که تاکنون منتشر شده‌اند، **Experimental** محسوب می‌شوند.
+- سخت‌افزارشان تحت کنترل خودشان باشد.
+- داده‌هایشان تحت کنترل خودشان باشد.
+- بازی‌هایشان در یک محیط یکپارچه مدیریت شوند.
+- مجبور نباشند برای هر قابلیت به یک سرویس جداگانه وابسته باشند.
+- نرم‌افزاری داشته باشند که قابل بررسی و توسعه باشد.
 
-شماره نسخه به‌تنهایی به معنی Stable بودن یک Release نیست.
-
----
-
-## 🧪 Experimental — آزمایشی
-
-**وضعیت: موجود**
-
-این کانال نسخه فعلی VoidOne است.
-
-نسخه‌های Experimental برای موارد زیر مناسب هستند:
-
-- کاربران اولیه
-- مشارکت‌کنندگان
-- توسعه‌دهندگان
-- تسترها
-- دریافت بازخورد
-- پیدا کردن Bug
-- اعتبارسنجی قابلیت‌ها
-
-نسخه‌های آزمایشی ممکن است شامل قابلیت‌های ناقص، Bug، تغییرات معماری یا بخش‌های ناتمام باشند.
-
-> **تمام Releaseهای فعلی VoidOne آزمایشی هستند.**
+> ### **Free & Open Source — Forever**
+>
+> ### **No Ads. No Telemetry.**
+>
+> ### **Your Data. Your Control.**
+>
+> ### **Built by a Gamer. For Gamers.**
 
 ---
 
-## 🛠️ Development — توسعه
+# 🧭 اصول طراحی VoidOne
 
-**وضعیت: فعال**
+## 🧱 Native First
 
-Development جدیدترین وضعیت پروژه در Repository را دنبال می‌کند.
+هرجا فناوری‌های بومی بتوانند مزیت واقعی در عملکرد، یکپارچگی با سیستم‌عامل یا نگهداری ایجاد کنند، اولویت با آن‌ها است.
 
-Buildهای توسعه ممکن است شامل تغییراتی باشند که هنوز در یک Experimental Release منتشر نشده‌اند.
+## 🔒 Privacy by Design
 
-این کانال بیشتر برای موارد زیر در نظر گرفته شده است:
+حریم خصوصی نباید یک قابلیت جانبی باشد؛ باید بخشی از معماری باشد.
 
-- توسعه‌دهندگان
-- مشارکت‌کنندگان
-- تسترهای پیشرفته
-- اعتبارسنجی CI
-- توسعه معماری
+## 💾 Local First
 
----
+هرجا امکان‌پذیر باشد، پردازش و ذخیره‌سازی اصلی باید محلی انجام شود.
 
-## 🚀 Stable — پایدار
+## ⚡ Lightweight by Design
 
-**وضعیت: به‌زودی**
+هر Dependency، Runtime، Service یا Background Process باید هزینه منابع خود را توجیه کند.
 
-نسخه Stable **هنوز ساخته و منتشر نشده است**.
+## 🎮 User Ownership
 
-Stable زمانی معرفی خواهد شد که پروژه به سطح مناسبی از موارد زیر برسد:
+کاربر باید کنترل بازی‌ها، داده‌ها، Configuration و تجربه خود را در اختیار داشته باشد.
 
-- پایداری
-- قابلیت‌های پایه
-- پوشش تست
-- پایداری Runtime
-- نصب پایدار
-- به‌روزرسانی قابل اعتماد
-- اعتبارسنجی عملکرد
-- اعتبارسنجی امنیت
-- کیفیت مستندات
+## 🌐 Open by Design
 
-اولین Stable Release زمانی منتشر خواهد شد که پروژه واقعاً آماده باشد.
+کد، معماری و توسعه پروژه باید تا حد امکان شفاف، قابل بررسی و قابل مشارکت باشد.
 
-> **Stable یعنی اثبات‌شده؛ نه صرفاً منتشرشده.**
+## 📐 Evidence Over Marketing
+
+ادعاهای فنی باید با:
+
+- کد
+- تست
+- Benchmark
+- Measurement
+- یا شواهد قابل تکرار
+
+پشتیبانی شوند.
 
 ---
 
-### خلاصه کانال‌های انتشار
+# 🏗️ پایه فعلی پروژه
 
-| کانال | وضعیت | مخاطب |
-| :--- | :--- | :--- |
-| 🛠️ **Development** | فعال | توسعه‌دهندگان و مشارکت‌کنندگان |
-| 🧪 **Experimental** | موجود | تسترها و کاربران اولیه |
-| 🚀 **Stable** | به‌زودی | کاربران عمومی |
+این بخش وضعیت **پایه مهندسی فعلی** VoidOne را توضیح می‌دهد.
 
----
+## 💻 فناوری‌های اصلی
 
-# ✅ پایه فعلی
-
-این بخش **پایه مهندسی فعلی** VoidOne را توضیح می‌دهد.
-
-قابلیت‌های آینده عمداً از وضعیت فعلی جدا شده‌اند.
-
-## 💻 اپلیکیشن بومی
-
-VoidOne با فناوری‌های زیر ساخته می‌شود:
+VoidOne بر پایه این فناوری‌ها ساخته می‌شود:
 
 | فناوری | کاربرد |
 | :--- | :--- |
-| **C++23** | توسعه اپلیکیشن و سیستم‌های بومی |
+| **C++23** | توسعه Native و Systems |
 | **Qt 6.8** | Framework اصلی |
-| **QML / Qt Quick** | رابط گرافیکی |
+| **QML / Qt Quick** | رابط کاربری |
 | **SQLite** | ذخیره‌سازی محلی |
-| **CMake** | پیکربندی Build |
+| **CMake** | سیستم Build |
 | **Ninja** | اجرای Build |
+| **CTest** | تست خودکار در Configurationهای مربوط |
+| **GitHub Actions** | CI/CD |
+| **CodeQL** | تحلیل امنیتی |
+| **Cppcheck** | Static Analysis |
+| **AddressSanitizer** | تشخیص خطاهای حافظه |
 
-## 🎨 رابط کاربری بومی
+---
 
-Qt Quick / QML پایه رابط گرافیکی VoidOne را تشکیل می‌دهد.
+# 🎨 رابط کاربری بومی
 
-لایه UI از لایه Native C++ جدا نگه داشته می‌شود تا معماری برای توسعه‌های آینده قابل نگهداری باقی بماند.
+رابط کاربری VoidOne بر پایه **Qt Quick / QML** ساخته می‌شود.
 
-## 💾 ذخیره‌سازی محلی
+معماری پروژه میان لایه رابط کاربری و منطق Native C++ جداسازی ایجاد می‌کند.
 
-SQLite برای ذخیره‌سازی محلی داده‌های برنامه استفاده می‌شود.
+هدف این معماری:
 
-معماری پروژه بر مالکیت محلی داده‌ها تأکید دارد و هسته برنامه برای عملیات پایه به Backend اجباری آنلاین وابسته نیست.
+- توسعه سریع‌تر UI
+- نگهداری بهتر
+- کاهش وابستگی‌های غیرضروری
+- امکان توسعه رابط‌های پیچیده‌تر
+- دسترسی مستقیم به قابلیت‌های Native
 
-## 🔄 مهندسی خودکار
+است.
 
-Repository شامل Workflowهای GitHub Actions برای بخش‌های مختلف چرخه مهندسی است.
+---
 
-این زیرساخت شامل حوزه‌هایی مانند موارد زیر است:
+# 💾 ذخیره‌سازی محلی
 
-- اعتبارسنجی Build
-- Static Analysis
-- تحلیل امنیتی
-- Sanitizer
-- تست
-- Packaging
-- تولید Artifact
-- Release Automation
+VoidOne از **SQLite** برای Local Persistence استفاده می‌کند.
 
-Workflow موجود در:
+این معماری امکان ذخیره داده‌هایی مانند:
+
+- کتابخانه
+- تنظیمات
+- پروفایل‌ها
+- Metadata محلی
+- اطلاعات بازی
+- آمار محلی
+
+را بدون نیاز اجباری به یک Backend مرکزی فراهم می‌کند.
+
+---
+
+# 🔄 زیرساخت CI/CD
+
+Repository شامل Workflow خودکار GitHub Actions است.
+
+Workflow فعلی پروژه در:
 
 ```text
 .github/workflows/c.cpp.yml
 ```
 
-مرجع اصلی برای رفتار دقیق CI است.
+قرار دارد.
+
+بسته به وضعیت فعلی Repository، این زیرساخت می‌تواند بخش‌هایی مانند:
+
+- Build
+- Static Analysis
+- CodeQL
+- Cppcheck
+- Sanitizer Validation
+- Testing
+- Packaging
+- Artifact Generation
+- Checksum Generation
+- Release Automation
+
+را اجرا کند.
+
+> **Workflow موجود در Repository منبع اصلی حقیقت برای رفتار دقیق CI است.**
 
 ---
 
 # 🪟 وضعیت پلتفرم‌ها
 
-## 🪟 Windows
+## Windows
 
-**پلتفرم اصلی**
+Windows در حال حاضر محیط اصلی Build و Packaging پروژه است.
 
-Windows در حال حاضر محیط اصلی توسعه، Build و Packaging پروژه است.
+## Linux
 
-Pipeline انتشار فعلی برای Windows x64 طراحی شده است.
+Linux بخشی از مسیر Cross-Platform پروژه است و با رشد معماری VoidOne توسعه بیشتری خواهد یافت.
 
-## 🐧 Linux
-
-**مسیر توسعه Cross-Platform**
-
-Linux بخشی از معماری و مسیر توسعه Cross-Platform VoidOne است.
-
-پشتیبانی Linux با بالغ‌تر شدن پروژه به‌صورت تدریجی گسترش خواهد یافت.
-
-## 🍎 macOS
+## macOS
 
 macOS در حال حاضر بخشی از Pipeline اصلی Build و Packaging پروژه نیست.
 
@@ -410,201 +432,167 @@ macOS در حال حاضر بخشی از Pipeline اصلی Build و Packaging پ
 
 # 🔭 مسیر آینده پلتفرم
 
-VoidOne به‌عنوان یک پلتفرم توسعه داده می‌شود، نه صرفاً یک Launcher ساده.
+قابلیت‌های این بخش **قابلیت‌های فعلی نسخه آزمایشی محسوب نمی‌شوند**؛ بلکه بخشی از مسیر توسعه VoidOne هستند.
 
-موارد زیر **مسیر توسعه بلندمدت پروژه** را تشکیل می‌دهند.
-
-این موارد به‌عنوان قابلیت‌های عمومی نسخه فعلی معرفی نمی‌شوند.
-
-تمام این قابلیت‌ها قرار است **به‌مرور و مرحله‌به‌مرحله** با بالغ‌شدن معماری پروژه اضافه شوند.
-
-### حوزه‌های آینده
-
-- 👻 Ghost Launch
-- ⚙️ Intelligent Process Orchestration
-- 🧠 مدیریت پیشرفته پردازش‌ها
-- ⚡ CPU Priority Profiles
-- 📈 Resource Optimization
-- 🌐 Multi-Store Aggregation
-- 🎮 اتصال به Steam
-- 🎮 اتصال به Epic Games
-- 🎮 اتصال به GOG
-- 🎮 اتصال به EA App
-- 🖼️ Rich Metadata Engine
-- 🎨 سیستم Artwork / Hero Banner
-- 📊 Local Gaming Analytics
-- 🧰 Advanced Mod Platform
-- 🧩 Mod Profiles
-- 🗂️ Virtual File Mapping
-- 🔗 Dependency Management
-- ⚠️ Conflict Detection
-- 🎨 Dynamic Themes
-- 🌈 RGB Customization
-- 🩺 Performance Diagnostics
-- 💾 Backup & Recovery
-- 🔌 Extension APIs
-- 🎨 Theme SDK
-- 🧑‍💻 Developer Ecosystem
-- 🌐 Community Extensions
-
-> **این قابلیت‌ها بخشی از مسیر بلندمدت VoidOne هستند و قرار است به‌صورت تدریجی پیاده‌سازی و اضافه شوند.**
+این قابلیت‌ها حذف نشده‌اند و قرار است به‌صورت مرحله‌ای به پروژه اضافه شوند.
 
 ---
 
 # 👻 Ghost Launch
 
-**قابلیت برنامه‌ریزی‌شده**
+**Ghost Launch** یکی از قابلیت‌های مهم مسیر آینده VoidOne است.
 
-Ghost Launch یک معماری اجرای آینده برای ایجاد کنترل بیشتر روی نحوه اجرای بازی‌ها و مدیریت Runtime آن‌هاست.
+هدف آن ایجاد یک Execution Layer کنترل‌شده میان VoidOne و بازی است.
 
-قابلیت‌های احتمالی:
-
-- اجرای مستقیم فایل اجرایی در مواردی که از نظر فنی و قانونی امکان‌پذیر باشد
-- Launch Argumentهای سفارشی
-- پیکربندی Environment
-- پروفایل‌های اختصاصی برای هر بازی
-- مدیریت چرخه عمر Process
-- سیاست‌های پردازش‌های پس‌زمینه
-- تشخیص Orphan Process
-- اولویت‌بندی Process
-- Tracking وضعیت Runtime
-
-به‌صورت مفهومی:
+معماری مفهومی:
 
 ```text
-گیمر
-  │
-  ▼
+Player
+   │
+   ▼
 VoidOne
-  │
-  ▼
+   │
+   ▼
 Execution Layer
-  │
-  ▼
+   │
+   ▼
 Game Process
 ```
 
-هدف:
+قابلیت‌های احتمالی:
 
-> **ایجاد یک لایه کنترل‌شده بین گیمر و بازی.**
+- اجرای مستقیم Executable در موارد ممکن
+- Launch Arguments
+- Environment Configuration
+- Per-Game Profiles
+- Process Lifecycle Management
+- Background Process Policies
+- Orphan Process Detection
+- Process Prioritization
+- Runtime State Tracking
 
-VoidOne قصد دورزدن DRM، مجوزها یا احراز هویت موردنیاز پلتفرم‌ها را ندارد.
+Ghost Launch قرار نیست DRM یا Licensing را دور بزند.
 
-اگر یک بازی به‌صورت قانونی به Launcher یا سرویس دیگری نیاز داشته باشد، آن وابستگی همچنان بخشی از محیط اجرای بازی خواهد بود.
+اگر بازی به‌صورت قانونی به یک Store یا Service دیگر نیاز داشته باشد، آن Dependency همچنان بخشی از محیط اجرای بازی خواهد بود.
 
 ---
 
 # ⚙️ Intelligent Process Orchestration
 
-**قابلیت برنامه‌ریزی‌شده**
+VoidOne در مسیر توسعه خود یک لایه پیشرفته برای مدیریت Processها خواهد داشت.
 
-یک لایه مدیریت Process در آینده می‌تواند به VoidOne اجازه دهد رابطه میان بازی و Processهای وابسته به آن را بهتر درک و مدیریت کند.
+این سیستم می‌تواند ارتباط میان بازی و Processهای جانبی آن را بهتر مدیریت کند.
 
-قابلیت‌های احتمالی:
+قابلیت‌های هدف:
 
-- Tracking چرخه عمر Process
-- تشخیص Child Process
-- سیاست‌های Workload پس‌زمینه
+- Process Lifecycle Tracking
+- Child Process Awareness
+- Background Workload Policies
 - CPU Priority Profiles
-- مدیریت Runtime Process
-- تشخیص Orphan Process
-- سیاست‌های اجرای اختصاصی هر بازی
-- پروفایل‌های آگاه از منابع سیستم
+- Runtime Process Management
+- Orphan Process Detection
+- Per-Game Execution Policies
+- Resource-Aware Launch Profiles
 
-هدف بلندمدت، کنترل بهتر Execution است؛ نه اینکه فقط یک فایل اجرایی اجرا شود و بعد هیچ دیدی نسبت به وضعیت آن وجود نداشته باشد.
+هدف:
+
+> **اجرای کنترل‌شده بازی، نه فقط اجرای یک فایل و فراموش کردن آن.**
 
 ---
 
 # 🧩 Multi-Store Aggregation
 
-**قابلیت برنامه‌ریزی‌شده**
+یکی از اهداف اصلی VoidOne ایجاد یک Library یکپارچه از منابع مختلف است.
 
-VoidOne در آینده می‌تواند یک کتابخانه واحد برای چند اکوسیستم گیمینگ ایجاد کند.
-
-Providerهای احتمالی:
+Providerهای هدف شامل مواردی مانند:
 
 - Steam
 - Epic Games
 - GOG
 - EA App
-- نصب‌های Local
-- Providerهای بیشتر
+- Local Installations
+- Providerهای آینده
 
-قابلیت‌های احتمالی:
+خواهند بود.
 
-- شناسایی نصب‌ها
-- Parsing Manifest
-- تجمیع کتابخانه
-- تشخیص بازی‌های تکراری
-- استانداردسازی هویت بازی
-- استانداردسازی Metadata
-- اجرای وابسته به Provider
+قابلیت‌های هدف:
+
+- Installation Discovery
+- Manifest Parsing
+- Library Aggregation
+- Duplicate Detection
+- Game Identity Normalization
+- Metadata Normalization
+- Provider-Aware Launching
+
+هدف این نیست که VoidOne تبدیل به یک Store دیگر شود.
 
 هدف:
 
-> **یکپارچه‌سازی دسترسی بدون تبدیل‌شدن VoidOne به یک فروشگاه دیگر.**
+> **یکپارچه کردن تجربه بازی بدون ساختن یک اکوسیستم بسته جدید.**
 
 ---
 
-# 🖼️ Metadata Engine
+# 🖼️ Rich Metadata Engine
 
-**قابلیت برنامه‌ریزی‌شده**
+VoidOne در آینده یک سیستم Metadata پیشرفته خواهد داشت.
 
-یک Metadata Engine آینده می‌تواند موارد زیر را ارائه دهد:
+قابلیت‌های هدف:
 
 - Cover Artwork
 - Hero Banner
 - Background
-- توضیحات
-- ژانر
-- اطلاعات انتشار
-- اطلاعات توسعه‌دهنده
-- اطلاعات ناشر
-- امتیازها
-- اطلاعات پلتفرم
+- Description
+- Genre
+- Release Information
+- Developer
+- Publisher
+- Rating
+- Platform Information
 
-معماری موردنظر بر موارد زیر تأکید دارد:
+معماری موردنظر شامل:
 
 - پردازش Asynchronous
 - Local Cache
-- UI بدون Block شدن
-- Network Operation مقاوم در برابر خطا
+- UI غیرمسدودکننده
+- مدیریت خطاهای شبکه
+- کاهش وابستگی به Network برای عملیات اصلی
 
-Metadata باید تجربه را بهتر کند، نه اینکه برای عملیات پایه Local به یک وابستگی اجباری تبدیل شود.
+خواهد بود.
+
+Metadata باید تجربه را بهتر کند، نه اینکه برای اجرای عملیات پایه اجباری باشد.
 
 ---
 
 # 📊 Local Gaming Analytics
 
-**قابلیت برنامه‌ریزی‌شده**
+VoidOne در آینده می‌تواند سیستم Analytics کاملاً محلی ارائه کند.
 
-VoidOne ممکن است در آینده Analytics محلی و Privacy-Oriented ارائه کند.
-
-قابلیت‌های احتمالی:
+قابلیت‌های هدف:
 
 - Session Tracking
-- تاریخچه اجرا
-- مدت زمان بازی
-- آمار هر بازی
-- Crash Recordهای محلی
+- Launch History
+- Play Duration
+- Per-Game Statistics
+- Local Crash Records
 - Performance History
-- روندهای عملکرد محلی
+- Local Performance Trends
 
 اصل اصلی:
 
-> **Analytics مفید، بدون تبدیل‌کردن گیمر به محصول.**
+> **تحلیل مفید بدون تبدیل کردن گیمر به محصول.**
 
-تا جای ممکن، Analytics به‌صورت Local باقی خواهد ماند.
+تا حد امکان داده‌های Analytics محلی باقی خواهند ماند.
 
 ---
 
 # 🧰 Advanced Mod Platform
 
-**قابلیت برنامه‌ریزی‌شده**
+یکی از مسیرهای توسعه مهم VoidOne ساخت یک Mod Platform کامل است.
 
-یک معماری پیشرفته برای مدیریت Mod می‌تواند شامل موارد زیر باشد:
+قابلیت‌های هدف:
 
-- Mod Profile
+- Mod Profiles
 - Virtual File Mapping
 - Non-Destructive Deployment
 - Dependency Management
@@ -612,7 +600,7 @@ VoidOne ممکن است در آینده Analytics محلی و Privacy-Oriented �
 - Load Order Management
 - Compatibility Checks
 
-نمونه:
+نمونه ساختار:
 
 ```text
 Game
@@ -623,45 +611,49 @@ Game
 └── Custom Profile
 ```
 
-هدف این است که بتوان چند Configuration مختلف برای یک بازی داشت، بدون اینکه لازم باشد نصب اصلی بازی به‌صورت غیرضروری تغییر کند.
+هدف این است که گیمر بتواند Configurationهای مختلفی از یک بازی داشته باشد، بدون اینکه مجبور باشد Installation اصلی را دائماً تغییر دهد.
 
 ---
 
 # 🎨 رابط کاربری نسل بعد
 
-**مسیر بلندمدت**
+رابط کاربری VoidOne در طول توسعه پروژه می‌تواند به قابلیت‌های پیشرفته‌تری مجهز شود.
 
-جهت‌گیری بلندمدت UI شامل موارد زیر است:
+مسیر طراحی شامل مواردی مانند:
 
-- رابط‌های پیشرفته QML
-- Dynamic Theme
-- کتابخانه‌های مبتنی بر Artwork
-- Layoutهای Responsive
+- Advanced QML Interface
+- Dynamic Themes
+- Artwork-Driven Library
+- Responsive Layouts
 - Personalization
 - Display Scaling
 - Accessibility
-- Animationهای اختیاری
+- Optional Animations
 - RGB Customization
 
-افکت‌های بصری باید ارزش خود را در برابر هزینه عملکردی‌شان ثابت کنند.
+است.
 
-> **رابط کاربری Premium فقط زمانی ارزشمند است که همچنان Responsive باقی بماند.**
+اما یک اصل مهم وجود دارد:
+
+> **زیبایی نباید به قیمت عملکرد تمام شود.**
+
+هر Visual Effect باید هزینه عملکردی خود را توجیه کند.
 
 ---
 
 # 🩺 Performance Diagnostics
 
-**قابلیت برنامه‌ریزی‌شده**
+VoidOne در آینده می‌تواند ابزارهای Diagnostics داخلی ارائه دهد.
 
-قابلیت‌های آینده Diagnostics ممکن است شامل موارد زیر باشند:
+قابلیت‌های هدف:
 
-- تحلیل Startup
-- Runtime Measurement
+- Startup Analysis
+- Runtime Measurements
 - Memory Diagnostics
 - Process Analysis
 - Library Scan Profiling
 - Performance History
-- Performance Profile برای هر بازی
+- Per-Game Performance Profiles
 - Benchmarking
 
 هدف:
@@ -672,88 +664,113 @@ Game
 
 # 💾 Backup & Recovery
 
-**قابلیت برنامه‌ریزی‌شده**
+سیستم Backup و Recovery یکی دیگر از بخش‌های مسیر توسعه VoidOne است.
 
-نسخه‌های آینده ممکن است قابلیت Backup و Recovery محلی ارائه کنند.
+داده‌های احتمالی:
 
-موارد احتمالی:
-
-- Configuration
+- Application Configuration
 - Library Data
 - Game Profiles
 - Mod Profiles
 - User Preferences
 
-قابلیت‌های احتمالی:
+قابلیت‌های هدف:
 
-- ساخت Backup
-- Export / Import Profile
-- Recovery Snapshot
-- بازگردانی Configuration
+- Backup Creation
+- Profile Export / Import
+- Recovery Snapshots
+- Configuration Restoration
 
 ---
 
-# 🔌 Extensibility & Developer Ecosystem
+# 🔌 Extension APIs
 
-**قابلیت برنامه‌ریزی‌شده**
+VoidOne در مسیر بلندمدت خود یک معماری Extensible خواهد داشت.
 
-معماری بلندمدت VoidOne می‌تواند Extension Pointهای کنترل‌شده ارائه کند.
-
-اجزای احتمالی:
+قابلیت‌های احتمالی:
 
 - Extension APIs
-- Theme SDK
 - Provider APIs
+- Theme SDK
 - Community Extensions
 - Custom Integrations
 - Developer Tooling
 
-امنیت، پایداری و نگهداری، پیش‌نیاز هر سیستم Extension خواهند بود.
+سیستم Extension باید با درنظر گرفتن:
+
+- امنیت
+- پایداری
+- Isolation
+- Compatibility
+- Maintainability
+
+طراحی شود.
+
+---
+
+# 🌐 Developer Ecosystem
+
+هدف نهایی تنها ساخت یک Application نیست.
+
+VoidOne می‌تواند در آینده به بستری برای توسعه‌دهندگان و Community تبدیل شود.
+
+مسیر توسعه شامل:
+
+- Extension Ecosystem
+- Theme Ecosystem
+- Provider Integrations
+- Developer APIs
+- Community Tools
+- Custom Experiences
+
+خواهد بود.
 
 ---
 
 # ⚡ اهداف عملکردی
 
-Performance یکی از اهداف اصلی مهندسی VoidOne است.
+عملکرد یکی از اهداف اصلی مهندسی VoidOne است.
 
-مقادیر زیر **اهداف بلندمدت مهندسی** هستند و مشخصات تضمین‌شده نسخه‌های فعلی نیستند.
+این اعداد **هدف مهندسی** هستند، نه مشخصات تضمین‌شده نسخه‌های فعلی.
 
-| معیار | هدف مهندسی | جهت‌گیری |
-| :--- | :--- | :--- |
-| **RAM در Idle** | `< 50 MB` | معماری سبک |
-| **Cold Startup** | `< 1.0s` | Lazy Initialization |
-| **Database Operations** | هدف Sub-millisecond | استفاده بهینه از SQLite |
-| **UI Rendering** | هدف 60+ FPS | Qt Quick Scene Graph |
-| **Library Scanning** | حداقل Block شدن UI | Async / Incremental |
+| معیار | هدف مهندسی |
+| :--- | :--- |
+| **Idle Memory** | کمتر از `50 MB` |
+| **Cold Startup** | کمتر از `1.0s` |
+| **Database Operations** | هدف Sub-millisecond |
+| **UI Rendering** | هدف 60+ FPS |
+| **Library Scanning** | حداقل Blocking رابط کاربری |
 
-قبل از اینکه این اهداف به مشخصات رسمی تبدیل شوند، Benchmarkهای قابل تکرار باید موارد زیر را ثبت کنند:
+برای تبدیل شدن این اعداد به Specification رسمی، باید Benchmarkهای قابل تکرار منتشر شوند.
+
+Benchmark باید شامل موارد زیر باشد:
 
 - سخت‌افزار
 - سیستم‌عامل
 - Compiler
-- نسخه Qt
-- نسخه VoidOne
+- Qt Version
+- Application Version
 - Build Configuration
-- روش تست
-- شرایط اندازه‌گیری
+- Test Methodology
+- Measurement Conditions
 
-> **هدف این نیست که عملکرد را وعده بدهیم؛ هدف این است که آن را اثبات کنیم.**
+> **هدف ما وعده دادن عملکرد نیست؛ هدف ما اثبات عملکرد است.**
 
 ---
 
 # 🏗️ معماری
 
-VoidOne بر پایه یک معماری Native و لایه‌ای طراحی شده است.
+VoidOne بر پایه یک معماری لایه‌ای Native توسعه پیدا می‌کند.
 
 ## معماری فعلی
 
 ```mermaid
 flowchart TB
-    UI["رابط Qt / QML"]
-    APP["لایه Application در C++"]
-    CORE["هسته Native C++"]
+    UI["Qt / QML Interface"]
+    APP["C++ Application Layer"]
+    CORE["Native C++ Core"]
     DB[("SQLite")]
-    OS["APIهای سیستم‌عامل"]
+    OS["Operating System APIs"]
 
     UI --> APP
     APP --> CORE
@@ -761,11 +778,11 @@ flowchart TB
     CORE --> OS
 ```
 
-## معماری بلندمدت پلتفرم
+## معماری بلندمدت
 
 ```mermaid
 flowchart TB
-    PLAYER["گیمر"]
+    PLAYER["Player"]
 
     UI["VoidOne UI"]
     APP["Application Layer"]
@@ -796,146 +813,131 @@ flowchart TB
     ANALYTICS --> DB
 ```
 
-نمودار دوم معماری **بلندمدت پلتفرم** را نشان می‌دهد و به این معنی نیست که تمام اجزای آن در نسخه فعلی وجود دارند.
+نمودار دوم، معماری هدف بلندمدت پروژه را نمایش می‌دهد و به معنی وجود داشتن تمام این اجزا در نسخه فعلی نیست.
 
 ---
 
-# 🧰 فناوری‌ها
+# 🤖 زیرساخت مهندسی و AI
 
-| فناوری | نقش |
-| :--- | :--- |
-| **C++23** | توسعه Native و Systems |
-| **Qt 6.8** | Framework اصلی |
-| **QML / Qt Quick** | رابط گرافیکی |
-| **SQLite** | ذخیره‌سازی محلی |
-| **CMake** | Build Configuration |
-| **Ninja** | Build Execution |
-| **CTest** | تست خودکار در صورت پیکربندی |
-| **GitHub Actions** | CI/CD |
-| **CodeQL** | تحلیل امنیتی |
-| **Cppcheck** | Static Analysis |
-| **AddressSanitizer** | تشخیص خطاهای Runtime و Memory |
-| **MSVC** | Toolchain ویندوز |
-| **NSIS** | ساخت Installer ویندوز |
-| **WiX Toolset** | ساخت MSI |
-| **Ollama** | زیرساخت AI محلی |
-| **Gemini** | زیرساخت مهندسی مبتنی بر AI |
-| **Qwen2.5-Coder** | مدل Coding مورد استفاده در AI Repair |
+VoidOne از Automation و AI برای کمک به فرآیند توسعه استفاده می‌کند.
+
+این زیرساخت با تجربه کاربر نهایی متفاوت است.
 
 ---
 
-# 🤖 زیرساخت مهندسی
+## 🔄 Automated CI/CD
 
-VoidOne از Automation برای کاهش کارهای تکراری و افزایش کیفیت چرخه توسعه استفاده می‌کند.
+زیرساخت CI/CD پروژه می‌تواند مراحل مختلف چرخه مهندسی را خودکار کند:
 
-این سیستم‌ها بخشی از **زیرساخت توسعه** هستند و قابلیت‌های Player-Facing محسوب نمی‌شوند.
-
-## 🔄 CI/CD
-
-Workflow گیت‌هاب پروژه بخش‌های مختلف چرخه مهندسی را خودکار می‌کند.
-
-بسته به Configuration فعلی، این موارد شامل حوزه‌هایی مانند موارد زیر هستند:
-
-- اعتبارسنجی Release Tag
-- C++ Static Analysis
+- بررسی Release Tag
+- Static Analysis
 - CodeQL
 - Cppcheck
 - Debug Build
 - Sanitizer Validation
 - Release Build
-- اجرای CTest
+- CTest
 - Qt Deployment
 - Windows Packaging
-- تولید Portable ZIP
-- تولید SHA-256
-- انتشار Artifact
-- Release Notification
-- Health Checkهای زمان‌بندی‌شده
-- اجرای دستی Workflow
+- Portable ZIP
+- SHA-256 Checksums
+- Release Artifacts
+- Release Notifications
 
-Workflow Repository مرجع اصلی رفتار دقیق CI است.
+همچنین Workflow می‌تواند برای اجراهای:
+
+- Pull Request
+- Scheduled Runs
+- Manual Runs
+- Release Runs
+
+پیکربندی شود.
 
 ---
 
 # 🧠 AI Repair
 
-VoidOne دارای یک Workflow مهندسی با نام **AI Repair** است.
+VoidOne دارای زیرساخت **AI Repair** برای کمک به فرآیند مهندسی است.
 
-AI Repair **قابلیت مخصوص گیمر نیست**.
+AI Repair یک قابلیت کاربرمحور نیست.
 
-این سیستم یک لایه Automation برای مهندسی است که به توسعه‌دهندگان در تحلیل خطاهای CI و آماده‌سازی Fixهای پیشنهادی کمک می‌کند.
+هدف آن کمک به توسعه‌دهنده برای:
 
-زیرساخت آن می‌تواند با مواردی مانند موارد زیر کار کند:
+- تحلیل خطاهای CI
+- بررسی Build Failure
+- پیشنهاد اصلاح
+- تولید Candidate Patch
+- اجرای Validation
+- آماده‌سازی تغییر برای Review
 
-- Gemini
-- Qwen2.5-Coder
-- Ollama
-- GitHub Actions
+است.
+
+فناوری‌های مورد استفاده یا هدف شامل مواردی مانند:
+
+- **Gemini**
+- **Qwen2.5-Coder**
+- **Ollama**
+- **GitHub Actions**
+- C++ Tooling
 - Build Logs
-- ابزارهای C++ / Qt
-- Automated Validation
 
-فرآیند مفهومی:
+هستند.
+
+چرخه مفهومی:
 
 ```text
-                 خطای CI
-                    │
-                    ▼
-              تحلیل خطا
-                    │
-                    ▼
+                 CI Failure
+                     │
+                     ▼
+             Failure Analysis
+                     │
+                     ▼
              AI-Assisted Repair
-                    │
-                    ▼
-             Candidate Patch
-                    │
-                    ▼
-              Build / Checks
-                    │
-                    ▼
-             Automated Tests
-                    │
-                    ▼
-            Draft Pull Request
-                    │
-                    ▼
-              بررسی انسانی
-                    │
-                    ▼
-                  Merge
+                     │
+                     ▼
+              Candidate Patch
+                     │
+                     ▼
+               Build / Checks
+                     │
+                     ▼
+              Automated Tests
+                     │
+                     ▼
+             Draft Pull Request
+                     │
+                     ▼
+                Human Review
+                     │
+                     ▼
+                   Merge
 ```
 
-AI برای سریع‌ترکردن کارهای تکراری مهندسی استفاده می‌شود.
+اصل مهم:
 
-مسئولیت مهندسی و تصمیم نهایی همچنان با انسان است.
+> **AI سرعت مهندسی را افزایش می‌دهد؛ اما مسئولیت مهندسی را جایگزین نمی‌کند.**
 
-> **AI مهندسی را سریع‌تر می‌کند؛ جایگزین مالکیت مهندسی نمی‌شود.**
-
-تغییرات تولیدشده توسط AI همچنان باید از مراحل زیر عبور کنند:
-
-- Build Validation
-- Automated Testing
-- Security Checks
-- Repository Policy
-- Human Review
+هیچ تغییر تولیدشده توسط AI نباید بدون Validation و Review مناسب به‌عنوان تغییر نهایی تلقی شود.
 
 ---
 
 # 🛡️ مهندسی امنیت
 
-امنیت از ابتدا به‌عنوان بخشی از فرآیند مهندسی در نظر گرفته می‌شود.
+امنیت از مراحل ابتدایی توسعه در نظر گرفته می‌شود.
 
-زیرساخت CI فعلی شامل بررسی‌های امنیتی و کیفیتی مانند موارد زیر است:
+زیرساخت CI می‌تواند شامل:
 
-- GitHub CodeQL
-- Cppcheck
+- **GitHub CodeQL**
+- **Cppcheck**
 - Compiler Hardening
 - Sanitizer Validation
 - Automated Build Checks
-- Artifact Integrity
+- Artifact Integrity Checks
 - SHA-256 Checksums
 
-Build انتشار Windows همچنین از گزینه‌های Hardening زیر استفاده می‌کند:
+باشد.
+
+در Windows Release Build نیز گزینه‌های Hardening مانند:
 
 ```text
 /NXCOMPAT
@@ -944,7 +946,9 @@ Build انتشار Windows همچنین از گزینه‌های Hardening زی�
 /HIGHENTROPYVA
 ```
 
-جهت‌گیری بلندمدت امنیتی شامل موارد زیر است:
+در نظر گرفته شده‌اند.
+
+مسیر بلندمدت امنیت شامل:
 
 - Dependency Auditing
 - Artifact Integrity Verification
@@ -953,48 +957,48 @@ Build انتشار Windows همچنین از گزینه‌های Hardening زی�
 - Secure Extension Boundaries
 - Runtime Integrity Validation
 
-VoidOne ادعای Certification امنیتی یا امنیت مطلق ندارد، مگر اینکه چنین مواردی به‌صورت رسمی مستند شوند.
+است.
+
+VoidOne ادعای Security Certification یا امنیت مطلق ندارد، مگر اینکه چنین موضوعی به‌صورت رسمی مستند شود.
 
 ---
 
-# 📦 انتشارها
+# 📦 انتشار نسخه‌ها
 
-## 🚀 آخرین نسخه
+VoidOne از GitHub Releases برای انتشار Buildهای پروژه استفاده می‌کند.
+
+### آخرین نسخه
 
 <p>
   <a href="https://github.com/VoidOne-App/VoidOne/releases/latest">
-    <img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=آخرین%20نسخه" alt="آخرین نسخه" />
+    <img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=Latest%20Release" alt="Latest Release" />
   </a>
 </p>
 
-> 🧪 **کانال فعلی: Experimental**
+**آخرین Release:**
 
-تمام Releaseهای فعلی VoidOne **آزمایشی** هستند.
+https://github.com/VoidOne-App/VoidOne/releases/latest
 
-کانال Stable هنوز منتشر نشده است.
+> ⚠️ تا زمان انتشار نسخه پایدار رسمی، Releaseهای منتشرشده آزمایشی هستند.
 
-### 🚀 Stable — به‌زودی
+### تمام نسخه‌ها
 
-👉 https://github.com/VoidOne-App/VoidOne/releases/latest
+https://github.com/VoidOne-App/VoidOne/releases
 
----
-
-## 📚 تمام نسخه‌ها
-
-👉 https://github.com/VoidOne-App/VoidOne/releases
-
-بسته به تنظیمات Release Pipeline، فایل‌های زیر ممکن است منتشر شوند:
+بسته به نسخه و وضعیت Pipeline، Release ممکن است شامل:
 
 - Windows Installer
 - Windows MSI
-- Portable Windows ZIP
-- SHA-256 Checksums
+- Portable ZIP
+- SHA-256 Checksum
+
+باشد.
 
 ---
 
-# 🔐 بررسی صحت Release
+# 🔐 بررسی صحت فایل‌های منتشرشده
 
-هر زمان که فایل SHA-256 همراه Release ارائه شود، می‌توانید صحت فایل دانلودشده را به‌صورت محلی بررسی کنید.
+اگر یک SHA-256 Checksum همراه Release منتشر شده باشد، می‌توانید فایل دانلودشده را بررسی کنید.
 
 ### PowerShell
 
@@ -1002,23 +1006,21 @@ VoidOne ادعای Certification امنیتی یا امنیت مطلق ندار�
 Get-FileHash .\VoidOne-Windows-x64-Portable-<version>.zip -Algorithm SHA256
 ```
 
-Hash تولیدشده را با Checksum منتشرشده همراه همان Artifact مقایسه کنید.
-
-از نام دقیق فایل ارائه‌شده در Release استفاده کنید.
+Hash به‌دست‌آمده را با Checksum منتشرشده برای همان فایل مقایسه کنید.
 
 ---
 
-# 🔨 ساخت از سورس
+# 🔨 ساخت VoidOne از Source
 
-VoidOne در حال حاضر عمدتاً برای Windows توسعه و Package می‌شود.
+VoidOne در حال حاضر عمدتاً برای Windows توسعه و بسته‌بندی می‌شود.
 
-Linux نیز بخشی از مسیر توسعه Cross-Platform پروژه است.
+Linux نیز بخشی از مسیر Cross-Platform پروژه است.
 
-نیازمندی‌های Build ممکن است با رشد پروژه تغییر کنند.
+نیازمندی‌ها ممکن است در طول توسعه تغییر کنند.
 
 ---
 
-## 🪟 Windows
+## Windows
 
 محیط پیشنهادی:
 
@@ -1029,7 +1031,7 @@ Linux نیز بخشی از مسیر توسعه Cross-Platform پروژه است.
 - Ninja
 - Git
 
-Pipeline انتشار Windows در حال حاضر از موارد زیر استفاده می‌کند:
+Pipeline فعلی Windows از محیط‌هایی مانند:
 
 - Qt 6.8
 - MSVC x64
@@ -1037,31 +1039,33 @@ Pipeline انتشار Windows در حال حاضر از موارد زیر است
 - NSIS
 - WiX
 
+استفاده می‌کند.
+
 ---
 
-## 🐧 Linux
+## Linux
 
-محیط احتمالی توسعه:
+محیط احتمالی:
 
-- توزیع نسبتاً جدید Linux
+- توزیع Linux جدید
 - GCC یا Clang
 - Qt 6
 - CMake
 - Ninja
 - Git
-- کتابخانه‌های Development موردنیاز سیستم
+- System Development Libraries موردنیاز
 
-پشتیبانی Linux بخشی در حال تکامل از پروژه محسوب می‌شود.
+پشتیبانی Linux به‌صورت تدریجی توسعه خواهد یافت.
 
 ---
 
-## 🍎 macOS
+## macOS
 
 macOS در حال حاضر بخشی از Pipeline اصلی Build و Packaging نیست.
 
 ---
 
-# 📥 دریافت سورس
+# 📥 دریافت Source
 
 ```bash
 git clone https://github.com/VoidOne-App/VoidOne.git
@@ -1112,7 +1116,7 @@ cmake \
   -DCMAKE_CXX_STANDARD=23
 ```
 
-اگر Qt خارج از مسیرهای استاندارد نصب شده است:
+اگر Qt خارج از مسیرهای استاندارد نصب شده باشد:
 
 ```bash
 cmake \
@@ -1136,7 +1140,7 @@ cmake --build build --parallel
 
 # 🧪 Test
 
-اگر Targetهای CTest در Configuration فعلی موجود باشند:
+اگر Configuration فعلی Targetهای CTest را فراهم کند:
 
 ```bash
 ctest \
@@ -1166,25 +1170,47 @@ cmake \
 cmake --build build-analysis --parallel
 ```
 
-Configuration مربوط به CI مرجع اصلی Static Analysis خودکار پروژه است.
+Configuration دقیق CI همچنان منبع اصلی برای Static Analysis خودکار Repository است.
 
 ---
 
 # 📦 Windows Packaging
 
-Release Pipeline از **NSIS** و **WiX** برای Packaging ویندوز پشتیبانی می‌کند، در صورتی که Definitionهای مربوطه در Repository پیکربندی شده باشند.
+Pipeline انتشار Windows از Packaging با ابزارهایی مانند:
 
-فرآیند Release می‌تواند:
+- **NSIS**
+- **WiX Toolset**
 
-1. برنامه را Build کند.
-2. Runtimeهای موردنیاز Qt را Deploy کند.
-3. فایل‌های Deployment را اعتبارسنجی کند.
-4. Portable ZIP تولید کند.
-5. SHA-256 Checksum تولید کند.
-6. Installer ایجاد کند، در صورت فعال‌بودن Configuration مربوطه.
-7. Artifactهای Release را منتشر کند.
+پشتیبانی می‌کند، در صورتی که Configuration مربوطه در Repository فعال باشد.
 
-برای Deployment محلی Qt:
+فرآیند انتشار می‌تواند شامل:
+
+```text
+Build
+  │
+  ▼
+Qt Deployment
+  │
+  ▼
+Deployment Validation
+  │
+  ▼
+Portable ZIP
+  │
+  ▼
+SHA-256
+  │
+  ├──► Installer
+  │
+  └──► MSI
+         │
+         ▼
+       Release
+```
+
+باشد.
+
+برای Deployment محلی Qt می‌توان از `windeployqt` استفاده کرد:
 
 ```powershell
 windeployqt `
@@ -1195,18 +1221,18 @@ windeployqt `
   ".\path\to\VoidOne.exe"
 ```
 
-مسیر فایل اجرایی به Configuration فعلی Build بستگی دارد.
+مسیر Executable را مطابق Build خود تغییر دهید.
 
 ---
 
-# 🧪 تست و اعتبارسنجی
+# 🧪 Testing & Validation
 
-Testing بخشی از چرخه مهندسی VoidOne است.
+تست بخشی از چرخه توسعه VoidOne است.
 
-بسته به Configuration فعلی Repository، اعتبارسنجی می‌تواند شامل موارد زیر باشد:
+بسته به Configuration فعلی Repository، Validation می‌تواند شامل موارد زیر باشد:
 
 - CTest
-- Debug Build
+- Debug Builds
 - AddressSanitizer
 - Static Analysis
 - CodeQL
@@ -1215,36 +1241,36 @@ Testing بخشی از چرخه مهندسی VoidOne است.
 - Release Build Validation
 - Packaging Validation
 
-مشارکت‌کنندگان باید تست‌های مرتبط با تغییرات خود را پیش از ایجاد Pull Request اجرا کنند.
+Contributorها بهتر است پیش از ایجاد Pull Request، تست‌های مرتبط با تغییر خود را اجرا کنند.
 
 ---
 
 # 📏 سیاست Performance
 
-VoidOne ادعاهای Performance را به‌عنوان ادعاهای مهندسی در نظر می‌گیرد.
+ادعاهای عملکردی باید قابل تکرار باشند.
 
 اهداف فعلی:
 
 | معیار | هدف |
 | :--- | :--- |
-| RAM در Idle | `< 50 MB` |
+| Idle Memory | `< 50 MB` |
 | Cold Startup | `< 1.0s` |
-| Database Operations | هدف Sub-millisecond |
-| UI Rendering | هدف 60+ FPS |
-| Library Scanning | حداقل Block شدن UI |
+| Database Operations | Sub-millisecond Target |
+| UI Rendering | 60+ FPS Target |
+| Library Scanning | Minimal UI Blocking |
 
-پیش از تبدیل این اهداف به مشخصات رسمی اندازه‌گیری‌شده، Benchmarkها باید موارد زیر را ثبت کنند:
+پیش از اینکه هرکدام از این موارد به Specification رسمی تبدیل شوند، Benchmark باید شامل اطلاعات زیر باشد:
 
-- سخت‌افزار
-- سیستم‌عامل
+- Hardware
+- Operating System
 - Compiler
-- نسخه Qt
-- نسخه VoidOne
+- Qt Version
+- Application Version
 - Build Configuration
-- روش تست
-- شرایط اندازه‌گیری
+- Test Methodology
+- Measurement Conditions
 
-اندازه‌گیری‌های احتمالی:
+موارد قابل اندازه‌گیری:
 
 - Cold Startup
 - Warm Startup
@@ -1253,30 +1279,28 @@ VoidOne ادعاهای Performance را به‌عنوان ادعاهای مهن�
 - Library Scan Duration
 - Database Performance
 - CPU Utilization
-- UI Frame-Time
+- UI Frame Time
 - Background Workload Impact
 
-> **هدف این نیست که عملکرد را وعده بدهیم؛ هدف این است که آن را اثبات کنیم.**
+> **هدف، وعده دادن نیست؛ هدف، اندازه‌گیری و اثبات است.**
 
 ---
 
 # 🗺️ نقشه راه
 
-VoidOne به‌صورت مرحله‌ای توسعه داده می‌شود.
+VoidOne به‌صورت مرحله‌ای توسعه پیدا می‌کند.
 
-نقشه راه، **جهت توسعه بلندمدت** پلتفرم را نشان می‌دهد.
-
-قابلیت‌ها به‌مرور و با بالغ‌شدن معماری و پیاده‌سازی زیرساختی آن‌ها اضافه خواهند شد.
+موارد این Roadmap جهت توسعه پروژه هستند و تاریخ تحویل تضمین‌شده محسوب نمی‌شوند.
 
 ---
 
-## فاز I — پایه Native
+## مرحله I — Native Foundation
 
 - [x] پایه C++23
-- [x] پایه Qt / QML
-- [x] سیستم Build مبتنی بر CMake
-- [x] معماری Native Application
-- [x] زیرساخت GitHub Actions CI/CD
+- [x] Qt / QML Application Foundation
+- [x] CMake Build System
+- [x] Native Application Architecture
+- [x] GitHub Actions CI/CD
 - [x] CodeQL
 - [x] Cppcheck
 - [x] Sanitizer-Oriented Validation
@@ -1284,162 +1308,115 @@ VoidOne به‌صورت مرحله‌ای توسعه داده می‌شود.
 
 ---
 
-## فاز II — هوشمندی کتابخانه
+## مرحله II — Library Intelligence
 
 - [ ] Game Discovery
-- [ ] تشخیص Installation
+- [ ] Installation Detection
 - [ ] Local Library Persistence
 - [ ] Provider Integration
 - [ ] Metadata Normalization
-- [ ] Game Identity System
-- [ ] Library Indexing
 
 ---
 
-## فاز III — تجربه گیمینگ
+## مرحله III — Gaming Experience
 
-- [ ] رابط پیشرفته Library
-- [ ] Filtering و Categorization
-- [ ] Artwork و Metadata
-- [ ] Search
+- [ ] Advanced Library Interface
+- [ ] Filtering & Categorization
+- [ ] Artwork & Metadata
 - [ ] Personalization
-- [ ] Dynamic UI
-- [ ] QML Experience پیشرفته
+- [ ] UI Refinement
 
 ---
 
-## فاز IV — Execution
+## مرحله IV — Execution
 
 - [ ] Ghost Launch
 - [ ] Process Lifecycle Management
 - [ ] Launch Profiles
 - [ ] Runtime Configuration
-- [ ] Process Prioritization
-- [ ] Background Process Management
 - [ ] Local Playtime Tracking
 
 ---
 
-## فاز V — پلتفرم Multi-Store
-
-- [ ] Steam Integration
-- [ ] Epic Games Integration
-- [ ] GOG Integration
-- [ ] EA App Integration
-- [ ] Providerهای بیشتر
-- [ ] Installation Discovery
-- [ ] Provider-Aware Launching
-- [ ] Duplicate Detection
-- [ ] Cross-Provider Identity Normalization
-
----
-
-## فاز VI — پلتفرم Mod
+## مرحله V — Mod Platform
 
 - [ ] Mod Profiles
 - [ ] Virtual File Mapping
-- [ ] Non-Destructive Deployment
 - [ ] Dependency Management
 - [ ] Conflict Detection
-- [ ] Load-Order Management
 - [ ] Compatibility Management
 
 ---
 
-## فاز VII — هوشمندی و Diagnostics
+## مرحله VI — Intelligence
 
 - [ ] Local Gaming Analytics
 - [ ] Performance Diagnostics
-- [ ] Startup Analysis
-- [ ] Runtime Diagnostics
-- [ ] Performance History
 - [ ] Advanced Engineering Automation
 - [ ] Automated Failure Diagnosis
 - [ ] Automated Validation
 
 ---
 
-## فاز VIII — شخصی‌سازی
-
-- [ ] Dynamic Themes
-- [ ] Advanced Customization
-- [ ] Artwork-Driven Interfaces
-- [ ] RGB Customization
-- [ ] Accessibility Improvements
-- [ ] Advanced Display Support
-
----
-
-## فاز IX — Backup و Recovery
-
-- [ ] Configuration Backup
-- [ ] Library Backup
-- [ ] Game Profile Backup
-- [ ] Mod Profile Backup
-- [ ] Import / Export
-- [ ] Recovery Snapshots
-- [ ] Configuration Restoration
-
----
-
-## فاز X — اکوسیستم توسعه‌دهندگان
+## مرحله VII — Ecosystem
 
 - [ ] Extension APIs
 - [ ] Theme SDK
-- [ ] Provider APIs
 - [ ] Community Extensions
-- [ ] Custom Integrations
-- [ ] Developer Tooling
-- [ ] Extension Security Model
+- [ ] Additional Providers
+- [ ] Developer Ecosystem
 
 ---
 
-# 🏁 مسیر رسیدن به Stable
+## مرحله VIII — Platform Expansion
 
-اولین Stable Release یکی از Milestoneهای اصلی پروژه خواهد بود.
+- [ ] Advanced Process Orchestration
+- [ ] CPU Priority Profiles
+- [ ] Resource Optimization
+- [ ] Rich Metadata Engine
+- [ ] Advanced Backup & Recovery
+- [ ] Dynamic Themes
+- [ ] RGB Customization
+- [ ] Developer Tooling
+- [ ] Provider Expansion
+- [ ] Cross-Platform Maturity
 
-پیش از Stable، VoidOne قصد دارد به سطح مناسبی از موارد زیر برسد:
-
-- [ ] Core Feature Baseline
-- [ ] نصب قابل اعتماد
-- [ ] به‌روزرسانی قابل اعتماد
-- [ ] Runtime Stability
-- [ ] پوشش تست خودکار گسترده‌تر
-- [ ] Performance Benchmarking
-- [ ] Security Validation
-- [ ] تکمیل مستندات
-- [ ] Release Candidate Cycle
-- [ ] تعریف معیارهای Stable
-- [ ] اولین Stable Release
-
-> **Stable یک دستاورد مهندسی است؛ نه صرفاً یک برچسب نسخه.**
+> **تمام این قابلیت‌ها بخشی از مسیر توسعه VoidOne هستند و قرار است به‌صورت تدریجی اضافه شوند.**
 
 ---
 
 # 🤝 مشارکت
 
-مشارکت در VoidOne خوش‌آمد است.
+مشارکت در VoidOne آزاد است.
 
-می‌توانید در زمینه‌های مختلف کمک کنید:
+زمینه‌های مختلفی برای مشارکت وجود دارد:
 
 - C++
 - Qt / QML
-- UI/UX
+- UI / UX
 - Testing
 - Documentation
 - Bug Reports
 - Feature Proposals
-- Performance Improvements
+- Performance
 - Platform Support
-- Build Improvements
-- CI/CD Improvements
-- Security Improvements
+- Build Systems
+- CI/CD
+- Security
+- Developer Tooling
 
 ---
 
-## روند مشارکت
+# 🔧 روند مشارکت
 
-یک Branch جدید ایجاد کنید:
+ابتدا Repository را دریافت کنید:
+
+```bash
+git clone https://github.com/VoidOne-App/VoidOne.git
+cd VoidOne
+```
+
+Branch جدید بسازید:
 
 ```bash
 git checkout main
@@ -1447,7 +1424,7 @@ git pull origin main
 git checkout -b feature/your-feature
 ```
 
-تغییرات خود را انجام دهید و آن‌ها را محلی اعتبارسنجی کنید.
+پس از اعمال تغییرات، آن‌ها را تست کنید.
 
 سپس:
 
@@ -1457,18 +1434,16 @@ git commit -m "Add your feature"
 git push origin feature/your-feature
 ```
 
-در GitHub یک Pull Request ایجاد کنید.
+و Pull Request خود را ایجاد کنید.
 
-برای تغییرات مهم، توضیح دهید:
+برای تغییرات بزرگ، توضیح دهید:
 
-- چه چیزی تغییر کرده است
-- چرا تغییر کرده است
-- چگونه تست شده است
-- چه تأثیری روی Compatibility دارد
-- چه تأثیری روی Performance دارد
-- در صورت مرتبط‌بودن، چه ملاحظات امنیتی وجود دارد
+- چه چیزی تغییر کرده است.
+- چرا این تغییر لازم بوده است.
+- چگونه تست شده است.
+- آیا Compatibility تحت تأثیر قرار گرفته است یا خیر.
 
-تغییرات را تا حد ممکن کوچک، قابل بررسی و قابل نگهداری نگه دارید.
+تغییرات کوچک، متمرکز و قابل بررسی را ترجیح دهید.
 
 ---
 
@@ -1476,107 +1451,104 @@ git push origin feature/your-feature
 
 ## Evidence Over Marketing
 
-ادعاهای فنی باید با موارد زیر پشتیبانی شوند:
+ادعاهای فنی باید پشتوانه داشته باشند.
 
-- Implementation
-- Tests
-- Benchmarks
-- Documentation
-- Evidence قابل تکرار
+## Small Reviewable Changes
 
-## تغییرات کوچک و قابل بررسی
-
-تغییراتی را ترجیح دهید که متمرکز و قابل درک باشند.
+تغییرات کوچک‌تر، بررسی و نگهداری آسان‌تری دارند.
 
 ## Native First
 
-هرجا فناوری Native مزیت فنی معناداری ایجاد می‌کند، اولویت با آن است.
+در موارد مناسب، فناوری Native اولویت دارد.
 
 ## Security by Default
 
-امنیت باید از مرحله معماری و پیاده‌سازی در نظر گرفته شود.
+امنیت باید از مرحله طراحی در نظر گرفته شود.
 
 ## Human-Controlled Automation
 
-Automation و AI می‌توانند به مهندسی کمک کنند، اما مسئولیت تصمیم نهایی همچنان با انسان است.
+AI و Automation باید به مهندسی کمک کنند، نه اینکه مسئولیت مهندسی را حذف کنند.
 
-## Maintainability بلندمدت
+## Long-Term Maintainability
 
-VoidOne برای رشد بلندمدت طراحی می‌شود.
+کد باید برای رشد بلندمدت پروژه قابل نگهداری باشد.
 
-معماری باید موارد زیر را در اولویت قرار دهد:
-
-- مرزبندی واضح
-- Modularity
-- Testability
-- Extensibility
-- Maintainability
-
-## احترام به گیمر
+## Respect the Player
 
 هر قابلیت در نهایت باید به یک سؤال پاسخ دهد:
 
-> **آیا این قابلیت ارزش و کنترل بیشتری به گیمر می‌دهد، بدون اینکه چیزی را بدون دلیل از او بگیرد؟**
+> **آیا این قابلیت ارزش و کنترل بیشتری به گیمر می‌دهد، بدون اینکه آزادی یا منابع او را بدون دلیل از بین ببرد؟**
 
 ---
 
 # 🐛 گزارش مشکلات
 
-هنگام گزارش مشکل Build یا Runtime، اطلاعات زیر را در صورت امکان ارائه کنید:
+برای گزارش Build یا Runtime Problem، تا حد امکان موارد زیر را ارائه کنید:
 
-- سیستم‌عامل
+- Operating System
 - Compiler
-- نسخه Compiler
-- نسخه Qt
-- نسخه CMake
+- Compiler Version
+- Qt Version
+- CMake Version
 - Build Configuration
-- Error Messageهای مرتبط
-- مراحل بازتولید مشکل
+- Error Message
+- Steps to Reproduce
+- Debug Output
 
-برای مشکلات Runtime، خروجی Terminal یا Debug را نیز در صورت وجود قرار دهید.
-
-گزارش‌های دقیق باعث می‌شوند مشکلات سریع‌تر بازتولید و رفع شوند.
+گزارش دقیق باعث می‌شود مشکل سریع‌تر قابل بازتولید و حل باشد.
 
 ---
 
 # 📚 مستندات
 
-با رشد VoidOne، مستندات بیشتری برای حوزه‌های زیر اضافه خواهند شد:
+با رشد پروژه، مستندات بیشتری به Repository اضافه خواهد شد.
 
-- معماری
-- توسعه
-- Build System
-- CI/CD
-- Release Engineering
-- AI Repair
-- Security
-- Contribution Guidelines
-- Extension APIs
-- Theme Development
-- Provider Integrations
+Repository منبع اصلی حقیقت برای موارد زیر است:
 
-Repository همچنان مرجع اصلی برای موارد زیر است:
-
-- پیاده‌سازی فعلی
+- Current Implementation
 - Build Configuration
-- CI Workflowها
+- CI Workflows
 - Release Configuration
-- ابزارهای پشتیبانی‌شده
-- نیازمندی‌های توسعه
+- Supported Tooling
+- Development Requirements
 
-موارد موجود در Roadmap نباید به‌عنوان مدرکی برای وجود یک قابلیت در نسخه فعلی در نظر گرفته شوند.
+موارد موجود در Roadmap نباید به‌عنوان قابلیت فعلی پروژه در نظر گرفته شوند.
 
 ---
 
 # 📜 مجوز
 
-VoidOne تحت **مجوز MIT** منتشر می‌شود.
+VoidOne تحت **MIT License** منتشر می‌شود.
 
-برای متن کامل مجوز به فایل [`LICENSE`](LICENSE) مراجعه کنید.
+متن کامل مجوز در فایل زیر قرار دارد:
 
-Repository:
+```text
+LICENSE
+```
+
+Repository رسمی:
 
 https://github.com/VoidOne-App/VoidOne
+
+---
+
+# 🌌 چرا VoidOne؟
+
+چون PC Gaming نباید مجبور باشد حول فروشگاه‌ها ساخته شود.
+
+بازی‌های شما باید مرکز باشند.
+
+نه Store.
+
+نه Launcher.
+
+نه سرویس.
+
+نه تبلیغات.
+
+**بازی‌های شما.**
+
+و VoidOne قرار است لایه‌ای باشد که مدیریت آن‌ها را ساده‌تر، بازتر و قابل کنترل‌تر کند.
 
 ---
 
@@ -1586,37 +1558,39 @@ https://github.com/VoidOne-App/VoidOne
 
 ### بازی‌های شما. سخت‌افزار شما. قوانین شما.
 
-**ساخته‌شده توسط یک گیمر. مهندسی‌شده در سطح یک پلتفرم. توسعه‌یافته در فضای باز.**
+**ساخته‌شده توسط یک گیمر. مهندسی‌شده به‌عنوان یک پلتفرم. توسعه‌یافته در فضای باز.**
 
 <br />
 
-### ♾️ رایگان و متن‌باز
+### ♾️ Free & Open Source — Forever
 
-### 🚫 بدون تبلیغات. بدون Telemetry.
+### 🚫 No Ads. No Telemetry.
 
-### 🔒 داده‌های شما. کنترل شما.
+### 🔒 Your Data. Your Control.
 
-### 🎮 ساخته‌شده توسط گیمر، برای گیمرها.
-
-### 🧪 امروز آزمایشی. پایدار وقتی واقعاً آماده باشد.
+### 🎮 Built by a Gamer. For Gamers.
 
 <br />
 
 <a href="https://github.com/VoidOne-App/VoidOne">
-  <img src="https://img.shields.io/github/stars/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=Star%20VoidOne" alt="ستاره دادن به VoidOne" />
+  <img src="https://img.shields.io/github/stars/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=Star%20VoidOne" alt="Star VoidOne" />
 </a>
 
 <br />
 <br />
 
-**متن‌باز · Native · ماژولار · گیمرمحور**
+**Open Source · Native · Modular · Player-Focused**
 
 <br />
 
-<sub>
-VoidOne یک پروژه فعال در حال توسعه است.
+### 🧪 تمامی نسخه‌های فعلی آزمایشی هستند
+
+### 🟢 نسخه پایدار رسمی — به‌زودی
+
 <br />
-قابلیت‌ها به‌صورت تدریجی و هم‌زمان با تکامل پلتفرم اضافه خواهند شد.
-</sub>
+
+**VoidOne is not another store.**
+
+**It is the layer between you and your games.**
 
 </div>
