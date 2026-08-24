@@ -18,12 +18,11 @@ Window {
     minimumHeight: 540
     visible: true
     title: "VoidOne Engine"
-    
-    // رنگ پس‌زمینه از سیستم تم خوانده می‌شود
+
     color: theme.background
 
     // ---------------------------------------------------------
-    // ۱. سیستم تمینگ متمرکز (Business Theming Engine)
+    // 1. Centralized Theme Engine
     // ---------------------------------------------------------
     QtObject {
         id: theme
@@ -37,14 +36,14 @@ Window {
         property int radiusBase: 8
     }
 
-    // راست‌چین شدن هوشمند برنامه
-    LayoutMirroring.enabled: typeof trManager !== "undefined" ? trManager.currentLanguage === "fa" : false
+    // Dynamic RTL support (applies mirroring only when an RTL language like Persian or Arabic is active)
+    LayoutMirroring.enabled: typeof trManager !== "undefined" && trManager !== null ? (trManager.currentLanguage === "fa" || trManager.currentLanguage === "ar") : false
     LayoutMirroring.childrenInherit: true
 
     property string currentPage: "library"
 
     // ---------------------------------------------------------
-    // ۲. سیستم نوتیفیکیشن تجاری (Toast System)
+    // 2. Global Toast Notification System
     // ---------------------------------------------------------
     function showNotification(message, isError = false) {
         toastText.text = message
@@ -52,84 +51,94 @@ Window {
         toastAnim.restart()
     }
 
-    // لایه اصلی چیدمان
+    // Main layout container
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
         // ---------------------------------------------------------
-        // ۳. هدر تجاری (Top Bar: Search, Profile, Status)
+        // 3. Header / Top Bar
         // ---------------------------------------------------------
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 60
             color: theme.surface
-            
-            // خط جداکننده زیر هدر
+            z: 10
+
             Rectangle {
-                width: parent.width; height: 1
+                width: parent.width
+                height: 1
                 anchors.bottom: parent.bottom
                 color: theme.primaryTransparent
             }
 
             RowLayout {
                 anchors.fill: parent
-                anchors.margins: 15
+                anchors.leftMargin: 15
+                anchors.rightMargin: 15
                 spacing: 20
 
-                // نوار جستجوی زنده (Live Search)
                 TextField {
+                    id: searchInput
                     Layout.preferredWidth: 250
-                    Layout.preferredHeight: 35
-                    placeholderText: qsTr("جستجوی بازی...")
+                    Layout.preferredHeight: 36
+                    placeholderText: qsTr("Search games...")
                     color: theme.textPrimary
+                    placeholderTextColor: theme.textSecondary
+                    selectByMouse: true
+                    
                     background: Rectangle {
                         color: theme.background
                         radius: theme.radiusBase
-                        border.color: parent.activeFocus ? theme.primary : theme.primaryTransparent
+                        border.color: searchInput.activeFocus ? theme.primary : theme.primaryTransparent
+                        border.width: 1
                     }
+                    
                     onTextChanged: {
-                        if (typeof gameModel !== "undefined") {
-                            // فرض بر این است که متد فیلتر در بک‌اند دارید
-                            // gameModel.filter(text)
+                        if (typeof gameModel !== "undefined" && gameModel !== null && typeof gameModel.filter === "function") {
+                            gameModel.filter(text)
                         }
                     }
                 }
 
                 Item { Layout.fillWidth: true } // Spacer
 
-                // پروفایل کاربر و وضعیت شبکه
                 RowLayout {
-                    spacing: 10
-                    
+                    spacing: 12
+
                     Rectangle {
-                        width: 10; height: 10; radius: 5
-                        color: typeof networkManager !== "undefined" && networkManager.isOnline ? "#00ff00" : "#ffcc00"
-                        
-                        // انیمیشن پالس برای وضعیت آنلاین
+                        width: 10
+                        height: 10
+                        radius: 5
+                        color: typeof networkManager !== "undefined" && networkManager !== null && networkManager.isOnline ? "#00ff66" : "#ffcc00"
+
                         SequentialAnimation on opacity {
                             loops: Animation.Infinite
-                            NumberAnimation { to: 0.4; duration: 1000 }
-                            NumberAnimation { to: 1.0; duration: 1000 }
+                            NumberAnimation { to: 0.3; duration: 1000; easing.type: Easing.InOutQuad }
+                            NumberAnimation { to: 1.0; duration: 1000; easing.type: Easing.InOutQuad }
                         }
                     }
 
                     Text {
-                        text: "VoidUser" // در آینده از بک‌اند خوانده می‌شود
+                        text: "VoidUser"
                         color: theme.textPrimary
                         font.pixelSize: 14
                         font.bold: true
                     }
-                    
-                    // آواتار کاربر
+
                     Rectangle {
-                        width: 35; height: 35; radius: 17.5
+                        width: 36
+                        height: 36
+                        radius: 18
                         color: theme.primaryTransparent
                         border.color: theme.primary
+                        border.width: 1
+
                         Text {
                             anchors.centerIn: parent
                             text: "V"
                             color: theme.primary
+                            font.pixelSize: 16
                             font.bold: true
                         }
                     }
@@ -137,7 +146,7 @@ Window {
             }
         }
 
-        // بخش پایینی (سایدبار + محتوا)
+        // Main content body (Sidebar + View Stack)
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -147,7 +156,9 @@ Window {
                 id: sidebar
                 Layout.preferredWidth: 250
                 Layout.fillHeight: true
-                onPageChanged: (page) => { root.currentPage = page }
+                onPageChanged: function(page) { 
+                    root.currentPage = page 
+                }
             }
 
             Rectangle {
@@ -157,12 +168,13 @@ Window {
             }
 
             // ---------------------------------------------------------
-            // ۴. سیستم ترانزیشن نرم (Smooth Page Transitions)
+            // 4. Page Management (StackLayout)
             // ---------------------------------------------------------
             StackLayout {
                 id: contentStack
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                
                 currentIndex: {
                     switch (root.currentPage) {
                         case "library": return 0
@@ -171,15 +183,11 @@ Window {
                         default: return 0
                     }
                 }
-                
-                // رفتار انیمیشنی هنگام تغییر صفحات
-                Behavior on currentIndex {
-                    NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
-                }
 
-                // --- صفحات ---
+                // --- Library View ---
                 Item {
                     id: libraryPage
+                    
                     GridView {
                         id: gameGrid
                         anchors.fill: parent
@@ -187,84 +195,93 @@ Window {
                         cellWidth: 300
                         cellHeight: 210
                         clip: true
-                        model: typeof gameModel !== "undefined" ? gameModel : null
+                        
+                        model: typeof gameModel !== "undefined" && gameModel !== null ? gameModel : null
 
                         delegate: GameCard {
-                            gameId: model.id || 0
-                            gameName: model.name || "Unknown Game"
-                            exePath: model.exePath || ""
-                            iconPath: model.iconPath || ""
-                            platform: model.platform || "Custom"
+                            gameId: model.id !== undefined ? model.id : 0
+                            gameName: model.name !== undefined ? model.name : "Unknown Game"
+                            exePath: model.exePath !== undefined ? model.exePath : ""
+                            iconPath: model.iconPath !== undefined ? model.iconPath : ""
+                            platform: model.platform !== undefined ? model.platform : "Custom"
                             itemIndex: index
-                            
-                            // اتصال نوتیفیکیشن به اجرای بازی
-                            onLaunchRequested: (path) => {
-                                root.showNotification(qsTr("در حال اجرای بازی..."))
-                                if (typeof gameManager !== "undefined") gameManager.launchGame(path)
+
+                            onLaunchRequested: function(path) {
+                                root.showNotification(qsTr("Launching game..."))
+                                if (typeof gameManager !== "undefined" && gameManager !== null && typeof gameManager.launchGame === "function") {
+                                    gameManager.launchGame(path)
+                                }
                             }
                         }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: qsTr("کتابخانه خالی است.\nبازی‌های خود را اسکن کنید.")
-                            color: theme.textSecondary
-                            font.pixelSize: 16
-                            horizontalAlignment: Text.AlignHCenter
-                            visible: gameGrid.count === 0
-                        }
+                    }
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: qsTr("Your library is empty.\nScan for games to get started.")
+                        color: theme.textSecondary
+                        font.pixelSize: 16
+                        lineHeight: 1.3
+                        horizontalAlignment: Text.AlignHCenter
+                        visible: gameGrid.count === 0
                     }
                 }
 
+                // --- Marketplace View ---
                 Item {
                     id: marketplacePage
                     Text {
                         anchors.centerIn: parent
-                        text: qsTr("🛒 فروشگاه در حال ساخت است...")
+                        text: qsTr("🛒 Marketplace under construction...")
                         color: theme.primary
-                        font.pixelSize: 24
+                        font.pixelSize: 22
                         font.bold: true
                     }
                 }
 
+                // --- Settings View ---
                 Item {
                     id: settingsPage
-                    SaveBackupView { anchors.centerIn: parent }
+                    SaveBackupView { 
+                        anchors.centerIn: parent 
+                    }
                 }
             }
         }
     }
 
     // ---------------------------------------------------------
-    // ۵. لایه نوتیفیکیشن سراسری (Global Toast UI)
+    // 5. Global Toast UI Layer
     // ---------------------------------------------------------
     Rectangle {
         id: toastBg
         width: toastText.implicitWidth + 40
-        height: 40
+        height: 42
         radius: theme.radiusBase
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 30
         anchors.horizontalCenter: parent.horizontalCenter
-        opacity: 0 // در حالت عادی مخفی است
         
+        opacity: 0
+        visible: opacity > 0
+        z: 99
+
         Text {
             id: toastText
             anchors.centerIn: parent
-            color: "#0a0d12" // متن تیره روی پس‌زمینه روشن
+            color: "#0a0d12"
             font.bold: true
             font.pixelSize: 14
         }
 
         SequentialAnimation {
             id: toastAnim
-            NumberAnimation { target: toastBg; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            PauseAnimation { duration: 3000 }
-            NumberAnimation { target: toastBg; property: "opacity"; to: 0; duration: 400; easing.type: Easing.InCubic }
+            NumberAnimation { target: toastBg; property: "opacity"; to: 1; duration: 250; easing.type: Easing.OutCubic }
+            PauseAnimation { duration: 2800 }
+            NumberAnimation { target: toastBg; property: "opacity"; to: 0; duration: 350; easing.type: Easing.InCubic }
         }
     }
-    
-    // تست نوتیفیکیشن هنگام لود شدن لانچر
+
     Component.onCompleted: {
-        showNotification(qsTr("موتور VoidOne با موفقیت بارگذاری شد!"))
+        showNotification(qsTr("VoidOne Engine loaded successfully!"))
     }
 }
