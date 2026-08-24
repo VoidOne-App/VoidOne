@@ -28,10 +28,11 @@
 
 <p>
   <img src="https://img.shields.io/badge/C%2B%2B-23-00599C?style=for-the-badge&logo=cplusplus&logoColor=white" alt="C++23" />
-  <img src="https://img.shields.io/badge/Qt-6-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="Qt 6" />
+  <img src="https://img.shields.io/badge/Qt-6.8-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="Qt 6.8" />
   <img src="https://img.shields.io/badge/QML-QtQuick-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="QML / Qt Quick" />
   <img src="https://img.shields.io/badge/SQLite-Local%20Storage-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" />
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows and Linux" />
+  <img src="https://img.shields.io/badge/License-MIT-FFD60A?style=for-the-badge" alt="MIT License" />
 </p>
 
 <br />
@@ -49,6 +50,7 @@
   <a href="#-performance-goals">Performance</a> •
   <a href="#-architecture">Architecture</a> •
   <a href="#-engineering-infrastructure">Engineering</a> •
+  <a href="#-releases">Releases</a> •
   <a href="#-roadmap">Roadmap</a> •
   <a href="#-build-from-source">Build</a> •
   <a href="#-contributing">Contributing</a>
@@ -60,26 +62,39 @@
 
 ## 👁️ About
 
-**VoidOne** is an open-source, native PC gaming platform being engineered around a simple principle:
+**VoidOne** is an open-source, native PC gaming platform being engineered around a simple idea:
 
 > **Your games should be the center of your gaming experience — not the stores distributing them.**
 
-PC gaming is fragmented across storefronts, launchers, installation directories, platform manifests, configuration systems, metadata providers, and independent game executables.
+PC gaming is fragmented across storefronts, launchers, installation directories, platform manifests, configuration systems, metadata providers, background processes, and independent game executables.
 
-VoidOne aims to provide a native layer between the player and that fragmented ecosystem.
+VoidOne is being built as a native layer between the player and that fragmented ecosystem.
 
-Built around modern technologies including:
+The project is built around modern technologies including:
 
 - **C++23**
-- **Qt 6**
+- **Qt 6.8**
 - **QML / Qt Quick**
 - **SQLite**
 - **CMake**
 - **Ninja**
 
-VoidOne is currently an actively developed project. Its long-term direction extends beyond a traditional launcher toward a unified platform for game discovery, library management, execution, optimization, mod management, local intelligence, and extensibility.
+VoidOne is an actively developed project.
 
-The distinction between **current implementation** and **future direction** is intentional throughout this README.
+Its long-term direction extends beyond a traditional launcher toward a broader native gaming platform covering areas such as:
+
+- Game discovery
+- Library management
+- Native execution
+- Process orchestration
+- Performance optimization
+- Metadata
+- Mod management
+- Local analytics
+- Extensibility
+- Developer tooling
+
+This README intentionally distinguishes between **current implementation** and **future platform direction**.
 
 ---
 
@@ -111,13 +126,13 @@ It is being built to become the layer between:
                                      │
                                      ▼
                          ┌───────────────────────┐
-                         │    OPERATING SYSTEM   │
+                         │   OPERATING SYSTEM   │
                          └───────────────────────┘
 ```
 
-The goal is not to replace the gaming ecosystem with another closed ecosystem.
+The objective is not to replace the gaming ecosystem with another closed ecosystem.
 
-The goal is to give the player a native, open, and extensible layer that works with the ecosystem they already use.
+The objective is to provide players with an open, native, extensible layer that works with the ecosystem they already use.
 
 > **VoidOne is not being built to become another storefront. It is being built to become the layer between the player, the operating system, and the gaming ecosystem.**
 
@@ -127,13 +142,15 @@ The goal is to give the player a native, open, and extensible layer that works w
 
 VoidOne is built **by a gamer, for gamers**.
 
-This is not simply a marketing statement.
+This is more than a product statement.
 
-It is the project's commitment to the people who use it.
+It is a commitment to the people who use it.
 
 ## ♾️ Free & Open-Source — Forever
 
-VoidOne is committed to remaining **free and open-source**.
+VoidOne is committed to being **free and open-source**.
+
+The core project is released under the **MIT License**.
 
 No mandatory subscription for the core platform.
 
@@ -157,11 +174,11 @@ VoidOne is being engineered around an ambitious performance goal:
 
 This is an **engineering target**, not a guaranteed specification of the current release.
 
-The goal is to avoid unnecessary:
+The goal is to minimize unnecessary:
 
 - Background services
-- Heavy runtimes
 - Persistent processes
+- Heavy runtimes
 - Resource-hungry components
 - Hidden workloads
 
@@ -203,7 +220,9 @@ We are building a tool to give players **more control over the ecosystem they al
 >
 > ### **No Ads. No Telemetry.**
 >
-> ### **Your data. Your control.**
+> ### **Under 50 MB RAM — as an engineering target.**
+>
+> ### **100% control over your data.**
 >
 > ### **Built by a gamer. For gamers.**
 >
@@ -227,7 +246,7 @@ Prefer local processing and local persistence whenever practical.
 
 ### ⚡ Lightweight by Design
 
-Dependencies, services, runtimes, and background processes should justify their resource cost.
+Dependencies, runtimes, services, and background processes should justify their resource cost.
 
 ### 🎮 User Ownership
 
@@ -239,7 +258,7 @@ The project should remain transparent, inspectable, modifiable, and accessible t
 
 ### 📐 Evidence Over Marketing
 
-Technical claims should be backed by implementation, testing, or reproducible benchmarks.
+Technical claims should be supported by implementation, testing, or reproducible benchmarks.
 
 ---
 
@@ -247,14 +266,14 @@ Technical claims should be backed by implementation, testing, or reproducible be
 
 This section describes the project's **current engineering foundation**.
 
-Future capabilities are intentionally excluded from current-feature claims.
+Future capabilities are intentionally not presented as current functionality.
 
 ## 💻 Native Application
 
 VoidOne is built around:
 
 - **C++23**
-- **Qt 6**
+- **Qt 6.8**
 - **QML / Qt Quick**
 - **SQLite**
 - **CMake**
@@ -272,11 +291,21 @@ SQLite provides local persistence for application data.
 
 The architecture is designed around local ownership rather than requiring a mandatory remote backend for the core application.
 
-## 🔄 Cross-Platform Engineering
+## 🔄 CI-Driven Engineering
 
-VoidOne is primarily developed and tested on **Windows**, with Linux builds also exercised through the project's CI infrastructure.
+The repository currently contains an automated GitHub Actions pipeline covering build, validation, static analysis, security analysis, testing, packaging, and release-related automation.
 
-macOS is not currently part of the primary build/test configuration.
+The workflow is defined in:
+
+`.github/workflows/c.cpp.yml`
+
+## 🪟 Platform Direction
+
+Windows is currently the primary build and packaging environment.
+
+Linux is part of the project's broader cross-platform engineering direction and is intended to expand as the platform matures.
+
+macOS is not currently part of the primary build configuration.
 
 ---
 
@@ -284,7 +313,7 @@ macOS is not currently part of the primary build/test configuration.
 
 The following capabilities represent **planned, future, or long-term engineering directions**.
 
-> **These are roadmap capabilities and must not be interpreted as generally available functionality in the current release unless the repository explicitly implements them.**
+> **These capabilities must not be interpreted as generally available functionality in the current release unless explicitly implemented in the repository.**
 
 Long-term platform direction includes:
 
@@ -560,11 +589,11 @@ Security, stability, and maintainability should remain requirements for any exte
 
 Performance is a core engineering objective.
 
-The following values are **long-term targets**, not guaranteed specifications of the current release.
+The following values are **long-term engineering targets**, not guaranteed specifications of the current release.
 
 | Metric | Engineering Target | Direction |
 | :--- | :--- | :--- |
-| **Idle Memory** | `< 50 MB` | Native C++ architecture and lightweight runtime |
+| **Idle Memory** | `< 50 MB` | Native architecture and lightweight runtime |
 | **Cold Startup** | `< 1.0s` | Lazy initialization and asynchronous startup |
 | **Database Operations** | Sub-millisecond target | Efficient SQLite queries and indexing |
 | **UI Rendering** | 60+ FPS target | Qt Quick scene graph and hardware acceleration |
@@ -651,88 +680,105 @@ The second diagram represents the **long-term platform architecture**, not a cla
 | Technology | Role |
 | :--- | :--- |
 | **C++23** | Native application and systems development |
-| **Qt 6** | Application framework |
+| **Qt 6.8** | Application framework |
 | **QML / Qt Quick** | Graphical interface |
 | **SQLite** | Local persistence |
 | **CMake** | Build configuration |
 | **Ninja** | Build execution |
-| **CTest** | Test execution where configured |
+| **CTest** | Automated testing where configured |
 | **GitHub Actions** | CI/CD automation |
-| **Clang / clang-tidy** | Static analysis where configured |
-| **AddressSanitizer** | Memory diagnostics where configured |
-| **UndefinedBehaviorSanitizer** | Undefined-behavior diagnostics where configured |
+| **CodeQL** | C++ security analysis |
+| **Cppcheck** | Static analysis |
+| **AddressSanitizer** | Runtime memory diagnostics |
+| **MSVC** | Windows C++ toolchain |
+| **NSIS** | Windows installer generation |
+| **WiX Toolset** | Windows MSI packaging |
+| **Ollama** | Local AI infrastructure used by engineering automation |
+| **Gemini** | AI-assisted engineering infrastructure |
+| **Qwen2.5-Coder** | Coding model used by AI Repair infrastructure |
 
 ---
 
 # 🤖 Engineering Infrastructure
 
-VoidOne uses automation to improve the development lifecycle.
+VoidOne uses automation to reduce repetitive engineering work and improve the development lifecycle.
 
-This infrastructure is separate from the player's product experience.
+This infrastructure is separate from the player-facing product experience.
 
 ## 🔄 Automated CI/CD
 
-The repository uses GitHub Actions for automated engineering workflows.
+The repository's current GitHub Actions workflow automates multiple stages of the engineering lifecycle.
 
-Depending on the active workflow configuration, automation can cover areas such as:
+The active workflow includes areas such as:
 
-- Windows builds
-- Linux builds
+- Release-tag validation
+- C++ static analysis
+- CodeQL analysis
+- Cppcheck
 - Debug builds
+- Sanitizer validation
 - Release builds
-- Unit tests
-- Sanitizer builds
-- Static analysis
-- QML validation
-- Packaging
-- Artifact generation
+- CTest execution where configured
+- Qt deployment
+- Windows packaging
+- Portable ZIP generation
 - SHA-256 checksum generation
+- Release artifact publishing
+- Automated release notifications
 
-The repository's workflow definitions are the source of truth for the exact current CI configuration.
+The workflow also supports scheduled automated health checks and manual workflow execution.
+
+The repository's workflow file remains the authoritative source for exact CI behavior.
 
 ## 🧠 AI Repair
 
-VoidOne also contains an **AI Repair** engineering workflow.
+VoidOne includes an **AI Repair** engineering workflow.
 
-AI Repair exists to assist with software-engineering failures such as diagnosis, candidate fixes, and validation.
+AI Repair is **not a player-facing product feature**.
 
-It is **not** presented as an autonomous authority.
+It is an engineering automation layer intended to help developers investigate CI failures and prepare candidate fixes.
 
-The intended engineering flow is:
+The infrastructure can work with components such as:
+
+- **Gemini**
+- **Qwen2.5-Coder**
+- **Ollama**
+- GitHub Actions
+- Build logs
+- C++ / Qt tooling
+- Automated validation
+
+The intended engineering loop is:
 
 ```text
-CI Failure
-    │
-    ▼
-AI-Assisted Diagnosis
-    │
-    ▼
-Candidate Patch
-    │
-    ▼
-Validation
-    │
-    ├───────────────┐
-    ▼               ▼
-  Build           Tests
-    │               │
-    └───────┬───────┘
-            ▼
-      Human Review
-            │
-            ▼
-          Merge
+                 CI Failure
+                     │
+                     ▼
+             Failure Analysis
+                     │
+                     ▼
+             AI-Assisted Repair
+                     │
+                     ▼
+              Candidate Patch
+                     │
+                     ▼
+               Build / Checks
+                     │
+                     ▼
+              Automated Tests
+                     │
+                     ▼
+             Draft Pull Request
+                     │
+                     ▼
+                Human Review
+                     │
+                     ▼
+                   Merge
 ```
 
-Potential uses include:
-
-- Failure diagnosis
-- Code analysis
-- Candidate patch generation
-- Build validation
-- Test validation
-- Regression investigation
-- Engineering feedback
+AI Repair is designed to **assist engineering**, not replace engineering ownership.
 
 > **AI accelerates engineering. It does not replace engineering ownership.**
 
@@ -740,17 +786,33 @@ AI-generated changes remain subject to validation, review, and repository policy
 
 ---
 
-# 🛡️ Security
+# 🛡️ Security Engineering
 
 Security is treated as an engineering concern throughout development.
 
-Current security-related validation depends on the active repository configuration.
+The current CI infrastructure includes security-oriented validation such as:
+
+- **GitHub CodeQL**
+- **Cppcheck**
+- Compiler hardening flags
+- Sanitizer-enabled validation
+- Automated build checks
+- Artifact integrity checks
+- SHA-256 checksum generation
+
+The Windows release build also enables compiler/linker hardening options including:
+
+```text
+/NXCOMPAT
+/DYNAMICBASE
+/GUARD:CF
+/HIGHENTROPYVA
+```
 
 Long-term security direction includes:
 
 - Dependency auditing
 - Artifact integrity verification
-- Release validation
 - Reproducible builds
 - Hardened update mechanisms
 - Secure extension boundaries
@@ -760,42 +822,52 @@ VoidOne does not claim security certifications or absolute security guarantees u
 
 ---
 
-# 📥 Download
+# 📦 Releases
 
 ## 🚀 Latest Release
 
-Use the official GitHub **Latest Release** endpoint:
+VoidOne uses GitHub's dynamic latest-release endpoint rather than hardcoding a version number.
 
-**https://github.com/VoidOne-App/VoidOne/releases/latest**
+<p>
+  <a href="https://github.com/VoidOne-App/VoidOne/releases/latest">
+    <img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?style=for-the-badge&logo=github&logoColor=white&label=Latest%20Release" alt="Latest Release" />
+  </a>
+</p>
 
-This automatically points to the latest published release without requiring the README to hardcode a version number.
+**Open the latest release:**
 
-## 📦 All Releases
+https://github.com/VoidOne-App/VoidOne/releases/latest
 
-**https://github.com/VoidOne-App/VoidOne/releases**
+GitHub's `releases/latest` endpoint resolves to the repository's latest published release. 0
 
-Release assets depend on the individual release and may include:
+## 📚 All Releases
 
-- Windows installers
-- Portable archives
-- Linux archives
-- SHA-256 checksums
+https://github.com/VoidOne-App/VoidOne/releases
 
-Always use the assets published with the corresponding release.
+Release assets are generated according to the repository's release workflow.
+
+Depending on the release, assets may include:
+
+- Windows installer
+- Windows MSI package
+- Portable Windows ZIP
+- SHA-256 checksum files
+
+GitHub releases are versioned software snapshots associated with repository tags and can contain downloadable release assets. 1
 
 ---
 
 # 🔐 Verify Release Integrity
 
-When SHA-256 checksums are provided, verify downloaded artifacts locally.
+When a SHA-256 checksum is provided with a release artifact, verify the downloaded file locally.
 
 ### PowerShell
 
 ```powershell
-Get-FileHash .\VoidOne-Windows-x64-Portable.zip -Algorithm SHA256
+Get-FileHash .\VoidOne-Windows-x64-Portable-<version>.zip -Algorithm SHA256
 ```
 
-Compare the generated hash with the checksum published alongside the corresponding release.
+Compare the resulting hash with the checksum published alongside the same release artifact.
 
 Use the exact filename supplied by the release.
 
@@ -803,7 +875,9 @@ Use the exact filename supplied by the release.
 
 # 🔨 Build From Source
 
-VoidOne is primarily developed and tested on Windows, with Linux builds also exercised through CI.
+VoidOne is primarily developed and packaged for Windows.
+
+Linux remains part of the broader cross-platform engineering direction.
 
 Build requirements may evolve as the project develops.
 
@@ -812,16 +886,17 @@ Build requirements may evolve as the project develops.
 Recommended environment:
 
 - Windows 10 or Windows 11
-- Visual Studio 2022 or Visual Studio Build Tools 2022
-- MSVC x64
-- Qt 6
+- Visual Studio 2022 / MSVC
+- Qt 6.8
 - CMake
 - Ninja
 - Git
 
+The repository's CI currently uses Qt **6.8.0**, MSVC x64, Ninja, NSIS, and WiX for its Windows release pipeline.
+
 ## Linux
 
-Recommended environment:
+Potential development environment:
 
 - Recent Linux distribution
 - GCC or Clang
@@ -831,11 +906,11 @@ Recommended environment:
 - Git
 - Required system development libraries
 
+Linux support should be considered an evolving part of the project rather than equivalent to the current Windows release pipeline.
+
 ## macOS
 
-macOS is not currently part of the primary build/test configuration.
-
-Future platform support may be considered as the project matures.
+macOS is not currently part of the primary build and packaging pipeline.
 
 ---
 
@@ -870,10 +945,10 @@ cmake `
   -G Ninja `
   -DCMAKE_BUILD_TYPE=Release `
   -DCMAKE_CXX_STANDARD=23 `
-  -DCMAKE_PREFIX_PATH="C:\Qt\6.x.x\msvc2022_64"
+  -DCMAKE_PREFIX_PATH="C:\Qt\6.8.0\msvc2022_64"
 ```
 
-Replace the Qt path with the actual installation path.
+Adjust the Qt installation path to match your environment.
 
 ### Linux
 
@@ -886,7 +961,7 @@ cmake \
   -DCMAKE_CXX_STANDARD=23
 ```
 
-If Qt is installed outside the standard environment:
+If Qt is installed outside the standard search paths:
 
 ```bash
 cmake \
@@ -906,20 +981,19 @@ cmake --build build --parallel
 
 ## 🧪 Test
 
-If tests are configured for the selected build:
+If the current configuration provides CTest targets:
 
 ```bash
 ctest \
   --test-dir build \
-  --output-on-failure \
-  --parallel 2
+  --output-on-failure
 ```
 
 ---
 
 # 🔍 Static Analysis
 
-Where supported by the active build configuration, Clang and `clang-tidy` can be used for additional analysis.
+For development environments where `clang-tidy` is available:
 
 ```bash
 cmake \
@@ -928,7 +1002,6 @@ cmake \
   -G Ninja \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_CXX_STANDARD=23 \
-  -DCMAKE_CXX_COMPILER=clang++ \
   -DCMAKE_CXX_CLANG_TIDY=clang-tidy
 ```
 
@@ -938,30 +1011,36 @@ Then:
 cmake --build build-analysis --parallel
 ```
 
+The repository's CI configuration remains the authoritative source for the exact static-analysis configuration used in automated validation.
+
 ---
 
-# 📦 Packaging
+# 📦 Windows Packaging
 
-## Windows
+The release pipeline currently supports Windows packaging through **NSIS** and **WiX** where the corresponding installer definitions are present.
 
-Qt's `windeployqt` can be used to deploy required Qt runtime components alongside a Windows build.
+The CI pipeline also:
 
-Example:
+1. Builds the application.
+2. Deploys the required Qt runtime.
+3. Validates critical deployment files.
+4. Produces a portable ZIP.
+5. Generates SHA-256 checksums.
+6. Produces installer artifacts when configured.
+7. Publishes release artifacts for tagged releases.
+
+For local Qt deployment, `windeployqt` can be used where appropriate:
 
 ```powershell
 windeployqt `
   --release `
-  --qmldir ".\src\ui\qml" `
-  ".\build\path\to\VoidOneLauncher.exe"
+  --compiler-runtime `
+  --no-translations `
+  --qmldir ".\src" `
+  ".\path\to\VoidOne.exe"
 ```
 
 The exact executable path depends on the current CMake configuration.
-
-The repository's automated workflows handle configured packaging and artifact generation.
-
-## Linux
-
-Configured CI workflows can package Linux release builds and generate SHA-256 checksums.
 
 ---
 
@@ -969,17 +1048,62 @@ Configured CI workflows can package Linux release builds and generate SHA-256 ch
 
 Testing is part of the engineering lifecycle.
 
-Depending on the active configuration, validation may include:
+Depending on the current repository configuration, validation may include:
 
-- Unit tests
-- Build validation
+- CTest
+- Debug builds
 - AddressSanitizer
-- UndefinedBehaviorSanitizer
 - Static analysis
+- CodeQL
+- Cppcheck
 - QML validation
-- Cross-platform build verification
+- Release build validation
+- Packaging validation
 
-Contributors should run the relevant validation before opening a pull request.
+The CI pipeline currently includes a sanitizer-oriented debug job for configured pull-request and scheduled runs.
+
+Contributors should run the validation relevant to their changes before opening a pull request.
+
+---
+
+# 📏 Performance Policy
+
+Performance claims should be reproducible.
+
+The following are **engineering targets**, not guaranteed current specifications:
+
+| Metric | Target |
+| :--- | :--- |
+| Idle memory | `< 50 MB` |
+| Cold startup | `< 1.0s` |
+| Database operations | Sub-millisecond target |
+| UI rendering | 60+ FPS target |
+| Library scanning | Minimal UI blocking |
+
+Before any target is presented as an official measured specification, benchmark results should document:
+
+- Hardware
+- Operating system
+- Compiler
+- Qt version
+- Application version
+- Build configuration
+- Test methodology
+- Measurement conditions
+
+Potential measurements include:
+
+- Cold startup
+- Warm startup
+- Idle memory
+- Peak memory
+- Library scan duration
+- Database performance
+- CPU utilization
+- UI frame-time
+- Background workload impact
+
+> **The goal is not to promise performance. The goal is to prove it.**
 
 ---
 
@@ -987,7 +1111,7 @@ Contributors should run the relevant validation before opening a pull request.
 
 VoidOne is being developed incrementally.
 
-Roadmap items represent engineering direction and do not constitute guaranteed delivery dates.
+Roadmap items represent engineering direction and should not be interpreted as guaranteed delivery dates.
 
 ## Phase I — Native Foundation
 
@@ -995,8 +1119,11 @@ Roadmap items represent engineering direction and do not constitute guaranteed d
 - [x] Qt / QML application foundation
 - [x] CMake build system
 - [x] Native application architecture
-- [x] GitHub Actions infrastructure
-- [x] Cross-platform CI foundation
+- [x] GitHub Actions CI/CD infrastructure
+- [x] CodeQL integration
+- [x] Cppcheck integration
+- [x] Sanitizer-oriented validation
+- [x] Windows release packaging pipeline
 
 ## Phase II — Library Intelligence
 
@@ -1069,7 +1196,7 @@ You can contribute through:
 
 ## Contribution Workflow
 
-Create a focused feature branch:
+Create a feature branch:
 
 ```bash
 git checkout main
@@ -1077,7 +1204,7 @@ git pull origin main
 git checkout -b feature/your-feature
 ```
 
-Make your changes and test them locally.
+Make your changes and validate them locally.
 
 Then:
 
@@ -1094,7 +1221,7 @@ For substantial changes, explain:
 - What changed
 - Why it changed
 - How it was tested
-- Any relevant compatibility considerations
+- Any compatibility considerations
 
 Keep changes focused, reviewable, and maintainable.
 
@@ -1134,7 +1261,7 @@ Every feature should ultimately answer one question:
 
 ---
 
-# 🐛 Reporting Issues
+# 🐛 Reporting Problems
 
 When reporting a build or runtime problem, include:
 
@@ -1149,19 +1276,24 @@ When reporting a build or runtime problem, include:
 
 For runtime failures, include available terminal or debug output.
 
-Clear reports make issues easier to reproduce and resolve.
+Clear reports make problems easier to reproduce and resolve.
 
 ---
 
 # 📚 Documentation
 
-Additional project documentation may include:
+Additional documentation may be added to the repository as the project grows.
 
-- `BUILD.md` — Build and development guidance
-- `CONTRIBUTING.md` — Contribution guidance
-- `TROUBLESHOOTING.md` — Troubleshooting information
+The repository itself remains the source of truth for:
 
-The repository remains the source of truth for current implementation details.
+- Current implementation
+- Build configuration
+- CI workflows
+- Release configuration
+- Supported tooling
+- Development requirements
+
+Do not rely on roadmap items as evidence that a feature is already implemented.
 
 ---
 
@@ -1187,11 +1319,13 @@ https://github.com/VoidOne-App/VoidOne
 
 <br />
 
-**♾️ Free & Open Source — Forever**
+### ♾️ Free & Open-Source — Forever
 
-**🚫 No Ads. No Telemetry.**
+### 🚫 No Ads. No Telemetry.
 
-**🔒 Your Data. Your Control.**
+### 🔒 Your Data. Your Control.
+
+### 🎮 Built by a Gamer. For Gamers.
 
 <br />
 
@@ -1205,3 +1339,4 @@ https://github.com/VoidOne-App/VoidOne
 **Open Source · Native · Modular · Player-Focused**
 
 </div>
+````2
