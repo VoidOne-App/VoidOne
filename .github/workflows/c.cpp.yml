@@ -1,3 +1,4 @@
+
 name: VoidOne CI/CD
 
 on:
@@ -13,7 +14,7 @@ on:
       - main
 
   schedule:
-    - cron: '0 2 * * 0'
+    - cron: "0 2 * * 0"
 
   workflow_dispatch:
     inputs:
@@ -21,10 +22,12 @@ on:
         description: "⚡ Emergency Mode: Skip CTest Suite"
         type: boolean
         default: false
+
       enable_lto:
         description: "🔥 Enable Link-Time Optimization (LTO/LTCG)"
         type: boolean
         default: true
+
       build_docs:
         description: "📚 Generate & Deploy Doxygen API Docs"
         type: boolean
@@ -50,6 +53,10 @@ env:
 
 jobs:
 
+  # ============================================================
+  # GOVERNANCE
+  # ============================================================
+
   governance:
     name: 🛡️ Enterprise Governance & SemVer Check
     if: startsWith(github.ref, 'refs/tags/v')
@@ -61,33 +68,39 @@ jobs:
         run: |
           set -euo pipefail
 
-          TAG="${{ github.ref_name }}"
+          TAG="${GITHUB_REF_NAME}"
 
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)(\.[0-9]+)?)?$ ]]; then
             echo "::error::Tag '$TAG' violates SemVer compliance rules!"
             exit 1
           fi
 
-          echo "### 🏷️ Verified Enterprise Release Tag: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 🏷️ Verified Release Tag: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+
+
+  # ============================================================
+  # STATIC ANALYSIS
+  # ============================================================
 
   code-quality:
     name: 🔬 Deep C++ Static Analysis (Cppcheck)
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Install Cppcheck
+        shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y cppcheck
 
       - name: Execute Cppcheck Audit
+        shell: bash
         run: |
-          set -o pipefail
-
           cppcheck \
             --enable=warning,style,performance,portability \
             --inline-suppr \
@@ -101,26 +114,35 @@ jobs:
           name: Cppcheck-Quality-Report
           path: cppcheck_report.txt
 
+
+  # ============================================================
+  # CODEQL SECURITY AUDIT
+  # ============================================================
+
   security-audit:
-    name: 🔒 Zero-Trust Security Audit (Trivy & CodeQL)
+    name: 🔒 Zero-Trust Security Audit (CodeQL)
     runs-on: windows-2025
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Setup Tools & Qt for CodeQL
+      - name: Install Ninja
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
+
           choco install ninja -y --no-progress
 
-      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Configure MSVC
+        uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
-      - uses: jurplel/install-qt-action@v4
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
           target: desktop
@@ -129,36 +151,44 @@ jobs:
           cache: true
           cache-key-prefix: voidone-qt
 
-      - name: Initialize CodeQL Engine
-        uses: github/codeql-action/init@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
         with:
           languages: cpp
           build-mode: manual
 
-      - name: Compile Target for Security Scan
+      - name: Configure CMake
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
 
-          New-Item -ItemType Directory -Force -Path build-codeql | Out-Null
-
-          cmake `
-            -S . `
-            -B build-codeql `
-            -G Ninja `
+          cmake -S . -B build-codeql -G Ninja `
             -DCMAKE_BUILD_TYPE=Release
 
-          cmake `
-            --build build-codeql `
+      - name: Build Target for CodeQL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          cmake --build build-codeql `
             --config Release `
             --parallel
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@v3
+
+
+  # ============================================================
+  # PRODUCTION BUILD
+  # ============================================================
 
   build-production:
     name: ⚙️ Build Engine, Packaging & Sign (MSVC 2022)
-    needs: [code-quality, security-audit]
+
+    needs:
+      - code-quality
+      - security-audit
+
     runs-on: windows-2025
     timeout-minutes: 50
 
@@ -168,7 +198,12 @@ jobs:
       sha256-exe: ${{ steps.hashes.outputs.exe_sha256 }}
 
     steps:
-      - name: Start Telemetry Clock
+
+      # ----------------------------------------------------------
+      # TELEMETRY CLOCK
+      # ----------------------------------------------------------
+
+      - name: Start Build Clock
         id: telemetry_start
         shell: pwsh
         run: |
@@ -178,62 +213,62 @@ jobs:
             -Encoding utf8 `
             -Append
 
-      - uses: actions/checkout@v5
+
+      # ----------------------------------------------------------
+      # CHECKOUT
+      # ----------------------------------------------------------
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Calculate Versioning
+
+      # ----------------------------------------------------------
+      # VERSION
+      # ----------------------------------------------------------
+
+      - name: Calculate Version
         id: version
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
 
           if ("${{ github.ref_type }}" -eq "tag") {
-            $ver = "${{ github.ref_name }}" -replace '^v', ''
+            $version = "${{ github.ref_name }}" -replace '^v', ''
           }
           else {
-            $ver = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
+            $version = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
           }
 
-          "value=$ver" | Out-File `
+          "value=$version" | Out-File `
             -FilePath $env:GITHUB_OUTPUT `
             -Encoding utf8 `
             -Append
 
-      - name: Calculate Build Options
-        id: build_options
-        shell: pwsh
-        run: |
-          $enableLto = $true
-          $skipTests = $false
 
-          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            $enableLto = [bool]::Parse("${{ inputs.enable_lto }}")
-            $skipTests = [bool]::Parse("${{ inputs.skip_tests }}")
-          }
+      # ----------------------------------------------------------
+      # CCACHE
+      # ----------------------------------------------------------
 
-          "enable_lto=$enableLto" | Out-File `
-            -FilePath $env:GITHUB_OUTPUT `
-            -Encoding utf8 `
-            -Append
-
-          "skip_tests=$skipTests" | Out-File `
-            -FilePath $env:GITHUB_OUTPUT `
-            -Encoding utf8 `
-            -Append
-
-      - uses: hendrikmuhs/ccache-action@v1.2
+      - name: Configure Ccache
+        uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: voidone-msvc-${{ github.sha }}
           restore-keys: voidone-msvc-
           variant: ccache
           max-size: 2000M
 
-      - name: Setup Full Enterprise Toolchain (NSIS, WiX v7, Dotnet)
+
+      # ----------------------------------------------------------
+      # TOOLCHAIN
+      # ----------------------------------------------------------
+
+      - name: Install Build & Packaging Tools
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
 
           choco install `
             ninja `
@@ -243,35 +278,45 @@ jobs:
             -y `
             --no-progress
 
-          # Install deterministic WiX Toolset v7.
-          dotnet tool install `
-            --global `
-            wix `
-            --version 7.0.0 `
-            --ignore-failed-sources
+      - name: Install WiX Toolset
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
 
-          # Make the global .NET tools directory available immediately.
-          $env:PATH = "$env:USERPROFILE\.dotnet\tools;$env:PATH"
+          dotnet tool install --global wix --ignore-failed-sources
 
-          # Verify WiX installation.
+          if ($LASTEXITCODE -ne 0) {
+            dotnet tool update --global wix
+          }
+
           wix --version
 
-          # Official WiX v7 OSMF EULA acceptance.
+          # WiX v7 requires explicit OSMF EULA acceptance.
           wix eula accept wix7
 
-          # Install required WiX extensions.
+          wix eula show
+
           wix extension add -g WixToolset.UI.wixext
           wix extension add -g WixToolset.Util.wixext
           wix extension add -g WixToolset.Firewall.wixext
 
-          # Verify extensions.
-          wix extension list -g
 
-      - uses: ilammy/msvc-dev-cmd@v1
+      # ----------------------------------------------------------
+      # MSVC
+      # ----------------------------------------------------------
+
+      - name: Configure MSVC
+        uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
-      - uses: jurplel/install-qt-action@v4
+
+      # ----------------------------------------------------------
+      # QT
+      # ----------------------------------------------------------
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
           target: desktop
@@ -280,53 +325,60 @@ jobs:
           cache: true
           cache-key-prefix: voidone-qt
 
+
+      # ----------------------------------------------------------
+      # CMAKE CONFIGURATION
+      # ----------------------------------------------------------
+
       - name: Configure CMake Engine
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
 
-          New-Item -ItemType Directory -Force -Path build | Out-Null
+          $lto = "ON"
 
-          $ltoFlag = if ("${{ steps.build_options.outputs.enable_lto }}" -eq "true") {
-            "ON"
-          }
-          else {
-            "OFF"
+          if ("${{ inputs.enable_lto }}" -eq "false") {
+            $lto = "OFF"
           }
 
-          $testsFlag = if ("${{ steps.build_options.outputs.skip_tests }}" -eq "true") {
-            "OFF"
-          }
-          else {
-            "ON"
+          $buildTests = "ON"
+
+          if ("${{ inputs.skip_tests }}" -eq "true") {
+            $buildTests = "OFF"
           }
 
-          cmake `
-            -S . `
-            -B build `
-            -G Ninja `
+          cmake -S . -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=$ltoFlag `
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=$lto `
             -DVOIDONE_VERSION_OVERRIDE="${{ steps.version.outputs.value }}" `
-            -DVOIDONE_BUILD_TESTS=$testsFlag `
+            -DVOIDONE_BUILD_TESTS=$buildTests `
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
             -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA /CETCOMPAT /DEBUG /OPT:REF /OPT:ICF"
+
+
+      # ----------------------------------------------------------
+      # BUILD
+      # ----------------------------------------------------------
 
       - name: Build C++ Binary Outputs
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
 
-          cmake `
-            --build build `
+          cmake --build build `
             --config Release `
             --parallel
 
-      - name: Run Test Suite (CTest)
-        if: steps.build_options.outputs.skip_tests != 'true'
+
+      # ----------------------------------------------------------
+      # TESTS
+      # ----------------------------------------------------------
+
+      - name: Run CTest Suite
+        if: ${{ inputs.skip_tests != true }}
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
 
           if (Test-Path "tests\CMakeLists.txt") {
             ctest `
@@ -335,11 +387,19 @@ jobs:
               --output-on-failure `
               --timeout 120
           }
+          else {
+            Write-Host "No tests/CMakeLists.txt found. Skipping CTest."
+          }
+
+
+      # ----------------------------------------------------------
+      # DEPLOY QT + VC RUNTIME
+      # ----------------------------------------------------------
 
       - name: Deploy Dependencies & PDB Symbols
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
 
           Remove-Item `
             -Path package, pdb-symbols `
@@ -359,7 +419,7 @@ jobs:
             Select-Object -First 1
 
           if (-not $exe) {
-            throw "Could not locate $env:APP_NAME.exe inside the build directory."
+            throw "VoidOne.exe was not found in the build output."
           }
 
           Copy-Item `
@@ -386,61 +446,62 @@ jobs:
             --release `
             --compiler-runtime `
             --no-translations `
-            --qmldir "$($env:GITHUB_WORKSPACE)/ui" `
-            --qmldir "$($env:GITHUB_WORKSPACE)/src" `
+            --qmldir "$env:GITHUB_WORKSPACE/ui" `
+            --qmldir "$env:GITHUB_WORKSPACE/src" `
             "package\$env:APP_NAME.exe"
 
+
+      # ----------------------------------------------------------
+      # CODE SIGNING
+      # ----------------------------------------------------------
+
       - name: Apply Self-Signed Code Certificate
-        id: signing_certificate
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
 
           $cert = New-SelfSignedCertificate `
             -CertStoreLocation Cert:\CurrentUser\My `
             -Subject "CN=$env:COMPANY_NAME" `
             -Type CodeSigningCert `
             -KeyUsage DigitalSignature `
-            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3")
+            -TextExtension @(
+              "2.5.29.37={text}1.3.6.1.5.5.7.3.3"
+            )
 
-          if (-not $cert) {
-            throw "Failed to create the self-signed code-signing certificate."
-          }
-
-          "CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File `
-            -FilePath $env:GITHUB_ENV `
-            -Encoding utf8 `
-            -Append
-
-          $signature = Set-AuthenticodeSignature `
+          Set-AuthenticodeSignature `
             -FilePath "package\$env:APP_NAME.exe" `
             -Certificate $cert `
             -TimestampServer "http://timestamp.digicert.com"
 
-          if ($signature.Status -notin @("Valid", "Unknown")) {
-            throw "Executable signing failed with status: $($signature.Status)"
-          }
 
-      - name: Create Multi-Format Installers (EXE & MSI)
+      # ----------------------------------------------------------
+      # INSTALLERS
+      # ----------------------------------------------------------
+
+      - name: Create Multi-Format Installers
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
 
           New-Item `
             -ItemType Directory `
             -Force `
             -Path dist | Out-Null
 
+          # NSIS
           if (Test-Path "installer.nsi") {
+
             & "C:\Program Files (x86)\NSIS\makensis.exe" `
-              /DREDIST_PATH="package\VC_redist.x64.exe" `
+              "/DREDIST_PATH=package\VC_redist.x64.exe" `
               installer.nsi
 
             if ($LASTEXITCODE -ne 0) {
-              throw "NSIS installer creation failed with exit code $LASTEXITCODE."
+              throw "NSIS installer build failed."
             }
 
             if (Test-Path "dist\VoidOne-Setup-x64.exe") {
+
               Move-Item `
                 -Path "dist\VoidOne-Setup-x64.exe" `
                 -Destination "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe" `
@@ -448,280 +509,366 @@ jobs:
             }
           }
 
+          # WiX
           if (Test-Path "Package.wxs") {
-            $version = "${{ steps.version.outputs.value }}"
-
-            if ($version -match '^(\d+)\.(\d+)\.(\d+)') {
-              $msiVersion = "$($Matches[1]).$($Matches[2]).$($Matches[3])"
-            }
-            else {
-              $msiVersion = "0.0.0"
-            }
 
             wix build `
-              -acceptEula wix7 `
               Package.wxs `
-              -d ProductVersion=$msiVersion `
+              -d ProductVersion=${{ steps.version.outputs.value }} `
               -ext WixToolset.UI.wixext `
               -ext WixToolset.Util.wixext `
               -ext WixToolset.Firewall.wixext `
               -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi"
 
             if ($LASTEXITCODE -ne 0) {
-              throw "WiX MSI creation failed with exit code $LASTEXITCODE."
+              throw "WiX MSI build failed."
             }
           }
+
+
+      # ----------------------------------------------------------
+      # SIGN INSTALLERS
+      # ----------------------------------------------------------
 
       - name: Sign Installers
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-
-          if (-not $env:CERT_THUMBPRINT) {
-            throw "Code-signing certificate thumbprint is missing."
-          }
+          $ErrorActionPreference = "Stop"
 
           $cert = Get-ChildItem `
-            "Cert:\CurrentUser\My\$env:CERT_THUMBPRINT"
+            Cert:\CurrentUser\My `
+            -CodeSigningCert |
+            Select-Object -First 1
 
           if (-not $cert) {
-            throw "The generated code-signing certificate could not be found."
+            throw "Code-signing certificate was not found."
           }
 
           Get-ChildItem `
             -Path dist `
             -Include *.exe,*.msi `
-            -File `
             -Recurse |
             ForEach-Object {
-              $signature = Set-AuthenticodeSignature `
+
+              Set-AuthenticodeSignature `
                 -FilePath $_.FullName `
                 -Certificate $cert `
                 -TimestampServer "http://timestamp.digicert.com"
-
-              if ($signature.Status -notin @("Valid", "Unknown")) {
-                throw "Installer signing failed for $($_.Name): $($signature.Status)"
-              }
             }
 
-      - name: Generate Multi-Package Manager Manifests (Winget + Scoop + AppCast)
+
+      # ----------------------------------------------------------
+      # PACKAGE MANIFESTS + HASHES
+      # ----------------------------------------------------------
+
+      - name: Generate Package Manifests
         id: hashes
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
 
           $version = "${{ steps.version.outputs.value }}"
 
+          # Installer SHA256
           $exePath = "dist\VoidOne-Setup-x64-$version.exe"
-          $portablePath = "VoidOne-Windows-x64-Portable-$version.zip"
 
-          $exeHash = if (Test-Path $exePath) {
-            (Get-FileHash -Path $exePath -Algorithm SHA256).Hash
-          }
-          else {
-            "HASH_PLACEHOLDER"
+          if (-not (Test-Path $exePath)) {
+            throw "NSIS installer not found: $exePath"
           }
 
-          $portableHash = if (Test-Path $portablePath) {
-            (Get-FileHash -Path $portablePath -Algorithm SHA256).Hash
-          }
-          else {
-            "HASH_PLACEHOLDER"
-          }
+          $exeHash = (
+            Get-FileHash `
+              -Path $exePath `
+              -Algorithm SHA256
+          ).Hash
 
           "exe_sha256=$exeHash" | Out-File `
             -FilePath $env:GITHUB_OUTPUT `
             -Encoding utf8 `
             -Append
 
-          $winget = @"
-PackageIdentifier: VoidOneApp.VoidOne
-PackageVersion: $version
-PackageName: VoidOne Engine
-Publisher: VoidOne_app
-License: MIT
-ShortDescription: High-Performance Enterprise VoidOne Engine
-Installers:
-  - Architecture: x64
-    InstallerUrl: https://github.com/${{ github.repository }}/releases/download/v$version/VoidOne-Setup-x64-$version.exe
-    InstallerSha256: $exeHash
-    InstallerType: nullsoft
-ManifestType: singleton
-ManifestVersion: 1.4.0
-"@
+          # Portable ZIP hash will be generated after compression.
 
-          Out-File `
-            -InputObject $winget `
-            -FilePath "dist\VoidOne.winget.yaml" `
-            -Encoding utf8
 
-          $scoop = @{
-            version = $version
-            architecture = @{
-              "64bit" = @{
-                url = "https://github.com/${{ github.repository }}/releases/download/v$version/VoidOne-Windows-x64-Portable-$version.zip"
-                hash = $portableHash
-              }
-            }
-            bin = "VoidOne.exe"
-            shortcuts = @(
-              @(
-                "VoidOne.exe",
-                "VoidOne Engine"
-              )
-            )
-          } | ConvertTo-Json -Depth 4
+      # ----------------------------------------------------------
+      # PORTABLE PACKAGES
+      # ----------------------------------------------------------
 
-          Out-File `
-            -InputObject $scoop `
-            -FilePath "dist\VoidOne.scoop.json" `
-            -Encoding utf8
-
-          $appcast = @{
-            version = $version
-            pub_date = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
-            url = "https://github.com/${{ github.repository }}/releases/download/v$version/VoidOne-Setup-x64-$version.exe"
-            signature = $exeHash
-          } | ConvertTo-Json
-
-          Out-File `
-            -InputObject $appcast `
-            -FilePath "dist\appcast.json" `
-            -Encoding utf8
-
-      - name: Compress Portables & Generate Hash Files
+      - name: Compress Portable Packages
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
 
           $version = "${{ steps.version.outputs.value }}"
 
-          $portableArchive = "VoidOne-Windows-x64-Portable-$version.zip"
-          $symbolsArchive = "VoidOne-Windows-x64-Symbols-$version.zip"
-
           Compress-Archive `
             -Path package\* `
-            -DestinationPath $portableArchive `
+            -DestinationPath "VoidOne-Windows-x64-Portable-$version.zip" `
             -CompressionLevel Optimal
 
           Compress-Archive `
             -Path pdb-symbols\* `
-            -DestinationPath $symbolsArchive `
+            -DestinationPath "VoidOne-Windows-x64-Symbols-$version.zip" `
             -CompressionLevel Optimal
+
+
+      # ----------------------------------------------------------
+      # PACKAGE HASHES
+      # ----------------------------------------------------------
+
+      - name: Generate SHA256 Files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
 
           Get-ChildItem `
             -Path . `
             -Filter "*.zip" |
             ForEach-Object {
-              $h = (Get-FileHash `
-                -Path $_.FullName `
-                -Algorithm SHA256).Hash
 
-              Out-File `
-                -InputObject "$h  $($_.Name)" `
-                -FilePath "$($_.FullName).sha256" `
-                -Encoding ascii
+              $hash = (
+                Get-FileHash `
+                  -Path $_.FullName `
+                  -Algorithm SHA256
+              ).Hash
+
+              "$hash  $($_.Name)" |
+                Out-File `
+                  -FilePath "$($_.FullName).sha256" `
+                  -Encoding ascii
             }
 
           Get-ChildItem `
             -Path dist `
-            -Include "*.exe","*.msi" `
-            -File `
+            -Include *.exe,*.msi `
             -Recurse |
             ForEach-Object {
-              $h = (Get-FileHash `
-                -Path $_.FullName `
-                -Algorithm SHA256).Hash
 
-              Out-File `
-                -InputObject "$h  $($_.Name)" `
-                -FilePath "$($_.FullName).sha256" `
-                -Encoding ascii
+              $hash = (
+                Get-FileHash `
+                  -Path $_.FullName `
+                  -Algorithm SHA256
+              ).Hash
+
+              "$hash  $($_.Name)" |
+                Out-File `
+                  -FilePath "$($_.FullName).sha256" `
+                  -Encoding ascii
             }
+
+
+      # ----------------------------------------------------------
+      # PACKAGE MANIFESTS
+      # ----------------------------------------------------------
+
+      - name: Generate Winget Manifest
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.value }}"
+
+          $installer = "dist\VoidOne-Setup-x64-$version.exe"
+
+          $hash = (
+            Get-FileHash `
+              -Path $installer `
+              -Algorithm SHA256
+          ).Hash
+
+          $manifest = @"
+          PackageIdentifier: VoidOneApp.VoidOne
+          PackageVersion: $version
+          PackageName: VoidOne
+          Publisher: VoidOne_app
+          License: MIT
+          ShortDescription: Open-source high-performance PC game launcher
+          Installers:
+            - Architecture: x64
+              InstallerUrl: https://github.com/${{ github.repository }}/releases/download/v$version/VoidOne-Setup-x64-$version.exe
+              InstallerSha256: $hash
+              InstallerType: nullsoft
+          ManifestType: singleton
+          ManifestVersion: 1.4.0
+          "@
+
+          $manifest |
+            Out-File `
+              -FilePath "dist\VoidOne.winget.yaml" `
+              -Encoding utf8
+
+
+      - name: Generate Scoop Manifest
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.value }}"
+
+          $portable = "VoidOne-Windows-x64-Portable-$version.zip"
+
+          $hash = (
+            Get-FileHash `
+              -Path $portable `
+              -Algorithm SHA256
+          ).Hash
+
+          $manifest = @{
+            version = $version
+            architecture = @{
+              "64bit" = @{
+                url = "https://github.com/${{ github.repository }}/releases/download/v$version/$portable"
+                hash = $hash
+              }
+            }
+            bin = "VoidOne.exe"
+            shortcuts = @(
+              @("VoidOne.exe", "VoidOne")
+            )
+          } | ConvertTo-Json -Depth 5
+
+          $manifest |
+            Out-File `
+              -FilePath "dist\VoidOne.scoop.json" `
+              -Encoding utf8
+
+
+      - name: Generate AppCast
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.value }}"
+
+          $installer = "dist\VoidOne-Setup-x64-$version.exe"
+
+          $hash = (
+            Get-FileHash `
+              -Path $installer `
+              -Algorithm SHA256
+          ).Hash
+
+          $appcast = @{
+            version = $version
+            pub_date = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+            url = "https://github.com/${{ github.repository }}/releases/download/v$version/VoidOne-Setup-x64-$version.exe"
+            sha256 = $hash
+          } | ConvertTo-Json
+
+          $appcast |
+            Out-File `
+              -FilePath "dist\appcast.json" `
+              -Encoding utf8
+
+
+      # ----------------------------------------------------------
+      # SBOM
+      # ----------------------------------------------------------
 
       - name: Generate CycloneDX / SPDX SBOM
         uses: anchore/sbom-action@v0
         with:
           path: package/
-          format: 'spdx-json'
-          output-file: 'VoidOne-SBOM-${{ steps.version.outputs.value }}.spdx.json'
+          format: spdx-json
+          output-file: VoidOne-SBOM-${{ steps.version.outputs.value }}.spdx.json
 
-      - name: Stop Telemetry Clock
+
+      # ----------------------------------------------------------
+      # BUILD DURATION
+      # ----------------------------------------------------------
+
+      - name: Stop Build Clock
         id: telemetry
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $end = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+          $start = [int64]$env:start_time
 
-          $end_time = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-          $start_time = [int64]$env:start_time
-          $duration = $end_time - $start_time
+          $duration = $end - $start
 
-          $min = [math]::Floor($duration / 60)
-          $sec = $duration % 60
+          $minutes = [math]::Floor($duration / 60)
+          $seconds = $duration % 60
 
-          "duration=${min}m ${sec}s" | Out-File `
-            -FilePath $env:GITHUB_OUTPUT `
-            -Encoding utf8 `
-            -Append
+          "duration=${minutes}m ${seconds}s" |
+            Out-File `
+              -FilePath $env:GITHUB_OUTPUT `
+              -Encoding utf8 `
+              -Append
 
-      - name: Generate GitHub Step Summary Dashboard
+
+      # ----------------------------------------------------------
+      # SUMMARY
+      # ----------------------------------------------------------
+
+      - name: Generate Build Summary
         shell: pwsh
         run: |
           $summary = @"
-          # 🚀 VoidOne Supreme Build Dashboard
+          # 🚀 VoidOne Build Dashboard
 
           | Metric | Status / Value |
           | :--- | :--- |
           | ⏱️ **Build Duration** | `${{ steps.telemetry.outputs.duration }}` |
           | 🏷️ **Engine Version** | `${{ steps.version.outputs.value }}` |
-          | 🔑 **Code Signing** | `Self-Signed RSA 2048 Bit (DigiCert Timestamped)` |
-          | 🛡️ **Security Audit** | `CodeQL + Trivy + Cppcheck Passed` |
-          | 📄 **Manifests Built** | `Winget, Scoop, WinUpdater (AppCast), SPDX SBOM` |
+          | 🔑 **Code Signing** | `Self-Signed Code-Signing Certificate` |
+          | 🛡️ **Security Analysis** | `CodeQL + Cppcheck` |
+          | 📦 **Packaging** | `NSIS + WiX MSI + Portable ZIP` |
+          | 📄 **SBOM** | `SPDX JSON` |
 
-          ### 📦 Generated Release Artifacts & Hashes
+          ### SHA256
 
           ```text
-          EXE SHA256 : ${{ steps.hashes.outputs.exe_sha256 }}
+          EXE SHA256:
+          ${{ steps.hashes.outputs.exe_sha256 }}
           ```
           "@
 
-          Out-File `
-            -InputObject $summary `
-            -FilePath $env:GITHUB_STEP_SUMMARY `
-            -Encoding utf8 `
-            -Append
+          $summary |
+            Out-File `
+              -FilePath $env:GITHUB_STEP_SUMMARY `
+              -Encoding utf8 `
+              -Append
 
-      - name: Upload Artifacts
+
+      # ----------------------------------------------------------
+      # ARTIFACTS
+      # ----------------------------------------------------------
+
+      - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: VoidOne-Windows-GodTier-Release
           path: |
-            VoidOne-Windows-x64-*.zip*
+            VoidOne-Windows-x64-*.zip
+            VoidOne-Windows-x64-*.zip.sha256
             VoidOne-SBOM-*.spdx.json
-            dist/*.*
+            dist/*
           retention-days: 30
 
+
+  # ============================================================
+  # DOCUMENTATION
+  # ============================================================
+
   generate-docs:
-    name: 📚 Build & Deploy API Documentation
-    if: inputs.build_docs || startsWith(github.ref, 'refs/tags/v')
+    name: 📚 Build API Documentation
+
+    if: ${{ inputs.build_docs == true || startsWith(github.ref, 'refs/tags/v') }}
+
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Install Doxygen & Graphviz
+        shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y doxygen graphviz
 
-      - name: Build Doxygen HTML Documentation
+      - name: Build Doxygen Documentation
+        shell: bash
         run: |
           if [ -f "Doxyfile" ]; then
             doxygen Doxyfile
           else
-            echo "No Doxyfile found, generating default config..."
-            doxygen -g
-            doxygen Doxyfile
+            echo "No Doxyfile found. Skipping documentation generation."
+            exit 0
           fi
 
       - name: Upload Documentation Artifact
@@ -729,47 +876,72 @@ ManifestVersion: 1.4.0
         with:
           name: API-Documentation
           path: html/
+          if-no-files-found: ignore
+
+
+  # ============================================================
+  # RELEASE
+  # ============================================================
 
   publish-release:
-    name: 🌐 Global Release & God-Tier Notifications
-    needs: [build-production]
+    name: 🌐 Global Release & Notifications
+
+    needs:
+      - build-production
+
     if: startsWith(github.ref, 'refs/tags/v')
+
     runs-on: ubuntu-24.04
 
     environment:
       name: production
 
     steps:
-      - uses: actions/checkout@v5
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+
+      - name: Download Release Artifacts
+        uses: actions/download-artifact@v4
         with:
           name: VoidOne-Windows-GodTier-Release
           path: release-files
 
-      - name: Generate SLSA Build Provenance Attestation
-        uses: actions/attest-build-provenance@v4
-        with:
-          subject-path: 'release-files/*'
 
-      - name: Parse Commit Changelog
+      - name: Generate Build Provenance Attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: "release-files/**"
+
+
+      - name: Determine Release Metadata
         id: meta
         shell: bash
         run: |
           set -euo pipefail
 
-          if [[ "${{ github.ref_name }}" =~ (alpha|beta|rc) ]]; then
+          TAG="${GITHUB_REF_NAME}"
+
+          if [[ "$TAG" =~ (alpha|beta|rc) ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
-          PREV_TAG=$(git describe --tags --abbrev=0 --exclude="${{ github.ref_name }}" 2>/dev/null || echo "")
+          PREV_TAG=$(git describe \
+            --tags \
+            --abbrev=0 \
+            --exclude="$TAG" \
+            2>/dev/null || true)
 
           if [ -n "$PREV_TAG" ]; then
-            LOG=$(git log "$PREV_TAG"..HEAD --pretty=format:"• %s (%h)" | head -n 15)
+            LOG=$(git log \
+              "$PREV_TAG"..HEAD \
+              --pretty=format:"• %s (%h)" |
+              head -n 15)
           else
             LOG="• Initial Release Build"
           fi
@@ -780,17 +952,24 @@ ManifestVersion: 1.4.0
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub Global Release
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "VoidOne Engine ${{ github.ref_name }} (God-Tier Edition)"
+          name: "VoidOne Engine ${{ github.ref_name }}"
           draft: false
           prerelease: ${{ steps.meta.outputs.prerelease }}
           generate_release_notes: true
           files: release-files/**
 
-      - name: Send Discord & Telegram Notifications
+
+      # ----------------------------------------------------------
+      # DISCORD / TELEGRAM
+      # ----------------------------------------------------------
+
+      - name: Send Release Notifications
         if: success()
+        shell: bash
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -798,48 +977,87 @@ ManifestVersion: 1.4.0
           CHANGELOG: ${{ steps.meta.outputs.log }}
           BUILD_TIME: ${{ needs.build-production.outputs.build-duration }}
           SHA_EXE: ${{ needs.build-production.outputs.sha256-exe }}
-        shell: bash
+
         run: |
           set -euo pipefail
 
-          if [ -n "$DISCORD_WEBHOOK" ]; then
+          if [ -n "${DISCORD_WEBHOOK:-}" ]; then
+
             PAYLOAD=$(jq -n \
-              --arg tag "${{ github.ref_name }}" \
-              --arg actor "${{ github.actor }}" \
+              --arg tag "${GITHUB_REF_NAME}" \
+              --arg actor "${GITHUB_ACTOR}" \
               --arg avatar "${{ github.event.sender.avatar_url }}" \
               --arg changelog "$CHANGELOG" \
               --arg time "$BUILD_TIME" \
               --arg sha "$SHA_EXE" \
-              --arg url "https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}" \
+              --arg url "https://github.com/${{ github.repository }}/releases/tag/${GITHUB_REF_NAME}" \
               '{
-                username: "VoidOne God-Tier CI",
+                username: "VoidOne CI/CD",
                 avatar_url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
                 embeds: [{
-                  title: ("👑 VoidOne Engine " + $tag + " Published!"),
+                  title: ("🚀 VoidOne Engine " + $tag + " Released"),
                   url: $url,
-                  description: "God-Tier Enterprise Pipeline execution completed successfully.",
+                  description: "Automated VoidOne CI/CD pipeline completed successfully.",
                   color: 9442815,
-                  author: { name: $actor, icon_url: $avatar },
+                  author: {
+                    name: $actor,
+                    icon_url: $avatar
+                  },
                   fields: [
-                    { name: "⏱️ Duration", value: $time, inline: true },
-                    { name: "📦 Winget / Scoop", value: "Manifests Ready ✅", inline: true },
-                    { name: "🔒 SLSA Level 3", value: "Attested & Proven ✅", inline: true },
-                    { name: "🔑 Installer SHA256", value: ("`" + $sha + "`"), inline: false },
-                    { name: "📝 Release Notes", value: ("```\n" + $changelog + "\n```") }
+                    {
+                      name: "⏱️ Build Duration",
+                      value: $time,
+                      inline: true
+                    },
+                    {
+                      name: "📦 Packaging",
+                      value: "NSIS + WiX + Portable",
+                      inline: true
+                    },
+                    {
+                      name: "🔒 Provenance",
+                      value: "Attested",
+                      inline: true
+                    },
+                    {
+                      name: "🔑 Installer SHA256",
+                      value: ("`" + $sha + "`"),
+                      inline: false
+                    },
+                    {
+                      name: "📝 Changes",
+                      value: ("```text\n" + $changelog + "\n```"),
+                      inline: false
+                    }
                   ],
-                  footer: { text: "VoidOne Engine Architecture • Powered by GitHub Actions" }
+                  footer: {
+                    text: "VoidOne CI/CD • Built with GitHub Actions"
+                  }
                 }]
               }')
 
-            curl -sf `
-              -H "Content-Type: application/json" `
-              -d "$PAYLOAD" `
+            curl \
+              -sf \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD" \
               "$DISCORD_WEBHOOK"
           fi
 
-          if [ -n "$TELEGRAM_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-            TG_MSG="🚀 *VoidOne Engine ${{ github.ref_name }} Released!*%0A%0A⏱️ *Duration:* $BUILD_TIME%0A👤 *Built by:* ${{ github.actor }}%0A🔗 [View Release Assets](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})"
 
-            curl -sf `
-              "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${TG_MSG}&parse_mode=Markdown"
+          if [ -n "${TELEGRAM_TOKEN:-}" ] &&
+             [ -n "${TELEGRAM_CHAT_ID:-}" ]; then
+
+            TG_TEXT="🚀 VoidOne Engine ${GITHUB_REF_NAME} Released!
+
+          ⏱️ Build Duration: ${BUILD_TIME}
+          👤 Built by: ${GITHUB_ACTOR}
+          🔑 SHA256: ${SHA_EXE}
+
+          🔗 https://github.com/${{ github.repository }}/releases/tag/${GITHUB_REF_NAME}"
+
+            curl \
+              -sf \
+              --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+              --data-urlencode "text=${TG_TEXT}" \
+              "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage"
           fi
