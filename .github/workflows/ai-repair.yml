@@ -3,7 +3,7 @@ name: VoidOne Autonomous AI CI Repair Engine
 on:
   workflow_run:
     workflows:
-      - "VoidOne CI/CD"
+      - "Voidone CI/CD"
     types:
       - completed
 
@@ -21,35 +21,34 @@ on:
         default: false
 
 
-# ===========================================================================
+# ============================================================================
 # GLOBAL PERMISSIONS
-# ===========================================================================
+# ============================================================================
 
 permissions:
   actions: read
   contents: write
   pull-requests: write
-  issues: write
 
 
-# ===========================================================================
+# ============================================================================
 # CONCURRENCY
-# ===========================================================================
+# ============================================================================
 
 concurrency:
   group: voidone-ai-repair-${{ github.event.workflow_run.id || github.run_id }}
   cancel-in-progress: false
 
 
-# ===========================================================================
+# ============================================================================
 # JOBS
-# ===========================================================================
+# ============================================================================
 
 jobs:
 
-  # =========================================================================
+  # ==========================================================================
   # AUTONOMOUS AI REPAIR
-  # =========================================================================
+  # ==========================================================================
 
   ai-repair:
 
@@ -59,7 +58,6 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (
         github.event_name == 'workflow_run' &&
-        github.event.workflow_run.name == 'VoidOne CI/CD' &&
         github.event.workflow_run.conclusion == 'failure' &&
         github.event.workflow_run.head_branch == 'main'
       )
@@ -69,17 +67,44 @@ jobs:
     timeout-minutes: 45
 
     env:
-      TARGET_WORKFLOW: "VoidOne CI/CD"
+      TARGET_WORKFLOW: "Voidone CI/CD"
+
       AI_ENGINE_NAME: "VoidOne Autonomous AI CI Repair Engine"
       AI_ENGINE_VERSION: "1.0"
+
       AI_REPAIR_BUILD_TIMEOUT: "900"
       AI_REPAIR_TEST_TIMEOUT: "600"
 
+      # IMPORTANT:
+      # Runtime files NEVER live inside the repository.
+      AI_REPAIR_TEMP_DIR: ${{ runner.temp }}/voidone-ai-repair
+
+
     steps:
 
-      # =======================================================================
-      # RESOLVE TARGET
-      # =======================================================================
+      # ========================================================================
+      # INITIALIZE TEMPORARY ENVIRONMENT
+      # ========================================================================
+
+      - name: Initialize AI Repair Environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf "$AI_REPAIR_TEMP_DIR"
+          mkdir -p "$AI_REPAIR_TEMP_DIR"
+
+          echo "AI repair temporary directory:"
+          echo "$AI_REPAIR_TEMP_DIR"
+
+          {
+            echo "AI_REPAIR_TEMP_DIR=$AI_REPAIR_TEMP_DIR"
+          } >> "$GITHUB_ENV"
+
+
+      # ========================================================================
+      # RESOLVE TARGET WORKFLOW RUN
+      # ========================================================================
 
       - name: Resolve Target Workflow Run
         id: target
@@ -90,16 +115,12 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
 
           INPUT_RUN_ID: ${{ inputs.failed_run_id }}
-
           INPUT_FORCE_REPAIR: ${{ inputs.force_repair }}
 
           WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
-
           WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-
-          WORKFLOW_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch }}
 
         run: |
           set -euo pipefail
@@ -107,47 +128,41 @@ jobs:
           RUN_ID=""
           HEAD_SHA=""
           RUN_BRANCH=""
-          RUN_CONCLUSION=""
           RUN_WORKFLOW_NAME=""
+          RUN_CONCLUSION=""
 
-          # -------------------------------------------------------------------
+          # ------------------------------------------------------------------
           # workflow_run event
-          # -------------------------------------------------------------------
+          # ------------------------------------------------------------------
 
           if [[ "$EVENT_NAME" == "workflow_run" ]]; then
 
             RUN_ID="$WORKFLOW_RUN_ID"
             HEAD_SHA="$WORKFLOW_HEAD_SHA"
-            RUN_BRANCH="$WORKFLOW_HEAD_BRANCH"
+            RUN_BRANCH="$WORKFLOW_BRANCH"
             RUN_WORKFLOW_NAME="$WORKFLOW_NAME"
 
-            RUN_CONCLUSION="failure"
-
-            if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
-              echo "::error::Unable to resolve workflow run ID."
-              exit 1
-            fi
-
-            if [[ -z "$HEAD_SHA" || "$HEAD_SHA" == "null" ]]; then
-              echo "::error::Unable to resolve workflow head SHA."
+            if [[ -z "$RUN_ID" || -z "$HEAD_SHA" ]]; then
+              echo "::error::Unable to resolve workflow_run target."
               exit 1
             fi
 
             if [[ "$RUN_WORKFLOW_NAME" != "$TARGET_WORKFLOW" ]]; then
-              echo "::error::Unexpected workflow: $RUN_WORKFLOW_NAME"
-              echo "::error::Expected workflow: $TARGET_WORKFLOW"
+              echo "::error::Unexpected workflow_run target."
+              echo "::error::Expected: $TARGET_WORKFLOW"
+              echo "::error::Actual: $RUN_WORKFLOW_NAME"
               exit 1
             fi
 
             if [[ "$RUN_BRANCH" != "main" ]]; then
-              echo "::error::Failed workflow is not from main."
+              echo "::error::Automatic AI repair is only allowed for main."
               echo "::error::Branch: $RUN_BRANCH"
               exit 1
             fi
 
-          # -------------------------------------------------------------------
-          # workflow_dispatch event
-          # -------------------------------------------------------------------
+          # ------------------------------------------------------------------
+          # workflow_dispatch
+          # ------------------------------------------------------------------
 
           else
 
@@ -162,7 +177,7 @@ jobs:
                   --workflow "$TARGET_WORKFLOW" \
                   --limit 1 \
                   --json databaseId \
-                  --jq '.[0].databaseId // empty'
+                  --jq '.[0].databaseId'
               )"
 
             else
@@ -173,13 +188,13 @@ jobs:
                   --status failure \
                   --limit 1 \
                   --json databaseId \
-                  --jq '.[0].databaseId // empty'
+                  --jq '.[0].databaseId'
               )"
 
             fi
 
-            if [[ -z "$RUN_ID" ]]; then
-              echo "::error::Unable to find target workflow run."
+            if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
+              echo "::error::Unable to find target Voidone CI/CD workflow run."
               exit 1
             fi
 
@@ -194,68 +209,82 @@ jobs:
             )"
 
             RUN_WORKFLOW_NAME="$(
-              jq -r '.workflowName // empty' <<< "$RUN_INFO"
+              jq -r '.workflowName' <<< "$RUN_INFO"
             )"
 
             RUN_CONCLUSION="$(
-              jq -r '.conclusion // empty' <<< "$RUN_INFO"
+              jq -r '.conclusion' <<< "$RUN_INFO"
             )"
 
             RUN_BRANCH="$(
-              jq -r '.headBranch // empty' <<< "$RUN_INFO"
+              jq -r '.headBranch' <<< "$RUN_INFO"
             )"
 
             HEAD_SHA="$(
-              jq -r '.headSha // empty' <<< "$RUN_INFO"
+              jq -r '.headSha' <<< "$RUN_INFO"
             )"
 
             if [[ "$RUN_WORKFLOW_NAME" != "$TARGET_WORKFLOW" ]]; then
-              echo "::error::Selected run does not belong to target workflow."
+              echo "::error::Selected run does not belong to '$TARGET_WORKFLOW'."
+              echo "::error::Actual workflow: '$RUN_WORKFLOW_NAME'"
               exit 1
             fi
 
-            if [[ -z "$HEAD_SHA" ]]; then
-              echo "::error::Selected run does not contain a valid SHA."
+            if [[ "$RUN_CONCLUSION" != "failure" && "$INPUT_FORCE_REPAIR" != "true" ]]; then
+              echo "::error::Selected workflow run is not failed."
+              echo "::error::Conclusion: $RUN_CONCLUSION"
+              echo "::error::Use force_repair=true for a successful run."
               exit 1
             fi
 
-            if [[ "$INPUT_FORCE_REPAIR" != "true" ]]; then
-
-              if [[ "$RUN_CONCLUSION" != "failure" ]]; then
-                echo "::error::Selected workflow run is not failed."
-                exit 1
-              fi
-
-              if [[ "$RUN_BRANCH" != "main" ]]; then
-                echo "::error::Selected failed run is not from main."
-                exit 1
-              fi
-
+            if [[ "$RUN_BRANCH" != "main" && "$INPUT_FORCE_REPAIR" != "true" ]]; then
+              echo "::error::Selected run is not from main."
+              echo "::error::Branch: $RUN_BRANCH"
+              exit 1
             fi
 
           fi
 
-          # -------------------------------------------------------------------
-          # Final validation
-          # -------------------------------------------------------------------
 
-          if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
-            echo "::error::Invalid target Run ID."
+          # ------------------------------------------------------------------
+          # Final validation
+          # ------------------------------------------------------------------
+
+          if [[ -z "$RUN_ID" ]]; then
+            echo "::error::Target run ID is empty."
             exit 1
           fi
 
           if [[ -z "$HEAD_SHA" || "$HEAD_SHA" == "null" ]]; then
-            echo "::error::Invalid target SHA."
+            echo "::error::Target commit SHA is invalid."
             exit 1
           fi
 
-          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
-          echo "head_branch=$RUN_BRANCH" >> "$GITHUB_OUTPUT"
-          echo "conclusion=$RUN_CONCLUSION" >> "$GITHUB_OUTPUT"
+          if [[ -z "$RUN_BRANCH" ]]; then
+            echo "::error::Target branch is empty."
+            exit 1
+          fi
+
+
+          # ------------------------------------------------------------------
+          # Outputs
+          # ------------------------------------------------------------------
 
           {
-            echo "### 🎯 Target CI Run"
+            echo "run_id=$RUN_ID"
+            echo "head_sha=$HEAD_SHA"
+            echo "branch=$RUN_BRANCH"
+            echo "workflow=$RUN_WORKFLOW_NAME"
+            echo "conclusion=$RUN_CONCLUSION"
+          } >> "$GITHUB_OUTPUT"
+
+
+          # ------------------------------------------------------------------
+          # Summary
+          # ------------------------------------------------------------------
+
+          {
+            echo "## 🎯 Target CI Run"
             echo ""
             echo "- Workflow: \`$TARGET_WORKFLOW\`"
             echo "- Run ID: \`$RUN_ID\`"
@@ -265,9 +294,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
 
-      # =======================================================================
-      # CHECKOUT
-      # =======================================================================
+      # ========================================================================
+      # CHECKOUT EXACT FAILED COMMIT
+      # ========================================================================
 
       - name: Checkout Failed Commit
         uses: actions/checkout@v5
@@ -277,140 +306,103 @@ jobs:
           submodules: recursive
 
 
-      # =======================================================================
-      # COLLECT FAILURE LOG
-      # =======================================================================
+      # ========================================================================
+      # VERIFY INITIAL REPOSITORY STATE
+      # ========================================================================
+
+      - name: Verify Initial Repository State
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Checking repository state..."
+
+          if [[ -n "$(git status --porcelain)" ]]; then
+
+            echo "::error::Repository is not clean after checkout."
+
+            git status --short
+
+            exit 1
+
+          fi
+
+          echo "Repository is clean."
+
+
+      # ========================================================================
+      # DOWNLOAD CI LOGS
+      # ========================================================================
 
       - name: Download Failed CI Logs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
           RUN_ID: ${{ steps.target.outputs.run_id }}
+
           FORCE_REPAIR: ${{ inputs.force_repair }}
 
         shell: bash
-
         run: |
           set -euo pipefail
+
+          LOG_DIR="$AI_REPAIR_TEMP_DIR/logs"
+
+          mkdir -p "$LOG_DIR"
+
+          FAILURE_LOG="$LOG_DIR/ci-failure.log"
+          FAILURE_TAIL="$LOG_DIR/ci-failure-tail.log"
 
           if [[ "$GITHUB_EVENT_NAME" == "workflow_run" ]]; then
 
             gh run view "$RUN_ID" \
               --log-failed \
-              > ci-failure.log
+              > "$FAILURE_LOG"
 
           elif [[ "$FORCE_REPAIR" == "true" ]]; then
 
             gh run view "$RUN_ID" \
               --log \
-              > ci-failure.log
+              > "$FAILURE_LOG"
 
           else
 
             gh run view "$RUN_ID" \
               --log-failed \
-              > ci-failure.log
+              > "$FAILURE_LOG"
 
           fi
 
-          if [[ ! -s ci-failure.log ]]; then
+
+          if [[ ! -s "$FAILURE_LOG" ]]; then
             echo "::error::CI log is empty."
             exit 1
           fi
 
-          tail -n 4000 ci-failure.log \
-            > ci-failure-tail.log
+
+          tail -n 4000 \
+            "$FAILURE_LOG" \
+            > "$FAILURE_TAIL"
+
 
           {
-            echo "### 📋 CI Failure Log"
+            echo "CI_FAILURE_LOG=$FAILURE_LOG"
+            echo "CI_FAILURE_TAIL=$FAILURE_TAIL"
+          } >> "$GITHUB_ENV"
+
+
+          {
+            echo "## 📋 CI Failure Log"
             echo ""
             echo '```text'
-            tail -n 80 ci-failure-tail.log
+            tail -n 80 "$FAILURE_TAIL"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
 
-      # =======================================================================
-      # FAILURE INTELLIGENCE
-      # =======================================================================
-
-      - name: Analyze Failure Severity
-        id: intelligence
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          LOG="ci-failure-tail.log"
-
-          SEVERITY="MEDIUM"
-          CATEGORY="UNKNOWN"
-          RISK_SCORE=50
-
-          if grep -Eqi \
-            'segmentation fault|access violation|heap corruption|security|vulnerability|CVE-' \
-            "$LOG"; then
-
-            SEVERITY="CRITICAL"
-            CATEGORY="SECURITY_OR_RUNTIME"
-            RISK_SCORE=90
-
-          elif grep -Eqi \
-            'undefined reference|linker error|ld returned|LNK[0-9]+' \
-            "$LOG"; then
-
-            SEVERITY="HIGH"
-            CATEGORY="LINKER"
-            RISK_SCORE=75
-
-          elif grep -Eqi \
-            'fatal error|compilation terminated|error:.*C\+\+|CMake Error' \
-            "$LOG"; then
-
-            SEVERITY="HIGH"
-            CATEGORY="BUILD"
-            RISK_SCORE=70
-
-          elif grep -Eqi \
-            'CTest|test failed|FAILED TEST|No tests were found' \
-            "$LOG"; then
-
-            SEVERITY="HIGH"
-            CATEGORY="TEST"
-            RISK_SCORE=70
-
-          elif grep -Eqi \
-            'warning:|deprecated|policy CMP' \
-            "$LOG"; then
-
-            SEVERITY="MEDIUM"
-            CATEGORY="WARNING_OR_POLICY"
-            RISK_SCORE=45
-
-          elif grep -Eqi \
-            'timeout|timed out|connection|download|network' \
-            "$LOG"; then
-
-            SEVERITY="MEDIUM"
-            CATEGORY="INFRASTRUCTURE"
-            RISK_SCORE=40
-
-          fi
-
-          echo "severity=$SEVERITY" >> "$GITHUB_OUTPUT"
-          echo "category=$CATEGORY" >> "$GITHUB_OUTPUT"
-          echo "risk_score=$RISK_SCORE" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "### 🧠 Failure Intelligence"
-            echo ""
-            echo "- **Severity:** $SEVERITY"
-            echo "- **Category:** $CATEGORY"
-            echo "- **Initial Risk Score:** $RISK_SCORE / 100"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-
-      # =======================================================================
-      # TOOLCHAIN
-      # =======================================================================
+      # ========================================================================
+      # INSTALL BUILD TOOLCHAIN
+      # ========================================================================
 
       - name: Install Build Toolchain
         shell: bash
@@ -431,22 +423,20 @@ jobs:
             libgl1-mesa-dev
 
 
-      # =======================================================================
+      # ========================================================================
       # PYTHON
-      # =======================================================================
+      # ========================================================================
 
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-          cache: pip
-          cache-dependency-path: |
-            scripts/requirements-ai-repair.txt
+          cache: "pip"
 
 
-      # =======================================================================
+      # ========================================================================
       # AI DEPENDENCIES
-      # =======================================================================
+      # ========================================================================
 
       - name: Install AI Dependencies
         shell: bash
@@ -468,41 +458,45 @@ jobs:
           fi
 
 
-      # =======================================================================
-      # OLLAMA
-      # =======================================================================
+      # ========================================================================
+      # INSTALL OLLAMA
+      # ========================================================================
 
       - name: Install Ollama
         shell: bash
         run: |
           set -euo pipefail
 
-          if ! command -v ollama >/dev/null 2>&1; then
+          curl -fsSL \
+            https://ollama.com/install.sh \
+            | sh
 
-            curl -fsSL \
-              https://ollama.com/install.sh \
-              | sh
 
-          fi
-
-          command -v ollama
-
+      # ========================================================================
+      # START OLLAMA
+      # ========================================================================
 
       - name: Start Ollama
         shell: bash
         run: |
           set -euo pipefail
 
+          OLLAMA_LOG="$AI_REPAIR_TEMP_DIR/ollama.log"
+
           nohup ollama serve \
-            > ollama.log 2>&1 &
+            > "$OLLAMA_LOG" 2>&1 &
+
+          echo "$!" > "$AI_REPAIR_TEMP_DIR/ollama.pid"
+
 
           for i in {1..30}; do
 
             if curl -sf \
               http://127.0.0.1:11434/api/tags \
-              >/dev/null; then
+              > /dev/null; then
 
               echo "Ollama is ready."
+
               exit 0
 
             fi
@@ -511,16 +505,17 @@ jobs:
 
           done
 
+
           echo "::error::Ollama failed to start."
 
-          cat ollama.log || true
+          cat "$OLLAMA_LOG" || true
 
           exit 1
 
 
-      # =======================================================================
-      # LOCAL MODEL
-      # =======================================================================
+      # ========================================================================
+      # PREPARE LOCAL AI MODEL
+      # ========================================================================
 
       - name: Prepare Local AI Model
         id: model
@@ -528,36 +523,44 @@ jobs:
         run: |
           set -euo pipefail
 
-          MODEL="qwen2.5-coder:1.5b"
+          PRIMARY_MODEL="qwen2.5-coder:1.5b"
+          FALLBACK_MODEL="qwen2.5-coder:7b"
 
-          if ollama pull "$MODEL"; then
+          if ollama pull "$PRIMARY_MODEL"; then
 
-            echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+            MODEL="$PRIMARY_MODEL"
 
           else
 
-            echo "::warning::qwen2.5-coder:1.5b unavailable."
+            echo "::warning::Primary local model unavailable."
+            echo "::warning::Trying fallback model: $FALLBACK_MODEL"
 
-            MODEL="qwen2.5-coder:7b"
+            ollama pull "$FALLBACK_MODEL"
 
-            if ! ollama pull "$MODEL"; then
-              echo "::error::Unable to pull fallback local model."
-              exit 1
-            fi
-
-            echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+            MODEL="$FALLBACK_MODEL"
 
           fi
 
 
-      # =======================================================================
-      # REPOSITORY INTEGRITY
-      # =======================================================================
+          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
 
-      - name: Verify Clean Repository
+          {
+            echo "## 🧠 Local AI Model"
+            echo ""
+            echo "Using: \`$MODEL\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+
+      # ========================================================================
+      # VERIFY REPOSITORY BEFORE AI
+      # ========================================================================
+
+      - name: Verify Repository Before AI Repair
         shell: bash
         run: |
           set -euo pipefail
+
+          echo "Verifying repository before AI execution..."
 
           if [[ -n "$(git status --porcelain)" ]]; then
 
@@ -569,10 +572,15 @@ jobs:
 
           fi
 
+          echo "Repository is clean."
 
-      # =======================================================================
-      # AI REPAIR
-      # =======================================================================
+          echo "Runtime files are stored outside the repository:"
+          echo "$AI_REPAIR_TEMP_DIR"
+
+
+      # ========================================================================
+      # EXECUTE AI REPAIR
+      # ========================================================================
 
       - name: Execute AI Repair Engine
         env:
@@ -586,77 +594,40 @@ jobs:
           AI_REPAIR_TEST_TIMEOUT: "600"
 
         shell: bash
-
         run: |
           set -euo pipefail
 
           python3 \
             scripts/ai_repair.py \
             --repo . \
-            --log-file ci-failure-tail.log
+            --log-file "$CI_FAILURE_TAIL"
 
 
-      # =======================================================================
-      # POST REPAIR RISK ANALYSIS
-      # =======================================================================
+      # ========================================================================
+      # VERIFY AI MODIFICATIONS
+      # ========================================================================
 
-      - name: Analyze Generated Change
-        if: success()
-        id: change
+      - name: Inspect AI Changes
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
 
-          FILE_COUNT="$(
-            git diff --name-only | sed '/^$/d' | wc -l
-          )"
+          echo "Repository state after AI repair:"
 
-          INSERTIONS="$(
-            git diff --numstat |
-            awk '{a += $1} END {print a + 0}'
-          )"
+          git status --short || true
 
-          DELETIONS="$(
-            git diff --numstat |
-            awk '{a += $2} END {print a + 0}'
-          )"
+          echo ""
+          echo "Changed files:"
 
-          RISK_SCORE="${{ steps.intelligence.outputs.risk_score }}"
-
-          if (( FILE_COUNT > 3 )); then
-            RISK_SCORE=$((RISK_SCORE + 10))
-          fi
-
-          if (( INSERTIONS > 300 )); then
-            RISK_SCORE=$((RISK_SCORE + 10))
-          fi
-
-          if (( DELETIONS > 300 )); then
-            RISK_SCORE=$((RISK_SCORE + 10))
-          fi
-
-          if (( RISK_SCORE > 100 )); then
-            RISK_SCORE=100
-          fi
-
-          echo "files=$FILE_COUNT" >> "$GITHUB_OUTPUT"
-          echo "insertions=$INSERTIONS" >> "$GITHUB_OUTPUT"
-          echo "deletions=$DELETIONS" >> "$GITHUB_OUTPUT"
-          echo "risk_score=$RISK_SCORE" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "### 📊 Repair Risk Analysis"
-            echo ""
-            echo "- Files changed: **$FILE_COUNT**"
-            echo "- Lines added: **$INSERTIONS**"
-            echo "- Lines removed: **$DELETIONS**"
-            echo "- Final risk score: **$RISK_SCORE / 100**"
-          } >> "$GITHUB_STEP_SUMMARY"
+          git diff \
+            --name-status \
+            || true
 
 
-      # =======================================================================
-      # VALIDATION REPORT
-      # =======================================================================
+      # ========================================================================
+      # GENERATE REPAIR REPORT
+      # ========================================================================
 
       - name: Generate Repair Report
         if: success()
@@ -665,60 +636,25 @@ jobs:
           set -euo pipefail
 
           {
-            echo "### 🤖 VoidOne Autonomous AI Repair"
+            echo "## 🤖 VoidOne AI Repair"
             echo ""
-            echo "**Engine:** $AI_ENGINE_NAME"
+            echo "The AI-generated repair successfully completed its validation pipeline."
             echo ""
-            echo "**Engine Version:** $AI_ENGINE_VERSION"
+            echo "### Validation"
             echo ""
-            echo "#### Validation"
-            echo ""
-            echo "- 🛡️ Patch security validation"
+            echo "- 🛡️ Patch validation"
             echo "- 🔧 CMake configuration"
             echo "- 🏗️ C++ build"
             echo "- 🧪 CTest"
             echo "- 🧠 Local AI review"
-            echo ""
-            echo "#### Decision"
-            echo ""
-            echo "**Automatic merge:** DISABLED"
-            echo ""
-            echo "**Human review:** REQUIRED"
           } >> "$GITHUB_STEP_SUMMARY"
 
 
-      # =======================================================================
-      # CREATE BRANCH
-      # =======================================================================
+      # ========================================================================
+      # VERIFY CHANGES EXIST
+      # ========================================================================
 
-      - name: Create AI Repair Branch
-        if: success()
-        id: branch
-        shell: bash
-        env:
-          RUN_ID: ${{ steps.target.outputs.run_id }}
-
-        run: |
-          set -euo pipefail
-
-          BRANCH="ai-repair/${RUN_ID}"
-
-          git config user.name \
-            "VoidOne AI Engine"
-
-          git config user.email \
-            "ai-repair@voidone.internal"
-
-          git checkout -b "$BRANCH"
-
-          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
-
-
-      # =======================================================================
-      # COMMIT
-      # =======================================================================
-
-      - name: Commit AI Repair
+      - name: Verify Repair Changes
         if: success()
         shell: bash
         run: |
@@ -732,35 +668,85 @@ jobs:
 
           fi
 
+          echo "AI generated repository changes."
+
+          git status --short
+
+
+      # ========================================================================
+      # CREATE REPAIR BRANCH
+      # ========================================================================
+
+      - name: Create AI Repair Branch
+        if: success()
+        id: branch
+        shell: bash
+        env:
+          RUN_ID: ${{ steps.target.outputs.run_id }}
+        run: |
+          set -euo pipefail
+
+          BRANCH="ai-repair/${RUN_ID}-${GITHUB_RUN_ID}"
+
+          git config user.name \
+            "VoidOne AI Engine"
+
+          git config user.email \
+            "ai-repair@voidone.internal"
+
+          git checkout -b "$BRANCH"
+
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          echo "Created branch:"
+          echo "$BRANCH"
+
+
+      # ========================================================================
+      # COMMIT AI REPAIR
+      # ========================================================================
+
+      - name: Commit AI Repair
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$(git status --porcelain)" ]]; then
+
+            echo "::error::No changes available for commit."
+
+            exit 1
+
+          fi
+
           git add -A
 
           git commit \
             -m "fix: automated CI repair [ai-repair]"
 
 
-      # =======================================================================
-      # PUSH
-      # =======================================================================
+      # ========================================================================
+      # PUSH REPAIR BRANCH
+      # ========================================================================
 
       - name: Push Repair Branch
         if: success()
         env:
           BRANCH: ${{ steps.branch.outputs.name }}
-
         shell: bash
-
         run: |
           set -euo pipefail
 
           git push \
-            --force-with-lease \
+            --set-upstream \
             origin \
             "$BRANCH"
 
 
-      # =======================================================================
-      # CREATE DRAFT PR
-      # =======================================================================
+      # ========================================================================
+      # CREATE DRAFT PULL REQUEST
+      # ========================================================================
 
       - name: Create Draft Pull Request
         if: success()
@@ -773,20 +759,7 @@ jobs:
 
           HEAD_SHA: ${{ steps.target.outputs.head_sha }}
 
-          SEVERITY: ${{ steps.intelligence.outputs.severity }}
-
-          CATEGORY: ${{ steps.intelligence.outputs.category }}
-
-          RISK_SCORE: ${{ steps.change.outputs.risk_score }}
-
-          FILE_COUNT: ${{ steps.change.outputs.files }}
-
-          INSERTIONS: ${{ steps.change.outputs.insertions }}
-
-          DELETIONS: ${{ steps.change.outputs.deletions }}
-
         shell: bash
-
         run: |
           set -euo pipefail
 
@@ -796,8 +769,9 @@ jobs:
               --base main \
               --state open \
               --json number \
-              --jq '.[0].number // empty'
+              --jq '.[0].number'
           )"
+
 
           if [[ -n "$EXISTING_PR" ]]; then
 
@@ -807,15 +781,15 @@ jobs:
 
           fi
 
-          PR_URL="$(
-            gh pr create \
-              --base main \
-              --head "$BRANCH" \
-              --draft \
-              --title \
-                "fix(ci): Autonomous AI repair for Run #${RUN_ID}" \
-              --body \
-                "## 🤖 VoidOne Autonomous AI Repair
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --draft \
+            --title \
+              "fix(ci): Autonomous AI repair for Run #${RUN_ID}" \
+            --body \
+              "## 🤖 VoidOne Autonomous AI Repair
 
           The VoidOne AI Repair Engine detected a CI failure and generated a candidate remediation.
 
@@ -825,79 +799,88 @@ jobs:
           - **Broken Commit:** \`${HEAD_SHA}\`
           - **Repair Branch:** \`${BRANCH}\`
 
-          ### Failure Intelligence
-
-          - **Severity:** ${SEVERITY}
-          - **Category:** ${CATEGORY}
-          - **Risk Score:** ${RISK_SCORE}/100
-
-          ### Change Scope
-
-          - **Files Changed:** ${FILE_COUNT}
-          - **Lines Added:** ${INSERTIONS}
-          - **Lines Removed:** ${DELETIONS}
-
           ### Validation
 
-          - 🛡️ Patch security validation
+          - 🛡️ Patch validation
           - 🔧 CMake configuration
-          - 🏗️ Release build
+          - 🏗️ C++ build
           - 🧪 CTest
-          - 🧠 Local Qwen review
+          - 🧠 Local AI review
 
-          ### Governance
+          ### Safety
 
-          Automatic merge is disabled.
+          The repair is generated automatically.
 
-          Human engineering review is required before merge.
+          The candidate patch must pass the repository validation pipeline and remains subject to human review before merge.
 
           > VoidOne AI Repair Engine — Diagnose. Repair. Validate. Review."
-          )"
-
-          echo "PR created: $PR_URL"
-
-          {
-            echo "### 🚀 Pull Request"
-            echo ""
-            echo "$PR_URL"
-          } >> "$GITHUB_STEP_SUMMARY"
 
 
-      # =======================================================================
+      # ========================================================================
+      # UPLOAD DIAGNOSTIC ARTIFACTS
+      # ========================================================================
+
+      - name: Upload AI Repair Diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: voidone-ai-repair-diagnostics-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/voidone-ai-repair/
+          if-no-files-found: ignore
+          retention-days: 7
+
+
+      # ========================================================================
+      # FINAL REPOSITORY STATE
+      # ========================================================================
+
+      - name: Final Repository State
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Final repository state:"
+
+          git status --short || true
+
+
+      # ========================================================================
       # FAILURE REPORT
-      # =======================================================================
+      # ========================================================================
 
       - name: Repair Failure Report
         if: failure()
         shell: bash
         run: |
           {
-            echo "### ❌ VoidOne AI Repair Failed"
+            echo "## ❌ VoidOne AI Repair Failed"
             echo ""
-            echo "The engine failed closed."
+            echo "The AI Repair Engine failed closed."
             echo ""
             echo "No automatic merge was performed."
             echo ""
-            echo "Target Run: #${{ steps.target.outputs.run_id }}"
-            echo ""
-            echo "Severity: ${{ steps.intelligence.outputs.severity }}"
-            echo ""
-            echo "Category: ${{ steps.intelligence.outputs.category }}"
+            echo "Diagnostic files were preserved in the workflow artifacts."
           } >> "$GITHUB_STEP_SUMMARY"
 
 
-      # =======================================================================
-      # ARTIFACTS
-      # =======================================================================
+      # ========================================================================
+      # STOP OLLAMA
+      # ========================================================================
 
-      - name: Upload AI Repair Diagnostics
+      - name: Stop Ollama
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: voidone-ai-repair-${{ github.run_id }}
-          if-no-files-found: warn
-          retention-days: 30
-          path: |
-            ci-failure.log
-            ci-failure-tail.log
-            ollama.log
+        shell: bash
+        run: |
+          set +e
+
+          if [[ -f "$AI_REPAIR_TEMP_DIR/ollama.pid" ]]; then
+
+            PID="$(cat "$AI_REPAIR_TEMP_DIR/ollama.pid")"
+
+            if kill -0 "$PID" 2>/dev/null; then
+              kill "$PID" 2>/dev/null || true
+            fi
+
+          fi
