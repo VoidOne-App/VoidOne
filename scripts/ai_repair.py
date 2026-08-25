@@ -2,15 +2,25 @@
 
 """
 VoidOne Autonomous AI CI Repair Engine
+======================================
+
+Enterprise-grade autonomous CI diagnosis and repair engine.
 
 Pipeline:
-    CI failure log
+
+    CI failure
         ↓
-    Repository context collection
+    Failure classification
         ↓
-    Gemini diagnosis + candidate patch
+    Repository context discovery
         ↓
-    Patch security validation
+    AI root-cause diagnosis
+        ↓
+    Candidate patch generation
+        ↓
+    Security / policy validation
+        ↓
+    Risk scoring
         ↓
     Patch application
         ↓
@@ -20,38 +30,41 @@ Pipeline:
         ↓
     Tests
         ↓
-    Local Qwen review
+    Independent local AI review
         ↓
     Success / rollback
+        ↓
+    Optional bounded retry
 
-The engine NEVER commits or pushes changes itself.
-The GitHub Actions workflow is responsible for creating a branch
-and opening a draft PR after validation succeeds.
+Design principles:
 
-Repair policy:
+    - Fail closed
+    - Least privilege
+    - Minimal patches
+    - Deterministic validation
+    - Independent review
+    - No autonomous merge
+    - No autonomous push
+    - No modification of the repair engine
+    - No telemetry
+    - No secrets in generated patches
+    - Full auditability
 
-    Allowed:
-        - Source code
-        - CMake
-        - QML
-        - Tests
-        - Build scripts
-        - Packaging files
-        - GitHub Actions workflows
-        - CI/CD scripts
-        - Python / shell / PowerShell automation
-        - NSIS / WiX configuration
-        - Other repository files required to repair CI
+The GitHub Actions workflow is responsible for:
 
-    Protected:
-        - .git/
-        - scripts/ai_repair.py
-        - scripts/requirements-ai-repair.txt
+    - creating the repair branch
+    - committing the validated repair
+    - pushing the branch
+    - creating the draft PR
+
+The engine only modifies the working tree.
+
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -60,16 +73,18 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+import time
+
+from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Logging
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 logging.basicConfig(
     level=logging.INFO,
@@ -79,14 +94,30 @@ logging.basicConfig(
 logger = logging.getLogger("VoidOneAIRepair")
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Constants
-# ---------------------------------------------------------------------------
+# ============================================================================
+
+ENGINE_VERSION = "2.0.0"
 
 MAX_LOG_CHARS = 20_000
 MAX_FILE_CHARS = 12_000
 MAX_CONTEXT_CHARS = 60_000
+
 MAX_REFERENCED_FILES = 40
+MAX_PATCH_CHARS = 120_000
+MAX_PATCH_FILES = 25
+MAX_PATCH_ADDED_LINES = 1_500
+MAX_PATCH_REMOVED_LINES = 1_500
+
+MAX_REPAIR_ATTEMPTS = 2
+
+MIN_REPAIR_CONFIDENCE = 60
+MIN_REVIEW_CONFIDENCE = 60
+
+AI_REQUEST_TIMEOUT = 180
+GEMINI_REQUEST_TIMEOUT = 150
+PATCH_TIMEOUT = 60
 
 PROTECTED_PATHS = (
     ".git/",
@@ -95,7 +126,6 @@ PROTECTED_PATHS = (
 )
 
 ALLOWED_FILE_EXTENSIONS = {
-    # C / C++
     ".c",
     ".cc",
     ".cpp",
@@ -105,15 +135,12 @@ ALLOWED_FILE_EXTENSIONS = {
     ".hpp",
     ".hxx",
 
-    # Qt / QML
     ".qml",
     ".qrc",
     ".ui",
 
-    # CMake / build
     ".cmake",
 
-    # Python / scripting
     ".py",
     ".pyw",
     ".sh",
@@ -122,17 +149,14 @@ ALLOWED_FILE_EXTENSIONS = {
     ".bat",
     ".cmd",
 
-    # CI
     ".yml",
     ".yaml",
 
-    # Packaging
     ".nsi",
     ".nsh",
     ".wxs",
     ".wxi",
 
-    # Configuration / metadata
     ".json",
     ".xml",
     ".rc",
@@ -141,7 +165,6 @@ ALLOWED_FILE_EXTENSIONS = {
     ".conf",
     ".toml",
 
-    # Documentation / text
     ".txt",
     ".md",
 }
@@ -152,18 +175,89 @@ ALLOWED_EXTENSIONLESS_FILES = {
     "Dockerfile",
 }
 
-BUILD_DIRECTORIES = (
-    "build",
-    "build-debug",
-    "build-release",
-    "build-ci",
-    "build-codeql",
+FORBIDDEN_PATCH_PATTERNS = (
+    r"\bgit\s+push\b",
+    r"\bgit\s+reset\b",
+    r"\bgit\s+clean\b",
+    r"\brm\s+-rf\b",
+    r"\bmkfs\b",
+    r"\bdd\s+if=",
+    r"\bcurl\s+.*\|\s*(sh|bash)",
+    r"\bwget\s+.*\|\s*(sh|bash)",
+)
+
+SECRET_PATTERNS = (
+    r"(?i)api[_-]?key\s*[:=]\s*['\"][^'\"]{12,}['\"]",
+    r"(?i)secret\s*[:=]\s*['\"][^'\"]{12,}['\"]",
+    r"(?i)password\s*[:=]\s*['\"][^'\"]{8,}['\"]",
+    r"(?i)private[_-]?key",
+    r"-----BEGIN .* PRIVATE KEY-----",
+    r"AIza[0-9A-Za-z_-]{20,}",
+    r"ghp_[A-Za-z0-9]{30,}",
+    r"github_pat_[A-Za-z0-9_]{20,}",
+)
+
+FAILURE_CATEGORIES = (
+    "compile",
+    "link",
+    "cmake",
+    "dependency",
+    "test",
+    "packaging",
+    "workflow",
+    "python",
+    "qml",
+    "unknown",
 )
 
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
+# ============================================================================
+# Data models
+# ============================================================================
+
+@dataclass
+class PatchMetrics:
+    files: int = 0
+    added_lines: int = 0
+    removed_lines: int = 0
+    patch_chars: int = 0
+
+
+@dataclass
+class RepairAttempt:
+    attempt: int
+    diagnosis: str = ""
+    confidence: float = 0
+    risk_score: float = 0
+    patch_hash: str = ""
+    patch_metrics: PatchMetrics = field(
+        default_factory=PatchMetrics
+    )
+    build_passed: bool = False
+    tests_passed: bool = False
+    review_decision: str = ""
+    review_confidence: float = 0
+    review_reason: str = ""
+    duration_seconds: float = 0
+    success: bool = False
+    failure_reason: str = ""
+
+
+@dataclass
+class RepairReport:
+    engine_version: str
+    repository: str
+    failure_category: str
+    attempts: List[RepairAttempt] = field(
+        default_factory=list
+    )
+    final_status: str = "FAILED"
+    final_reason: str = ""
+    total_duration_seconds: float = 0
+    generated_at: float = field(
+        default_factory=time.time
+    )
+
 
 @dataclass(frozen=True)
 class EnvironmentConfig:
@@ -177,6 +271,10 @@ class EnvironmentConfig:
 
     build_timeout: int
     test_timeout: int
+
+    max_attempts: int
+    min_repair_confidence: int
+    min_review_confidence: int
 
     @classmethod
     def from_environment(
@@ -220,12 +318,39 @@ class EnvironmentConfig:
                     "600",
                 )
             ),
+
+            max_attempts=max(
+                1,
+                min(
+                    int(
+                        os.getenv(
+                            "AI_REPAIR_MAX_ATTEMPTS",
+                            str(MAX_REPAIR_ATTEMPTS),
+                        )
+                    ),
+                    MAX_REPAIR_ATTEMPTS,
+                ),
+            ),
+
+            min_repair_confidence=int(
+                os.getenv(
+                    "AI_REPAIR_MIN_CONFIDENCE",
+                    str(MIN_REPAIR_CONFIDENCE),
+                )
+            ),
+
+            min_review_confidence=int(
+                os.getenv(
+                    "AI_REPAIR_MIN_REVIEW_CONFIDENCE",
+                    str(MIN_REVIEW_CONFIDENCE),
+                )
+            ),
         )
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Command execution
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 def run_command(
     command: List[str],
@@ -237,6 +362,8 @@ def run_command(
         "$ %s",
         " ".join(command),
     )
+
+    process: Optional[subprocess.Popen[str]] = None
 
     try:
 
@@ -261,9 +388,14 @@ def run_command(
 
     except subprocess.TimeoutExpired:
 
-        process.kill()
+        if process is not None:
+            process.kill()
 
-        stdout, stderr = process.communicate()
+            stdout, stderr = process.communicate()
+
+        else:
+            stdout = ""
+            stderr = ""
 
         return (
             -1,
@@ -284,22 +416,13 @@ def run_command(
         )
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Path security
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 def normalize_repo_path(
     path: str,
 ) -> Optional[str]:
-    """
-    Convert a patch path into a safe repository-relative POSIX path.
-
-    Reject:
-        - absolute paths
-        - Windows drive paths
-        - parent traversal
-        - empty paths
-    """
 
     path = path.strip().replace(
         "\\",
@@ -385,16 +508,105 @@ def is_allowed_file_path(
     if filename in ALLOWED_EXTENSIONLESS_FILES:
         return True
 
-    suffix = Path(
-        normalized
-    ).suffix.lower()
+    return (
+        Path(normalized)
+        .suffix
+        .lower()
+        in ALLOWED_FILE_EXTENSIONS
+    )
 
-    return suffix in ALLOWED_FILE_EXTENSIONS
+
+# ============================================================================
+# Failure classification
+# ============================================================================
+
+def classify_failure(
+    failure_log: str,
+) -> str:
+
+    text = failure_log.lower()
+
+    rules = {
+        "compile": (
+            "compilation",
+            "compile",
+            "error:",
+            "undeclared",
+            "no member named",
+            "fatal error",
+        ),
+
+        "link": (
+            "undefined reference",
+            "unresolved external",
+            "linker",
+            "ld returned",
+        ),
+
+        "cmake": (
+            "cmake error",
+            "cmake configure",
+            "could not find",
+            "configuration failed",
+        ),
+
+        "dependency": (
+            "package not found",
+            "dependency",
+            "missing library",
+            "could not find package",
+        ),
+
+        "test": (
+            "ctest",
+            "test failed",
+            "assertion failed",
+            "failed test",
+        ),
+
+        "packaging": (
+            "nsis",
+            "wix",
+            "msi",
+            "installer",
+            "packaging",
+        ),
+
+        "workflow": (
+            "github actions",
+            "workflow",
+            "setup-python",
+            "actions/",
+            "runner",
+        ),
+
+        "python": (
+            "traceback",
+            "python",
+            "modulenotfounderror",
+        ),
+
+        "qml": (
+            "qml",
+            "qqml",
+            "qtquick",
+        ),
+    }
+
+    for category, keywords in rules.items():
+
+        if any(
+            keyword in text
+            for keyword in keywords
+        ):
+            return category
+
+    return "unknown"
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Repository context
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 def read_file_limited(
     path: Path,
@@ -444,13 +656,9 @@ def extract_referenced_files(
             r"yml|yaml|nsi|nsh|wxs|wxi|json|xml))"
         ),
         (
-            r"(?:--|\s)"
-            r"([A-Za-z0-9_.\-/]+/CMakeLists\.txt)"
-        ),
-        (
             r"((?:\.github/)?"
-            r"[A-Za-z0-9_.\-/]+"
-            r"/(?:Dockerfile|Makefile))"
+            r"[A-Za-z0-9_.\-/]+/"
+            r"(?:Dockerfile|Makefile))"
         ),
     ]
 
@@ -492,6 +700,7 @@ def collect_repository_context(
         "CMakeLists.txt",
         "README.md",
         "CMakePresets.json",
+        "CTestTestfile.cmake",
     ]
 
     for filename in core_files:
@@ -501,9 +710,7 @@ def collect_repository_context(
         if not path.is_file():
             continue
 
-        content = read_file_limited(
-            path
-        )
+        content = read_file_limited(path)
 
         if content:
 
@@ -523,9 +730,7 @@ def collect_repository_context(
 
         path = repo_dir / relative_path
 
-        content = read_file_limited(
-            path
-        )
+        content = read_file_limited(path)
 
         if content:
 
@@ -548,21 +753,13 @@ def collect_repository_context(
     return context
 
 
-# ---------------------------------------------------------------------------
-# JSON parsing
-# ---------------------------------------------------------------------------
+# ============================================================================
+# JSON extraction
+# ============================================================================
 
 def extract_json_object(
     text: str,
 ) -> Optional[Dict[str, Any]]:
-    """
-    Extract the first balanced JSON object.
-
-    Supports:
-        - plain JSON
-        - fenced JSON
-        - explanatory text around JSON
-    """
 
     if not text:
         return None
@@ -576,21 +773,13 @@ def extract_json_object(
     )
 
     if fenced_match:
-
-        cleaned = fenced_match.group(
-            1
-        ).strip()
+        cleaned = fenced_match.group(1).strip()
 
     try:
 
-        result = json.loads(
-            cleaned
-        )
+        result = json.loads(cleaned)
 
-        if isinstance(
-            result,
-            dict,
-        ):
+        if isinstance(result, dict):
             return result
 
     except json.JSONDecodeError:
@@ -615,25 +804,20 @@ def extract_json_object(
         if in_string:
 
             if escaped:
-
                 escaped = False
 
             elif char == "\\":
-
                 escaped = True
 
             elif char == '"':
-
                 in_string = False
 
             continue
 
         if char == '"':
-
             in_string = True
 
         elif char == "{":
-
             depth += 1
 
         elif char == "}":
@@ -658,21 +842,15 @@ def extract_json_object(
                     ):
                         return result
 
-                except json.JSONDecodeError as exc:
-
-                    logger.error(
-                        "Unable to parse AI JSON response: %s",
-                        exc,
-                    )
-
-                return None
+                except json.JSONDecodeError:
+                    return None
 
     return None
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # AI response validation
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 def validate_patch_response(
     response: Optional[Dict[str, Any]],
@@ -684,9 +862,7 @@ def validate_patch_response(
     ):
         return False
 
-    if response.get(
-        "status"
-    ) != "PATCH":
+    if response.get("status") != "PATCH":
         return False
 
     diagnosis = response.get(
@@ -701,26 +877,16 @@ def validate_patch_response(
         "confidence"
     )
 
-    files = response.get(
-        "files"
-    )
-
     if not isinstance(
         diagnosis,
         str,
-    ):
-        return False
-
-    if not diagnosis.strip():
+    ) or not diagnosis.strip():
         return False
 
     if not isinstance(
         patch,
         str,
-    ):
-        return False
-
-    if not patch.strip():
+    ) or not patch.strip():
         return False
 
     if not isinstance(
@@ -731,20 +897,6 @@ def validate_patch_response(
 
     if not 0 <= confidence <= 100:
         return False
-
-    if files is not None:
-
-        if not isinstance(
-            files,
-            list,
-        ):
-            return False
-
-        if not all(
-            isinstance(item, str)
-            for item in files
-        ):
-            return False
 
     return True
 
@@ -786,402 +938,15 @@ def validate_review_response(
     if not 0 <= confidence <= 100:
         return False
 
-    if not isinstance(
+    return isinstance(
         reason,
         str,
-    ):
-        return False
+    )
 
-    return True
 
-
-# ---------------------------------------------------------------------------
-# Gemini / Local AI
-# ---------------------------------------------------------------------------
-
-class AIInferenceClient:
-
-    def __init__(
-        self,
-        config: EnvironmentConfig,
-    ):
-        self.config = config
-
-    def query_gemini(
-        self,
-        failure_log: str,
-        repo_context: str,
-    ) -> Optional[Dict[str, Any]]:
-
-        if not self.config.gemini_api_key:
-
-            logger.warning(
-                "GEMINI_API_KEY is missing. "
-                "Using local model."
-            )
-
-            return self.query_local_reviewer(
-                failure_log,
-                repo_context,
-                role="repair",
-            )
-
-        endpoint = (
-            "https://generativelanguage.googleapis.com/"
-            "v1beta/models/"
-            f"{self.config.gemini_model}"
-            ":generateContent"
-        )
-
-        prompt = f"""
-You are the lead C++23 / Qt6 / CMake / CI engineer
-for the VoidOne project.
-
-Your task is to diagnose a failed CI build and propose
-the smallest safe patch that fixes the ROOT CAUSE.
-
-The repository contains a native PC gaming platform.
-CI may involve:
-- C++
-- Qt6
-- QML
-- CMake
-- Ninja
-- GitHub Actions
-- Python automation
-- shell scripts
-- PowerShell
-- Windows packaging
-- NSIS
-- WiX
-- tests
-
-REPAIR POLICY:
-
-You MAY modify repository files required to fix the failure,
-including:
-
-- source code
-- headers
-- QML
-- tests
-- CMake files
-- build scripts
-- Python scripts
-- shell scripts
-- PowerShell scripts
-- GitHub Actions workflows
-- CI configuration
-- packaging configuration
-- NSIS files
-- WiX files
-- configuration files
-
-You MUST NOT modify:
-
-- .git/
-- scripts/ai_repair.py
-- scripts/requirements-ai-repair.txt
-
-STRICT RULES:
-
-1. Fix the ROOT CAUSE.
-2. Prefer the smallest maintainable change.
-3. Do not rewrite unrelated parts of the project.
-4. Do not disable tests.
-5. Do not weaken security.
-6. Do not add telemetry or tracking.
-7. Do not introduce secrets.
-8. Do not download or execute arbitrary external programs
-   as part of the patch.
-9. Do not modify the AI repair engine itself.
-10. Do not modify Git metadata.
-11. Do not use git push, git reset, git clean, or destructive
-    repository commands inside the patch.
-12. The patch MUST be a valid unified git diff.
-13. If there is insufficient information to safely repair the
-    failure, return "NO_FIX".
-
-Return ONLY valid JSON:
-
-{{
-  "status": "PATCH" | "NO_FIX",
-  "diagnosis": "short root-cause explanation",
-  "confidence": 0-100,
-  "files": ["path1", "path2"],
-  "patch": "unified git diff"
-}}
-
-CI FAILURE LOG:
-{failure_log}
-
-REPOSITORY CONTEXT:
-{repo_context}
-""".strip()
-
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {
-                            "text": prompt,
-                        }
-                    ]
-                }
-            ],
-            "generationConfig": {
-                "temperature": 0.1,
-                "responseMimeType": (
-                    "application/json"
-                ),
-            },
-        }
-
-        try:
-
-            response = requests.post(
-                endpoint,
-                params={
-                    "key":
-                        self.config.gemini_api_key,
-                },
-                json=payload,
-                timeout=120,
-            )
-
-            if response.status_code != 200:
-
-                logger.error(
-                    "Gemini returned HTTP %s: %s",
-                    response.status_code,
-                    response.text[:1000],
-                )
-
-                return self.query_local_reviewer(
-                    failure_log,
-                    repo_context,
-                    role="repair",
-                )
-
-            data = response.json()
-
-            text = (
-                data["candidates"][0]
-                ["content"]["parts"][0]
-                ["text"]
-            )
-
-            result = extract_json_object(
-                text
-            )
-
-            if validate_patch_response(
-                result
-            ):
-
-                return result
-
-            logger.error(
-                "Gemini returned an invalid repair response."
-            )
-
-        except Exception as exc:
-
-            logger.error(
-                "Gemini request failed: %s",
-                exc,
-            )
-
-        return self.query_local_reviewer(
-            failure_log,
-            repo_context,
-            role="repair",
-        )
-
-    def query_local_reviewer(
-        self,
-        failure_log: str,
-        repo_context: str,
-        role: str,
-        patch: str = "",
-    ) -> Optional[Dict[str, Any]]:
-
-        endpoint = (
-            f"{self.config.local_model_url}"
-            "/chat/completions"
-        )
-
-        if role == "review":
-
-            prompt = f"""
-You are the final security and correctness reviewer
-for the VoidOne project.
-
-Review the proposed AI-generated patch.
-
-Protected files:
-
-- .git/
-- scripts/ai_repair.py
-- scripts/requirements-ai-repair.txt
-
-The patch MAY modify:
-
-- source code
-- CMake
-- QML
-- tests
-- scripts
-- GitHub Actions
-- CI/CD
-- packaging
-- NSIS
-- WiX
-- configuration
-
-REJECT the patch if it:
-
-- modifies protected files
-- contains path traversal
-- modifies .git/
-- modifies the AI repair engine
-- introduces unrelated changes
-- disables tests
-- weakens security
-- adds telemetry or tracking
-- introduces secrets
-- contains suspicious destructive commands
-- does not address the CI failure
-- contains an obviously unsafe CI modification
-
-Return ONLY JSON:
-
-{{
-  "decision": "APPROVE" | "REJECT",
-  "confidence": 0-100,
-  "reason": "short explanation"
-}}
-
-CI FAILURE:
-{failure_log}
-
-PATCH:
-{patch}
-
-REPOSITORY CONTEXT:
-{repo_context}
-""".strip()
-
-        else:
-
-            prompt = f"""
-You are the fallback C++23 / Qt6 / CMake / CI engineer
-for VoidOne.
-
-Analyze the CI failure and create the smallest safe
-unified git diff.
-
-You MAY repair:
-
-- source code
-- CMake
-- QML
-- tests
-- scripts
-- GitHub Actions
-- CI/CD
-- packaging
-- NSIS
-- WiX
-- configuration
-
-Never modify:
-
-- .git/
-- scripts/ai_repair.py
-- scripts/requirements-ai-repair.txt
-
-Return ONLY JSON:
-
-{{
-  "status": "PATCH" | "NO_FIX",
-  "diagnosis": "root cause",
-  "confidence": 0-100,
-  "files": [],
-  "patch": "unified git diff"
-}}
-
-CI FAILURE:
-{failure_log}
-
-REPOSITORY CONTEXT:
-{repo_context}
-""".strip()
-
-        payload = {
-            "model":
-                self.config.local_model_name,
-
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-
-            "temperature": 0.1,
-        }
-
-        try:
-
-            response = requests.post(
-                endpoint,
-                json=payload,
-                timeout=180,
-            )
-
-            response.raise_for_status()
-
-            data = response.json()
-
-            text = (
-                data["choices"][0]
-                ["message"]["content"]
-            )
-
-            result = extract_json_object(
-                text
-            )
-
-            if role == "review":
-
-                if validate_review_response(
-                    result
-                ):
-                    return result
-
-                return None
-
-            if validate_patch_response(
-                result
-            ):
-                return result
-
-            return None
-
-        except Exception as exc:
-
-            logger.error(
-                "Local model request failed: %s",
-                exc,
-            )
-
-            return None
-
-
-# ---------------------------------------------------------------------------
-# Patch validation
-# ---------------------------------------------------------------------------
+# ============================================================================
+# Patch intelligence
+# ============================================================================
 
 def extract_patch_files(
     patch: str,
@@ -1217,6 +982,85 @@ def extract_patch_files(
     return sorted(files)
 
 
+def calculate_patch_metrics(
+    patch: str,
+) -> PatchMetrics:
+
+    files = extract_patch_files(
+        patch
+    )
+
+    added = 0
+    removed = 0
+
+    for line in patch.splitlines():
+
+        if line.startswith("+++"):
+            continue
+
+        if line.startswith("---"):
+            continue
+
+        if line.startswith("+"):
+            added += 1
+
+        elif line.startswith("-"):
+            removed += 1
+
+    return PatchMetrics(
+        files=len(files),
+        added_lines=added,
+        removed_lines=removed,
+        patch_chars=len(patch),
+    )
+
+
+def patch_hash(
+    patch: str,
+) -> str:
+
+    return hashlib.sha256(
+        patch.encode("utf-8")
+    ).hexdigest()
+
+
+def calculate_risk_score(
+    metrics: PatchMetrics,
+    failure_category: str,
+) -> float:
+
+    score = 0.0
+
+    score += min(
+        metrics.files * 4,
+        35,
+    )
+
+    score += min(
+        metrics.added_lines / 50,
+        25,
+    )
+
+    score += min(
+        metrics.removed_lines / 50,
+        20,
+    )
+
+    if failure_category in {
+        "workflow",
+        "packaging",
+    }:
+        score += 10
+
+    if metrics.patch_chars > 50_000:
+        score += 10
+
+    return min(
+        score,
+        100,
+    )
+
+
 def validate_patch_security(
     repo_dir: Path,
     patch: str,
@@ -1226,6 +1070,9 @@ def validate_patch_security(
 
     if not patch.strip():
         return False, "Empty patch."
+
+    if len(patch) > MAX_PATCH_CHARS:
+        return False, "Patch exceeds maximum size."
 
     if "\x00" in patch:
         return False, "Patch contains NUL byte."
@@ -1244,10 +1091,31 @@ def validate_patch_security(
     )
 
     if not files:
-
         return (
             False,
             "No patch files detected.",
+        )
+
+    if len(files) > MAX_PATCH_FILES:
+        return (
+            False,
+            "Patch modifies too many files.",
+        )
+
+    metrics = calculate_patch_metrics(
+        patch
+    )
+
+    if metrics.added_lines > MAX_PATCH_ADDED_LINES:
+        return (
+            False,
+            "Patch adds too many lines.",
+        )
+
+    if metrics.removed_lines > MAX_PATCH_REMOVED_LINES:
+        return (
+            False,
+            "Patch removes too many lines.",
         )
 
     for path in files:
@@ -1257,7 +1125,6 @@ def validate_patch_security(
         )
 
         if normalized is None:
-
             return (
                 False,
                 f"Unsafe path detected: {path}",
@@ -1266,45 +1133,49 @@ def validate_patch_security(
         if is_protected_path(
             normalized
         ):
-
             return (
                 False,
-                f"Protected path modification: "
-                f"{path}",
+                f"Protected path modification: {path}",
             )
 
         if not is_allowed_file_path(
             normalized
         ):
-
             return (
                 False,
-                f"Unexpected file type in patch: "
-                f"{path}",
+                f"Unexpected file type: {path}",
             )
 
-    forbidden_patterns = [
-        r"\bgit\s+push\b",
-        r"\bgit\s+reset\b",
-        r"\bgit\s+clean\b",
-        r"\brm\s+-rf\b",
-        r"\bcurl\s+.*\|\s*(sh|bash)",
-        r"\bwget\s+.*\|\s*(sh|bash)",
-        r"\bchmod\s+\+x\b",
-    ]
+    # Inspect only added content for dangerous commands.
+    # Deleted historical lines should not cause a false rejection.
+    added_content = "\n".join(
+        line[1:]
+        for line in patch.splitlines()
+        if line.startswith("+")
+        and not line.startswith("+++")
+    )
 
-    for pattern in forbidden_patterns:
+    for pattern in FORBIDDEN_PATCH_PATTERNS:
 
         if re.search(
             pattern,
-            patch,
+            added_content,
             flags=re.IGNORECASE,
         ):
-
             return (
                 False,
-                f"Suspicious command detected: "
-                f"{pattern}",
+                f"Suspicious command detected: {pattern}",
+            )
+
+    for pattern in SECRET_PATTERNS:
+
+        if re.search(
+            pattern,
+            added_content,
+        ):
+            return (
+                False,
+                "Potential secret detected in patch.",
             )
 
     return (
@@ -1313,9 +1184,9 @@ def validate_patch_security(
     )
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
 # Patch application
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 def apply_patch(
     repo_dir: Path,
@@ -1363,7 +1234,7 @@ def apply_patch(
                 str(patch_path),
             ],
             cwd=repo_dir,
-            timeout=60,
+            timeout=PATCH_TIMEOUT,
         )
 
         if check_code != 0:
@@ -1383,7 +1254,7 @@ def apply_patch(
                 str(patch_path),
             ],
             cwd=repo_dir,
-            timeout=60,
+            timeout=PATCH_TIMEOUT,
         )
 
         if apply_code != 0:
@@ -1395,10 +1266,6 @@ def apply_patch(
 
             return False
 
-        logger.info(
-            "Patch successfully applied."
-        )
-
         return True
 
     finally:
@@ -1407,15 +1274,14 @@ def apply_patch(
             patch_path
             and patch_path.exists()
         ):
-
             patch_path.unlink(
                 missing_ok=True
             )
 
 
-# ---------------------------------------------------------------------------
-# Repository snapshot
-# ---------------------------------------------------------------------------
+# ============================================================================
+# Git state
+# ============================================================================
 
 def get_git_status(
     repo_dir: Path,
@@ -1433,10 +1299,8 @@ def get_git_status(
     )
 
     if code != 0:
-
         raise RuntimeError(
-            f"Unable to read git status: "
-            f"{stderr}"
+            f"Unable to read git status: {stderr}"
         )
 
     return [
@@ -1446,56 +1310,12 @@ def get_git_status(
     ]
 
 
-def create_repository_snapshot(
-    repo_dir: Path,
-) -> Set[str]:
-
-    status = get_git_status(
-        repo_dir
-    )
-
-    code, _, stderr = run_command(
-        [
-            "git",
-            "diff",
-            "HEAD",
-        ],
-        cwd=repo_dir,
-        timeout=60,
-    )
-
-    if code != 0:
-
-        raise RuntimeError(
-            f"Unable to inspect repository: "
-            f"{stderr}"
-        )
-
-    untracked: Set[str] = set()
-
-    for line in status:
-
-        if line.startswith(
-            "?? "
-        ):
-
-            path = normalize_repo_path(
-                line[3:]
-            )
-
-            if path:
-                untracked.add(path)
-
-    return untracked
-
-
 def rollback(
     repo_dir: Path,
-    original_untracked: Set[str],
 ) -> None:
 
     logger.warning(
-        "Rolling back AI-generated changes..."
+        "Rolling back AI-generated changes."
     )
 
     code, _, stderr = run_command(
@@ -1534,136 +1354,6 @@ def rollback(
             stderr,
         )
 
-    # Original untracked files must survive rollback.
-    # If one was removed by a patch, git clean cannot restore it.
-    # Such files are therefore intentionally excluded from
-    # the AI repair process by the clean repository requirement.
-
-
-# ---------------------------------------------------------------------------
-# Build validation
-# ---------------------------------------------------------------------------
-
-def clean_build_directory(
-    repo_dir: Path,
-) -> None:
-
-    build_dir = repo_dir / "build"
-
-    if build_dir.exists():
-
-        logger.info(
-            "Removing previous build directory."
-        )
-
-        shutil.rmtree(
-            build_dir,
-            ignore_errors=True,
-        )
-
-
-def validate_build(
-    config: EnvironmentConfig,
-) -> bool:
-
-    repo_dir = config.repo_dir
-
-    clean_build_directory(
-        repo_dir
-    )
-
-    logger.info(
-        "Configuring CMake..."
-    )
-
-    configure_code, configure_out, configure_err = run_command(
-        [
-            "cmake",
-            "-S",
-            ".",
-            "-B",
-            "build",
-            "-G",
-            "Ninja",
-            "-DCMAKE_BUILD_TYPE=Release",
-            "-DBUILD_TESTING=ON",
-        ],
-        cwd=repo_dir,
-        timeout=config.build_timeout,
-    )
-
-    if configure_code != 0:
-
-        logger.error(
-            "CMake configuration failed:\n%s\n%s",
-            configure_out[-5000:],
-            configure_err[-5000:],
-        )
-
-        return False
-
-    logger.info(
-        "Building patched project..."
-    )
-
-    build_code, build_out, build_err = run_command(
-        [
-            "cmake",
-            "--build",
-            "build",
-            "--parallel",
-        ],
-        cwd=repo_dir,
-        timeout=config.build_timeout,
-    )
-
-    if build_code != 0:
-
-        logger.error(
-            "Build failed:\n%s\n%s",
-            build_out[-5000:],
-            build_err[-5000:],
-        )
-
-        return False
-
-    logger.info(
-        "Running CTest..."
-    )
-
-    test_code, test_out, test_err = run_command(
-        [
-            "ctest",
-            "--test-dir",
-            "build",
-            "--output-on-failure",
-            "--timeout",
-            "120",
-        ],
-        cwd=repo_dir,
-        timeout=config.test_timeout,
-    )
-
-    if test_code != 0:
-
-        logger.error(
-            "CTest failed:\n%s\n%s",
-            test_out[-5000:],
-            test_err[-5000:],
-        )
-
-        return False
-
-    logger.info(
-        "Build and tests passed successfully."
-    )
-
-    return True
-
-
-# ---------------------------------------------------------------------------
-# Git diff
-# ---------------------------------------------------------------------------
 
 def git_diff(
     repo_dir: Path,
@@ -1691,9 +1381,776 @@ def git_diff(
     return stdout
 
 
-# ---------------------------------------------------------------------------
+# ============================================================================
+# Build validation
+# ============================================================================
+
+def clean_build_directory(
+    repo_dir: Path,
+) -> None:
+
+    build_dir = repo_dir / "build"
+
+    if build_dir.exists():
+
+        shutil.rmtree(
+            build_dir,
+            ignore_errors=True,
+        )
+
+
+def validate_build(
+    config: EnvironmentConfig,
+) -> Tuple[bool, bool, str]:
+
+    repo_dir = config.repo_dir
+
+    clean_build_directory(
+        repo_dir
+    )
+
+    configure_code, configure_out, configure_err = run_command(
+        [
+            "cmake",
+            "-S",
+            ".",
+            "-B",
+            "build",
+            "-G",
+            "Ninja",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DBUILD_TESTING=ON",
+        ],
+        cwd=repo_dir,
+        timeout=config.build_timeout,
+    )
+
+    if configure_code != 0:
+
+        return (
+            False,
+            False,
+            (
+                "CMake configuration failed:\n"
+                f"{configure_out[-4000:]}\n"
+                f"{configure_err[-4000:]}"
+            ),
+        )
+
+    build_code, build_out, build_err = run_command(
+        [
+            "cmake",
+            "--build",
+            "build",
+            "--parallel",
+        ],
+        cwd=repo_dir,
+        timeout=config.build_timeout,
+    )
+
+    if build_code != 0:
+
+        return (
+            False,
+            False,
+            (
+                "Build failed:\n"
+                f"{build_out[-4000:]}\n"
+                f"{build_err[-4000:]}"
+            ),
+        )
+
+    test_code, test_out, test_err = run_command(
+        [
+            "ctest",
+            "--test-dir",
+            "build",
+            "--output-on-failure",
+            "--timeout",
+            "120",
+        ],
+        cwd=repo_dir,
+        timeout=config.test_timeout,
+    )
+
+    if test_code != 0:
+
+        return (
+            True,
+            False,
+            (
+                "CTest failed:\n"
+                f"{test_out[-4000:]}\n"
+                f"{test_err[-4000:]}"
+            ),
+        )
+
+    return (
+        True,
+        True,
+        "Build and tests passed.",
+    )
+
+
+# ============================================================================
+# AI Client
+# ============================================================================
+
+class AIInferenceClient:
+
+    def __init__(
+        self,
+        config: EnvironmentConfig,
+    ):
+        self.config = config
+
+    # ------------------------------------------------------------------------
+    # Gemini
+    # ------------------------------------------------------------------------
+
+    def query_gemini(
+        self,
+        failure_log: str,
+        repo_context: str,
+        category: str,
+        previous_validation: str = "",
+    ) -> Optional[Dict[str, Any]]:
+
+        if not self.config.gemini_api_key:
+
+            logger.warning(
+                "GEMINI_API_KEY missing. "
+                "Using local model."
+            )
+
+            return self.query_local(
+                failure_log,
+                repo_context,
+                category,
+                previous_validation,
+                role="repair",
+            )
+
+        endpoint = (
+            "https://generativelanguage.googleapis.com/"
+            "v1beta/models/"
+            f"{self.config.gemini_model}"
+            ":generateContent"
+        )
+
+        prompt = self.build_repair_prompt(
+            failure_log,
+            repo_context,
+            category,
+            previous_validation,
+        )
+
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": prompt,
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.1,
+                "responseMimeType": "application/json",
+            },
+        }
+
+        started = time.monotonic()
+
+        try:
+
+            response = requests.post(
+                endpoint,
+                params={
+                    "key":
+                        self.config.gemini_api_key,
+                },
+                json=payload,
+                timeout=GEMINI_REQUEST_TIMEOUT,
+            )
+
+            logger.info(
+                "Gemini request completed in %.2fs.",
+                time.monotonic() - started,
+            )
+
+            if response.status_code != 200:
+
+                logger.error(
+                    "Gemini HTTP %s: %s",
+                    response.status_code,
+                    response.text[:1000],
+                )
+
+                return self.query_local(
+                    failure_log,
+                    repo_context,
+                    category,
+                    previous_validation,
+                    role="repair",
+                )
+
+            data = response.json()
+
+            text = (
+                data["candidates"][0]
+                ["content"]["parts"][0]
+                ["text"]
+            )
+
+            result = extract_json_object(
+                text
+            )
+
+            if validate_patch_response(
+                result
+            ):
+                return result
+
+        except Exception as exc:
+
+            logger.error(
+                "Gemini request failed: %s",
+                exc,
+            )
+
+        return self.query_local(
+            failure_log,
+            repo_context,
+            category,
+            previous_validation,
+            role="repair",
+        )
+
+    # ------------------------------------------------------------------------
+    # Prompt
+    # ------------------------------------------------------------------------
+
+    def build_repair_prompt(
+        self,
+        failure_log: str,
+        repo_context: str,
+        category: str,
+        previous_validation: str,
+    ) -> str:
+
+        return f"""
+You are the principal CI reliability engineer for VoidOne.
+
+VoidOne is a native C++23 / Qt6 PC gaming platform.
+
+Your responsibility is to diagnose a CI failure and produce
+the smallest safe production-quality patch that fixes the
+actual root cause.
+
+Failure category:
+{category}
+
+Engineering priorities:
+
+1. Root-cause correctness
+2. Minimal change surface
+3. Maintainability
+4. Security
+5. Deterministic CI behavior
+6. Backward compatibility
+7. Test preservation
+
+Allowed:
+
+- C++
+- headers
+- QML
+- CMake
+- tests
+- Python
+- shell
+- PowerShell
+- GitHub Actions
+- CI/CD configuration
+- NSIS
+- WiX
+- configuration files
+- build scripts
+
+Protected:
+
+- .git/
+- scripts/ai_repair.py
+- scripts/requirements-ai-repair.txt
+
+Never:
+
+- disable tests
+- remove validation
+- introduce telemetry
+- introduce tracking
+- introduce secrets
+- hardcode credentials
+- weaken security
+- rewrite unrelated architecture
+- modify Git metadata
+- execute destructive commands
+- install arbitrary software from the patch
+- modify the AI repair engine
+
+The patch must be a unified git diff.
+
+If a safe repair cannot be determined, return NO_FIX.
+
+Previous validation feedback:
+
+{previous_validation or "None. This is the first repair attempt."}
+
+Return ONLY JSON:
+
+{{
+  "status": "PATCH" | "NO_FIX",
+  "diagnosis": "root cause",
+  "confidence": 0-100,
+  "files": ["file1", "file2"],
+  "patch": "unified git diff"
+}}
+
+CI FAILURE:
+
+{failure_log}
+
+REPOSITORY CONTEXT:
+
+{repo_context}
+""".strip()
+
+    # ------------------------------------------------------------------------
+    # Local model
+    # ------------------------------------------------------------------------
+
+    def query_local(
+        self,
+        failure_log: str,
+        repo_context: str,
+        category: str,
+        previous_validation: str,
+        role: str,
+        patch: str = "",
+    ) -> Optional[Dict[str, Any]]:
+
+        endpoint = (
+            f"{self.config.local_model_url}"
+            "/chat/completions"
+        )
+
+        if role == "review":
+
+            prompt = f"""
+You are the independent security reviewer for VoidOne.
+
+Review this AI-generated CI repair.
+
+Failure category:
+{category}
+
+Reject if the patch:
+
+- modifies protected files
+- contains path traversal
+- adds secrets
+- adds telemetry
+- disables tests
+- weakens security
+- performs destructive operations
+- contains unrelated changes
+- does not address the failure
+- is unnecessarily large
+- is suspicious or unsafe
+
+Protected:
+
+.git/
+scripts/ai_repair.py
+scripts/requirements-ai-repair.txt
+
+Return ONLY JSON:
+
+{{
+  "decision": "APPROVE" | "REJECT",
+  "confidence": 0-100,
+  "reason": "short explanation"
+}}
+
+CI FAILURE:
+
+{failure_log}
+
+PATCH:
+
+{patch}
+
+REPOSITORY CONTEXT:
+
+{repo_context}
+""".strip()
+
+        else:
+
+            prompt = self.build_repair_prompt(
+                failure_log,
+                repo_context,
+                category,
+                previous_validation,
+            )
+
+        payload = {
+            "model":
+                self.config.local_model_name,
+
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+
+            "temperature": 0.1,
+        }
+
+        try:
+
+            response = requests.post(
+                endpoint,
+                json=payload,
+                timeout=AI_REQUEST_TIMEOUT,
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            text = (
+                data["choices"][0]
+                ["message"]["content"]
+            )
+
+            result = extract_json_object(
+                text
+            )
+
+            if role == "review":
+
+                if validate_review_response(
+                    result
+                ):
+                    return result
+
+                return None
+
+            if validate_patch_response(
+                result
+            ):
+                return result
+
+        except Exception as exc:
+
+            logger.error(
+                "Local AI request failed: %s",
+                exc,
+            )
+
+        return None
+
+
+# ============================================================================
+# Audit report
+# ============================================================================
+
+def write_report(
+    report: RepairReport,
+    repo_dir: Path,
+) -> None:
+
+    report_dir = repo_dir / ".voidone"
+
+    report_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    report_path = (
+        report_dir
+        / "ai-repair-report.json"
+    )
+
+    report_path.write_text(
+        json.dumps(
+            asdict(report),
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    logger.info(
+        "Repair audit report written to %s",
+        report_path,
+    )
+
+
+# ============================================================================
+# Main repair cycle
+# ============================================================================
+
+def perform_repair_attempt(
+    config: EnvironmentConfig,
+    client: AIInferenceClient,
+    failure_log: str,
+    repo_context: str,
+    category: str,
+    attempt_number: int,
+    previous_validation: str,
+) -> RepairAttempt:
+
+    started = time.monotonic()
+
+    attempt = RepairAttempt(
+        attempt=attempt_number
+    )
+
+    repair = client.query_gemini(
+        failure_log,
+        repo_context,
+        category,
+        previous_validation,
+    )
+
+    if not validate_patch_response(
+        repair
+    ):
+
+        attempt.failure_reason = (
+            "AI did not produce a valid repair."
+        )
+
+        return attempt
+
+    diagnosis = str(
+        repair.get(
+            "diagnosis",
+            "",
+        )
+    )
+
+    confidence = float(
+        repair.get(
+            "confidence",
+            0,
+        )
+    )
+
+    patch = str(
+        repair.get(
+            "patch",
+            "",
+        )
+    )
+
+    attempt.diagnosis = diagnosis
+    attempt.confidence = confidence
+
+    metrics = calculate_patch_metrics(
+        patch
+    )
+
+    attempt.patch_metrics = metrics
+    attempt.patch_hash = patch_hash(
+        patch
+    )
+
+    attempt.risk_score = calculate_risk_score(
+        metrics,
+        category,
+    )
+
+    logger.info(
+        "Repair confidence: %.1f",
+        confidence,
+    )
+
+    logger.info(
+        "Patch risk score: %.1f",
+        attempt.risk_score,
+    )
+
+    if confidence < config.min_repair_confidence:
+
+        attempt.failure_reason = (
+            "Repair confidence below policy threshold."
+        )
+
+        return attempt
+
+    if attempt.risk_score >= 80:
+
+        attempt.failure_reason = (
+            "Patch risk score exceeds safety threshold."
+        )
+
+        return attempt
+
+    safe, reason = validate_patch_security(
+        config.repo_dir,
+        patch,
+    )
+
+    if not safe:
+
+        attempt.failure_reason = (
+            f"Security validation failed: {reason}"
+        )
+
+        return attempt
+
+    if not apply_patch(
+        config.repo_dir,
+        patch,
+    ):
+
+        attempt.failure_reason = (
+            "Patch application failed."
+        )
+
+        return attempt
+
+    build_passed, tests_passed, validation_output = (
+        validate_build(config)
+    )
+
+    attempt.build_passed = build_passed
+    attempt.tests_passed = tests_passed
+
+    if not build_passed or not tests_passed:
+
+        attempt.failure_reason = validation_output
+
+        rollback(
+            config.repo_dir
+        )
+
+        attempt.duration_seconds = (
+            time.monotonic() - started
+        )
+
+        return attempt
+
+    applied_diff = git_diff(
+        config.repo_dir
+    )
+
+    if not applied_diff.strip():
+
+        attempt.failure_reason = (
+            "No repository changes detected."
+        )
+
+        rollback(
+            config.repo_dir
+        )
+
+        attempt.duration_seconds = (
+            time.monotonic() - started
+        )
+
+        return attempt
+
+    review = client.query_local(
+        failure_log,
+        repo_context,
+        category,
+        "",
+        role="review",
+        patch=applied_diff,
+    )
+
+    if not validate_review_response(
+        review
+    ):
+
+        rollback(
+            config.repo_dir
+        )
+
+        attempt.failure_reason = (
+            "Independent AI review unavailable."
+        )
+
+        attempt.duration_seconds = (
+            time.monotonic() - started
+        )
+
+        return attempt
+
+    review_confidence = float(
+        review.get(
+            "confidence",
+            0,
+        )
+    )
+
+    decision = str(
+        review.get(
+            "decision",
+            "REJECT",
+        )
+    )
+
+    reason = str(
+        review.get(
+            "reason",
+            "",
+        )
+    )
+
+    attempt.review_decision = decision
+    attempt.review_confidence = review_confidence
+    attempt.review_reason = reason
+
+    if (
+        decision != "APPROVE"
+        or review_confidence
+        < config.min_review_confidence
+    ):
+
+        rollback(
+            config.repo_dir
+        )
+
+        attempt.failure_reason = (
+            "Independent reviewer rejected the patch."
+        )
+
+        attempt.duration_seconds = (
+            time.monotonic() - started
+        )
+
+        return attempt
+
+    attempt.success = True
+
+    attempt.duration_seconds = (
+        time.monotonic() - started
+    )
+
+    return attempt
+
+
+# ============================================================================
 # Main
-# ---------------------------------------------------------------------------
+# ============================================================================
 
 def main() -> int:
 
@@ -1706,7 +2163,7 @@ def main() -> int:
     parser.add_argument(
         "--log-file",
         required=True,
-        help="Path to the CI failure log.",
+        help="Path to CI failure log.",
     )
 
     parser.add_argument(
@@ -1728,7 +2185,7 @@ def main() -> int:
     if not repo_dir.is_dir():
 
         logger.error(
-            "Repository directory does not exist: %s",
+            "Repository does not exist: %s",
             repo_dir,
         )
 
@@ -1746,11 +2203,7 @@ def main() -> int:
     failure_log = log_file.read_text(
         encoding="utf-8",
         errors="replace",
-    )
-
-    failure_log = failure_log[
-        -MAX_LOG_CHARS:
-    ]
+    )[-MAX_LOG_CHARS:]
 
     if not failure_log.strip():
 
@@ -1764,37 +2217,14 @@ def main() -> int:
         repo_dir
     )
 
-    logger.info(
-        "Repository: %s",
-        config.repo_dir,
+    initial_status = get_git_status(
+        repo_dir
     )
-
-    try:
-
-        original_untracked = (
-            create_repository_snapshot(
-                config.repo_dir
-            )
-        )
-
-        initial_status = get_git_status(
-            config.repo_dir
-        )
-
-    except RuntimeError as exc:
-
-        logger.error(
-            "Unable to inspect repository: %s",
-            exc,
-        )
-
-        return 1
 
     if initial_status:
 
         logger.error(
-            "Repository contains changes before "
-            "AI repair."
+            "Repository is not clean before AI repair."
         )
 
         for line in initial_status:
@@ -1805,12 +2235,19 @@ def main() -> int:
 
         return 1
 
+    started = time.monotonic()
+
+    category = classify_failure(
+        failure_log
+    )
+
     logger.info(
-        "Collecting repository context..."
+        "Failure category: %s",
+        category,
     )
 
     repo_context = collect_repository_context(
-        config.repo_dir,
+        repo_dir,
         failure_log,
     )
 
@@ -1818,233 +2255,157 @@ def main() -> int:
         config
     )
 
-    logger.info(
-        "Requesting repair diagnosis..."
+    report = RepairReport(
+        engine_version=ENGINE_VERSION,
+        repository=str(repo_dir),
+        failure_category=category,
     )
 
-    repair = client.query_gemini(
-        failure_log,
-        repo_context,
-    )
+    previous_validation = ""
 
-    if not validate_patch_response(
-        repair
+    for attempt_number in range(
+        1,
+        config.max_attempts + 1,
     ):
 
-        logger.error(
-            "AI failed to produce a valid repair patch."
+        logger.info(
+            "=================================================="
         )
 
-        return 1
-
-    diagnosis = repair.get(
-        "diagnosis",
-        "No diagnosis provided.",
-    )
-
-    confidence = repair.get(
-        "confidence",
-        "unknown",
-    )
-
-    patch = repair.get(
-        "patch",
-        "",
-    )
-
-    logger.info(
-        "Diagnosis: %s",
-        diagnosis,
-    )
-
-    logger.info(
-        "AI confidence: %s",
-        confidence,
-    )
-
-    safe, reason = validate_patch_security(
-        config.repo_dir,
-        patch,
-    )
-
-    if not safe:
-
-        logger.error(
-            "Security validation rejected patch: "
-            "%s",
-            reason,
+        logger.info(
+            "AI REPAIR ATTEMPT %d/%d",
+            attempt_number,
+            config.max_attempts,
         )
 
-        return 1
-
-    if not apply_patch(
-        config.repo_dir,
-        patch,
-    ):
-
-        logger.error(
-            "Patch application failed."
+        logger.info(
+            "=================================================="
         )
 
-        return 1
+        attempt = perform_repair_attempt(
+            config,
+            client,
+            failure_log,
+            repo_context,
+            category,
+            attempt_number,
+            previous_validation,
+        )
 
-    logger.info(
-        "Running post-patch validation..."
+        report.attempts.append(
+            attempt
+        )
+
+        if attempt.success:
+
+            report.final_status = "SUCCESS"
+
+            report.final_reason = (
+                "Repair generated, validated, "
+                "built, tested and independently reviewed."
+            )
+
+            break
+
+        previous_validation = (
+            attempt.failure_reason
+        )
+
+        logger.warning(
+            "Attempt %d failed: %s",
+            attempt_number,
+            attempt.failure_reason,
+        )
+
+    report.total_duration_seconds = (
+        time.monotonic() - started
     )
 
-    if not validate_build(
-        config
-    ):
-
-        rollback(
-            config.repo_dir,
-            original_untracked,
-        )
-
-        logger.error(
-            "Post-patch validation failed."
-        )
-
-        return 1
-
-    applied_diff = git_diff(
-        config.repo_dir
+    write_report(
+        report,
+        repo_dir,
     )
 
-    current_status = get_git_status(
-        config.repo_dir
-    )
+    if report.final_status == "SUCCESS":
 
-    if (
-        not applied_diff.strip()
-        and not current_status
-    ):
-
-        rollback(
-            config.repo_dir,
-            original_untracked,
+        logger.info(
+            "=================================================="
         )
 
-        logger.error(
-            "No repository changes detected "
-            "after repair."
+        logger.info(
+            "VOIDONE AI REPAIR SUCCESS"
         )
 
-        return 1
-
-    logger.info(
-        "Requesting final local AI review..."
-    )
-
-    review = client.query_local_reviewer(
-        failure_log,
-        repo_context,
-        role="review",
-        patch=applied_diff,
-    )
-
-    if not review:
-
-        rollback(
-            config.repo_dir,
-            original_untracked,
+        logger.info(
+            "Engine version: %s",
+            ENGINE_VERSION,
         )
 
-        logger.error(
-            "Final AI review unavailable. "
-            "Failing closed."
+        logger.info(
+            "Failure category: %s",
+            category,
         )
 
-        return 1
-
-    if not validate_review_response(
-        review
-    ):
-
-        rollback(
-            config.repo_dir,
-            original_untracked,
+        logger.info(
+            "Attempts: %d",
+            len(report.attempts),
         )
 
-        logger.error(
-            "Final AI reviewer returned "
-            "an invalid response."
+        logger.info(
+            "Duration: %.2fs",
+            report.total_duration_seconds,
         )
 
-        return 1
-
-    decision = review.get(
-        "decision"
-    )
-
-    review_confidence = review.get(
-        "confidence"
-    )
-
-    review_reason = review.get(
-        "reason",
-        "unknown",
-    )
-
-    if decision != "APPROVE":
-
-        rollback(
-            config.repo_dir,
-            original_untracked,
+        logger.info(
+            "Build: PASSED"
         )
 
-        logger.error(
-            "Local AI reviewer rejected "
-            "the patch: %s",
-            review_reason,
+        logger.info(
+            "Tests: PASSED"
         )
 
-        return 1
+        logger.info(
+            "Independent review: APPROVED"
+        )
 
-    logger.info(
-        "Final AI review approved the patch."
-    )
+        logger.info(
+            "=================================================="
+        )
 
-    logger.info(
+        return 0
+
+    logger.error(
         "=================================================="
     )
 
-    logger.info(
-        "VOIDONE AI REPAIR SUCCESS"
+    logger.error(
+        "VOIDONE AI REPAIR FAILED"
     )
 
-    logger.info(
-        "Diagnosis: %s",
-        diagnosis,
+    logger.error(
+        "Failure category: %s",
+        category,
     )
 
-    logger.info(
-        "AI Confidence: %s",
-        confidence,
+    logger.error(
+        "Attempts: %d",
+        len(report.attempts),
     )
 
-    logger.info(
-        "Reviewer: APPROVED"
+    logger.error(
+        "Reason: %s",
+        report.final_reason or (
+            report.attempts[-1].failure_reason
+            if report.attempts
+            else "Unknown"
+        ),
     )
 
-    logger.info(
-        "Reviewer Confidence: %s",
-        review_confidence,
-    )
-
-    logger.info(
-        "Build: PASSED"
-    )
-
-    logger.info(
-        "Tests: PASSED"
-    )
-
-    logger.info(
+    logger.error(
         "=================================================="
     )
 
-    return 0
+    return 1
 
 
 if __name__ == "__main__":
