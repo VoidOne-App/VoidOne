@@ -41,7 +41,7 @@ permissions:
   attestations: write
 
 concurrency:
-  group: voidone-${{ github.workflow }}-${{ github.ref }}
+  group: voidone-\( {{ github.workflow }}- \){{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -69,7 +69,7 @@ jobs:
 
           TAG="${GITHUB_REF_NAME}"
 
-          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)(\.[0-9]+)?)?$ ]]; then
+          if [[ ! "\( TAG" =\~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)(\.[0-9]+)?)? \) ]]; then
             echo "::error::Tag '$TAG' violates SemVer compliance rules!"
             exit 1
           fi
@@ -132,7 +132,6 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
           choco install ninja -y --no-progress
 
       - name: Configure MSVC
@@ -160,7 +159,6 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
           cmake -S . -B build-codeql -G Ninja `
             -DCMAKE_BUILD_TYPE=Release
 
@@ -168,7 +166,6 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
           cmake --build build-codeql `
             --config Release `
             --parallel
@@ -235,10 +232,10 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           if ("${{ github.ref_type }}" -eq "tag") {
-            $version = "${{ github.ref_name }}" -replace '^v', ''
+            \( version = " \){{ github.ref_name }}" -replace '^v', ''
           }
           else {
-            $version = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
+            \( version = "0.0.0-dev. \)($env:GITHUB_SHA.Substring(0,7))"
           }
 
           "value=$version" | Out-File `
@@ -335,13 +332,11 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           $lto = "ON"
-
           if ("${{ inputs.enable_lto }}" -eq "false") {
             $lto = "OFF"
           }
 
           $buildTests = "ON"
-
           if ("${{ inputs.skip_tests }}" -eq "true") {
             $buildTests = "OFF"
           }
@@ -363,7 +358,6 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
           cmake --build build `
             --config Release `
             --parallel
@@ -441,7 +435,7 @@ jobs:
                 -Force
             }
 
-          # 🔍 پیدا کردن خودکار تمام پوشه‌های حاوی فایل‌های QML
+          # پیدا کردن خودکار تمام پوشه‌های حاوی فایل‌های QML
           $qmlDirs = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Filter "*.qml" -Recurse -File |
             Where-Object { $_.FullName -notmatch '\\(build|package|dist|pdb-symbols|\.git)\\' } |
             Select-Object -ExpandProperty DirectoryName -Unique
@@ -488,7 +482,7 @@ jobs:
 
 
       # ----------------------------------------------------------
-      # INSTALLERS
+      # INSTALLERS  (Fixed)
       # ----------------------------------------------------------
 
       - name: Create Multi-Format Installers
@@ -501,40 +495,70 @@ jobs:
             -Force `
             -Path dist | Out-Null
 
-          # NSIS
+          \( version = " \){{ steps.version.outputs.value }}"
+
+          # ---------- NSIS ----------
           if (Test-Path "installer.nsi") {
+            Write-Host "Building NSIS installer..."
 
             & "C:\Program Files (x86)\NSIS\makensis.exe" `
+              "/DVERSION=$version" `
               "/DREDIST_PATH=package\VC_redist.x64.exe" `
               installer.nsi
 
             if ($LASTEXITCODE -ne 0) {
-              throw "NSIS installer build failed."
+              throw "NSIS installer build failed with exit code $LASTEXITCODE"
             }
 
-            if (Test-Path "dist\VoidOne-Setup-x64.exe") {
+            # پشتیبانی از هر دو الگوی نام فایل
+            $produced1 = "dist\VoidOne-Setup-$version-x64.exe"      # الگوی فعلی installer.nsi
+            $produced2 = "dist\VoidOne-Setup-x64.exe"               # الگوی قدیمی
+            $expected  = "dist\VoidOne-Setup-x64-$version.exe"      # الگوی مورد انتظار workflow
 
-              Move-Item `
-                -Path "dist\VoidOne-Setup-x64.exe" `
-                -Destination "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe" `
-                -Force
+            if (Test-Path $produced1) {
+              Move-Item -Path $produced1 -Destination $expected -Force
+              Write-Host "NSIS installer renamed: $produced1 → $expected"
+            }
+            elseif (Test-Path $produced2) {
+              Move-Item -Path $produced2 -Destination $expected -Force
+              Write-Host "NSIS installer renamed: $produced2 → $expected"
+            }
+            elseif (Test-Path $expected) {
+              Write-Host "NSIS installer already has correct name: $expected"
+            }
+            else {
+              Write-Host "Available files in dist:"
+              Get-ChildItem dist -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  - $($_.Name)" }
+              throw "NSIS installer was not produced. Expected one of: $produced1 / $produced2 / $expected"
             }
           }
+          else {
+            Write-Host "installer.nsi not found — skipping NSIS"
+          }
 
-          # WiX
-          if (Test-Path "Package.wxs") {
+          # ---------- WiX ----------
+          # هم Package.wxs و هم installer.wxs را پشتیبانی می‌کند
+          $wixFile = $null
+          if (Test-Path "Package.wxs") { $wixFile = "Package.wxs" }
+          elseif (Test-Path "installer.wxs") { $wixFile = "installer.wxs" }
+
+          if ($wixFile) {
+            Write-Host "Building WiX MSI from $wixFile ..."
 
             wix build `
-              Package.wxs `
-              -d ProductVersion=${{ steps.version.outputs.value }} `
+              $wixFile `
+              -d ProductVersion=$version `
               -ext WixToolset.UI.wixext `
               -ext WixToolset.Util.wixext `
               -ext WixToolset.Firewall.wixext `
-              -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi"
+              -o "dist\VoidOne-Setup-x64-$version.msi"
 
             if ($LASTEXITCODE -ne 0) {
-              throw "WiX MSI build failed."
+              throw "WiX MSI build failed with exit code $LASTEXITCODE"
             }
+          }
+          else {
+            Write-Host "No WiX source found (Package.wxs / installer.wxs) — skipping MSI"
           }
 
 
@@ -561,7 +585,7 @@ jobs:
             -Include *.exe,*.msi `
             -Recurse |
             ForEach-Object {
-
+              Write-Host "Signing $($_.Name)..."
               Set-AuthenticodeSignature `
                 -FilePath $_.FullName `
                 -Certificate $cert `
@@ -579,25 +603,22 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          $version = "${{ steps.version.outputs.value }}"
-
-          # Installer SHA256
+          \( version = " \){{ steps.version.outputs.value }}"
           $exePath = "dist\VoidOne-Setup-x64-$version.exe"
 
           if (-not (Test-Path $exePath)) {
+            Write-Host "Files currently in dist:"
+            Get-ChildItem dist -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  - $($_.Name)" }
             throw "NSIS installer not found: $exePath"
           }
 
-          $exeHash = (
-            Get-FileHash `
-              -Path $exePath `
-              -Algorithm SHA256
-          ).Hash
-
+          $exeHash = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash
           "exe_sha256=$exeHash" | Out-File `
             -FilePath $env:GITHUB_OUTPUT `
             -Encoding utf8 `
             -Append
+
+          Write-Host "Installer SHA256: $exeHash"
 
 
       # ----------------------------------------------------------
@@ -608,8 +629,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          $version = "${{ steps.version.outputs.value }}"
+          \( version = " \){{ steps.version.outputs.value }}"
 
           Compress-Archive `
             -Path package\* `
@@ -631,39 +651,18 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          Get-ChildItem `
-            -Path . `
-            -Filter "*.zip" |
+          Get-ChildItem -Path . -Filter "*.zip" |
             ForEach-Object {
-
-              $hash = (
-                Get-FileHash `
-                  -Path $_.FullName `
-                  -Algorithm SHA256
-              ).Hash
-
+              $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash
               "$hash  $($_.Name)" |
-                Out-File `
-                  -FilePath "$($_.FullName).sha256" `
-                  -Encoding ascii
+                Out-File -FilePath "$($_.FullName).sha256" -Encoding ascii
             }
 
-          Get-ChildItem `
-            -Path dist `
-            -Include *.exe,*.msi `
-            -Recurse |
+          Get-ChildItem -Path dist -Include *.exe,*.msi -Recurse |
             ForEach-Object {
-
-              $hash = (
-                Get-FileHash `
-                  -Path $_.FullName `
-                  -Algorithm SHA256
-              ).Hash
-
+              $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash
               "$hash  $($_.Name)" |
-                Out-File `
-                  -FilePath "$($_.FullName).sha256" `
-                  -Encoding ascii
+                Out-File -FilePath "$($_.FullName).sha256" -Encoding ascii
             }
 
 
@@ -674,15 +673,9 @@ jobs:
       - name: Generate Winget Manifest
         shell: pwsh
         run: |
-          $version = "${{ steps.version.outputs.value }}"
-
+          \( version = " \){{ steps.version.outputs.value }}"
           $installer = "dist\VoidOne-Setup-x64-$version.exe"
-
-          $hash = (
-            Get-FileHash `
-              -Path $installer `
-              -Algorithm SHA256
-          ).Hash
+          $hash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash
 
           $manifest = @"
           PackageIdentifier: VoidOneApp.VoidOne
@@ -700,24 +693,15 @@ jobs:
           ManifestVersion: 1.4.0
           "@
 
-          $manifest |
-            Out-File `
-              -FilePath "dist\VoidOne.winget.yaml" `
-              -Encoding utf8
+          $manifest | Out-File -FilePath "dist\VoidOne.winget.yaml" -Encoding utf8
 
 
       - name: Generate Scoop Manifest
         shell: pwsh
         run: |
-          $version = "${{ steps.version.outputs.value }}"
-
+          \( version = " \){{ steps.version.outputs.value }}"
           $portable = "VoidOne-Windows-x64-Portable-$version.zip"
-
-          $hash = (
-            Get-FileHash `
-              -Path $portable `
-              -Algorithm SHA256
-          ).Hash
+          $hash = (Get-FileHash -Path $portable -Algorithm SHA256).Hash
 
           $manifest = @{
             version = $version
@@ -733,24 +717,15 @@ jobs:
             )
           } | ConvertTo-Json -Depth 5
 
-          $manifest |
-            Out-File `
-              -FilePath "dist\VoidOne.scoop.json" `
-              -Encoding utf8
+          $manifest | Out-File -FilePath "dist\VoidOne.scoop.json" -Encoding utf8
 
 
       - name: Generate AppCast
         shell: pwsh
         run: |
-          $version = "${{ steps.version.outputs.value }}"
-
+          \( version = " \){{ steps.version.outputs.value }}"
           $installer = "dist\VoidOne-Setup-x64-$version.exe"
-
-          $hash = (
-            Get-FileHash `
-              -Path $installer `
-              -Algorithm SHA256
-          ).Hash
+          $hash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash
 
           $appcast = @{
             version = $version
@@ -759,10 +734,7 @@ jobs:
             sha256 = $hash
           } | ConvertTo-Json
 
-          $appcast |
-            Out-File `
-              -FilePath "dist\appcast.json" `
-              -Encoding utf8
+          $appcast | Out-File -FilePath "dist\appcast.json" -Encoding utf8
 
 
       # ----------------------------------------------------------
@@ -787,17 +759,13 @@ jobs:
         run: |
           $end = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
           $start = [int64]$env:start_time
-
-          $duration = $end -$start
-
+          $duration = $end - $start
           $minutes = [math]::Floor($duration / 60)
-          $seconds =$duration % 60
-
-          "duration=${minutes}m${seconds}s" |
-            Out-File `
-              -FilePath $env:GITHUB_OUTPUT `
-              -Encoding utf8 `
-              -Append
+          $seconds = $duration % 60
+          "duration=\( {minutes}m \){seconds}s" | Out-File `
+            -FilePath $env:GITHUB_OUTPUT `
+            -Encoding utf8 `
+            -Append
 
 
       # ----------------------------------------------------------
@@ -820,18 +788,16 @@ jobs:
           | 📄 **SBOM** | `SPDX JSON` |
 
           ### SHA256
-
           ```text
           EXE SHA256:
           ${{ steps.hashes.outputs.exe_sha256 }}
           ```
           "@
 
-          $summary |
-            Out-File `
-              -FilePath $env:GITHUB_STEP_SUMMARY `
-              -Encoding utf8 `
-              -Append
+          $summary | Out-File `
+            -FilePath $env:GITHUB_STEP_SUMMARY `
+            -Encoding utf8 `
+            -Append
 
 
       # ----------------------------------------------------------
@@ -856,9 +822,7 @@ jobs:
 
   generate-docs:
     name: 📚 Build API Documentation
-
     if: ${{ inputs.build_docs == true || startsWith(github.ref, 'refs/tags/v') }}
-
     runs-on: ubuntu-24.04
 
     steps:
@@ -895,24 +859,18 @@ jobs:
 
   publish-release:
     name: 🌐 Global Release & Notifications
-
     needs:
       - build-production
-
     if: startsWith(github.ref, 'refs/tags/v')
-
     runs-on: ubuntu-24.04
-
     environment:
       name: production
 
     steps:
-
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
 
       - name: Download Release Artifacts
         uses: actions/download-artifact@v4
@@ -920,12 +878,10 @@ jobs:
           name: VoidOne-Windows-GodTier-Release
           path: release-files
 
-
       - name: Generate Build Provenance Attestation
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: "release-files/**"
-
 
       - name: Determine Release Metadata
         id: meta
@@ -935,7 +891,7 @@ jobs:
 
           TAG="${GITHUB_REF_NAME}"
 
-          if [[ "$TAG" =~ (alpha|beta|rc) ]]; then
+          if [[ "$TAG" =\~ (alpha|beta|rc) ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
@@ -962,7 +918,6 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -971,11 +926,6 @@ jobs:
           prerelease: ${{ steps.meta.outputs.prerelease }}
           generate_release_notes: true
           files: release-files/**
-
-
-      # ----------------------------------------------------------
-      # DISCORD / TELEGRAM
-      # ----------------------------------------------------------
 
       - name: Send Release Notifications
         if: success()
@@ -987,12 +937,10 @@ jobs:
           CHANGELOG: ${{ steps.meta.outputs.log }}
           BUILD_TIME: ${{ needs.build-production.outputs.build-duration }}
           SHA_EXE: ${{ needs.build-production.outputs.sha256-exe }}
-
         run: |
           set -euo pipefail
 
           if [ -n "${DISCORD_WEBHOOK:-}" ]; then
-
             PAYLOAD=$(jq -n \
               --arg tag "${GITHUB_REF_NAME}" \
               --arg actor "${GITHUB_ACTOR}" \
@@ -1000,7 +948,7 @@ jobs:
               --arg changelog "$CHANGELOG" \
               --arg time "$BUILD_TIME" \
               --arg sha "$SHA_EXE" \
-              --arg url "https://github.com/${{ github.repository }}/releases/tag/${GITHUB_REF_NAME}" \
+              --arg url "https://github.com/\( {{ github.repository }}/releases/tag/ \){GITHUB_REF_NAME}" \
               '{
                 username: "VoidOne CI/CD",
                 avatar_url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
@@ -1046,27 +994,22 @@ jobs:
                 }]
               }')
 
-            curl \
-              -sf \
+            curl -sf \
               -H "Content-Type: application/json" \
               -d "$PAYLOAD" \
               "$DISCORD_WEBHOOK"
           fi
 
-
-          if [ -n "${TELEGRAM_TOKEN:-}" ] &&
-             [ -n "${TELEGRAM_CHAT_ID:-}" ]; then
-
+          if [ -n "\( {TELEGRAM_TOKEN:-}" ] && [ -n " \){TELEGRAM_CHAT_ID:-}" ]; then
             TG_TEXT="🚀 VoidOne Engine ${GITHUB_REF_NAME} Released!
 
           ⏱️ Build Duration: ${BUILD_TIME}
           👤 Built by: ${GITHUB_ACTOR}
           🔑 SHA256: ${SHA_EXE}
 
-          🔗 https://github.com/${{ github.repository }}/releases/tag/${GITHUB_REF_NAME}"
+          🔗 https://github.com/\( {{ github.repository }}/releases/tag/ \){GITHUB_REF_NAME}"
 
-            curl \
-              -sf \
+            curl -sf \
               --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
               --data-urlencode "text=${TG_TEXT}" \
               "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage"
