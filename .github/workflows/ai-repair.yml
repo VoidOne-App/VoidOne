@@ -78,15 +78,28 @@ jobs:
           INPUT_FORCE_REPAIR: ${{ inputs.force_repair }}
           WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
           WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          CURRENT_SHA: ${{ github.sha }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
 
           set -euo pipefail
+
+          TARGET_WORKFLOW="Voidone CI/CD"
 
           if [[ "$EVENT_NAME" == "workflow_run" ]]; then
 
             RUN_ID="$WORKFLOW_RUN_ID"
             HEAD_SHA="$WORKFLOW_HEAD_SHA"
+            RUN_WORKFLOW_NAME="$WORKFLOW_NAME"
+
+            if [[ -z "$RUN_ID" || -z "$HEAD_SHA" ]]; then
+              echo "::error::Unable to resolve workflow_run target."
+              exit 1
+            fi
+
+            if [[ "$RUN_WORKFLOW_NAME" != "$TARGET_WORKFLOW" ]]; then
+              echo "::error::Unexpected workflow_run target: '$RUN_WORKFLOW_NAME'"
+              exit 1
+            fi
 
           else
 
@@ -94,22 +107,86 @@ jobs:
 
               RUN_ID="$INPUT_RUN_ID"
 
-              HEAD_SHA="$(
-                gh run view "$RUN_ID" \
-                  --json headSha \
-                  --jq '.headSha'
-              )"
-
             else
 
-              RUN_ID="$GITHUB_RUN_ID"
-              HEAD_SHA="$CURRENT_SHA"
+              if [[ "$INPUT_FORCE_REPAIR" == "true" ]]; then
 
+                RUN_ID="$(
+                  gh run list \
+                    --workflow "$TARGET_WORKFLOW" \
+                    --limit 1 \
+                    --json databaseId \
+                    --jq '.[0].databaseId'
+                )"
+
+              else
+
+                RUN_ID="$(
+                  gh run list \
+                    --workflow "$TARGET_WORKFLOW" \
+                    --status failure \
+                    --limit 1 \
+                    --json databaseId \
+                    --jq '.[0].databaseId'
+                )"
+
+              fi
+
+            fi
+
+            if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
+              echo "::error::Unable to find a target Voidone CI/CD workflow run."
+              exit 1
+            fi
+
+            RUN_INFO="$(
+              gh run view "$RUN_ID" \
+                --json \
+                  databaseId \
+                  workflowName \
+                  conclusion \
+                  headBranch \
+                  headSha
+            )"
+
+            RUN_WORKFLOW_NAME="$(
+              jq -r '.workflowName' <<< "$RUN_INFO"
+            )"
+
+            RUN_CONCLUSION="$(
+              jq -r '.conclusion' <<< "$RUN_INFO"
+            )"
+
+            RUN_BRANCH="$(
+              jq -r '.headBranch' <<< "$RUN_INFO"
+            )"
+
+            HEAD_SHA="$(
+              jq -r '.headSha' <<< "$RUN_INFO"
+            )"
+
+            if [[ "$RUN_WORKFLOW_NAME" != "$TARGET_WORKFLOW" ]]; then
+              echo "::error::Selected run does not belong to '$TARGET_WORKFLOW'."
+              echo "::error::Actual workflow: '$RUN_WORKFLOW_NAME'"
+              exit 1
+            fi
+
+            if [[ "$RUN_CONCLUSION" != "failure" && "$INPUT_FORCE_REPAIR" != "true" ]]; then
+              echo "::error::Selected workflow run is not failed."
+              echo "::error::Conclusion: $RUN_CONCLUSION"
+              echo "::error::Use force_repair=true to repair a successful run."
+              exit 1
+            fi
+
+            if [[ "$RUN_BRANCH" != "main" && "$INPUT_FORCE_REPAIR" != "true" ]]; then
+              echo "::error::Selected failed run is not from main."
+              echo "::error::Branch: $RUN_BRANCH"
+              exit 1
             fi
 
           fi
 
-          if [[ -z "$RUN_ID" || -z "$HEAD_SHA" ]]; then
+          if [[ -z "$RUN_ID" || -z "$HEAD_SHA" || "$HEAD_SHA" == "null" ]]; then
             echo "::error::Unable to resolve target workflow run."
             exit 1
           fi
@@ -118,6 +195,7 @@ jobs:
           echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
 
           echo "### 🎯 Target CI Run" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workflow: \`$TARGET_WORKFLOW\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Run ID: \`$RUN_ID\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: \`$HEAD_SHA\`" >> "$GITHUB_STEP_SUMMARY"
 
@@ -142,17 +220,34 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_ID: ${{ steps.target.outputs.run_id }}
+          FORCE_REPAIR: ${{ inputs.force_repair }}
         shell: bash
         run: |
 
           set -euo pipefail
 
-          gh run view "$RUN_ID" \
-            --log-failed \
-            > ci-failure.log
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_run" ]]; then
+
+            gh run view "$RUN_ID" \
+              --log-failed \
+              > ci-failure.log
+
+          elif [[ "$FORCE_REPAIR" == "true" ]]; then
+
+            gh run view "$RUN_ID" \
+              --log \
+              > ci-failure.log
+
+          else
+
+            gh run view "$RUN_ID" \
+              --log-failed \
+              > ci-failure.log
+
+          fi
 
           if [[ ! -s ci-failure.log ]]; then
-            echo "::error::Failed CI log is empty."
+            echo "::error::CI log is empty."
             exit 1
           fi
 
@@ -441,9 +536,9 @@ jobs:
 
       - name: Push Repair Branch
         if: success()
-        shell: bash
         env:
           BRANCH: ${{ steps.branch.outputs.name }}
+        shell: bash
         run: |
 
           set -euo pipefail
