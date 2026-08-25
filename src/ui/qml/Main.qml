@@ -12,10 +12,12 @@ import QtQuick.Controls
 Window {
     id: root
 
-    width: 1360
-    height: 768
+    // Responsive automatic screen sizing based on 85% of available display area
+    width: Screen.desktopAvailableWidth * 0.85
+    height: Screen.desktopAvailableHeight * 0.85
     minimumWidth: 1024
-    minimumHeight: 600
+    minimumHeight: 680
+
     visible: true
     title: qsTr("VoidOne Engine // Enterprise Quantum Launcher [v0.0.1-PRO]")
 
@@ -30,19 +32,19 @@ Window {
         property color surface: "#0a0f18"
         property color surfaceElevated: "#111826"
         property color surfaceGlass: "#800a0f18"
-        
+
         property color primary: "#00f0ff"
         property color primaryGlow: "#33f3ff"
         property color primaryTransparent: "#1a00f0ff"
-        
+
         property color accentPurple: "#9d4edd"
         property color textPrimary: "#f8fafc"
         property color textSecondary: "#64748b"
-        
+
         property color success: "#10b981"
         property color warning: "#f59e0b"
         property color danger: "#ef4444"
-        
+
         property int radiusBase: 12
         property int radiusLarge: 16
     }
@@ -134,7 +136,7 @@ Window {
                             radius: theme.radiusBase
                             border.color: searchInput.activeFocus ? theme.primary : theme.primaryTransparent
                             border.width: searchInput.activeFocus ? 2 : 1
-                            
+
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
 
@@ -146,7 +148,7 @@ Window {
                     }
                 }
 
-                // --- کاربردی ۱: ویجت مانیتورینگ سیستم زنده (CPU & RAM) ---
+                // --- Live System Monitoring Widget (CPU & RAM) ---
                 Rectangle {
                     Layout.preferredWidth: 190
                     Layout.preferredHeight: 40
@@ -177,7 +179,7 @@ Window {
                     }
                 }
 
-                // --- کاربردی ۲: کنترلر موزیک پس‌زمینه (Soundtrack Mode) ---
+                // --- Background Soundtrack Controller ---
                 Rectangle {
                     id: musicWidget
                     Layout.preferredWidth: 160
@@ -355,7 +357,7 @@ Window {
                         cellWidth: 320
                         cellHeight: 230
                         clip: true
-                        
+
                         flickDeceleration: 1800
                         boundsBehavior: Flickable.StopAtBounds
 
@@ -420,7 +422,7 @@ Window {
                 // --- Marketplace Viewport ---
                 Item {
                     id: marketplacePage
-                    
+
                     ColumnLayout {
                         anchors.centerIn: parent
                         spacing: 10
@@ -462,7 +464,7 @@ Window {
         height: 50
         radius: theme.radiusBase
         color: theme.surfaceElevated
-        
+
         border.color: theme.primary
         border.width: 1.5
 
@@ -506,13 +508,15 @@ Window {
         }
     }
 
-    // --- کاربردی ۳: دیالوگ تاییدیه سراسری (Enterprise Confirmation Dialog) ---
+    // ---------------------------------------------------------
+    // 6. Global Confirmation Dialog Modal
+    // ---------------------------------------------------------
     Rectangle {
         id: globalDialog
         anchors.fill: parent
         color: "#b005070a"
         visible: false
-        zIndex: 1000
+        z: 1000
 
         property string dialogTitle: "Alert"
         property string dialogDesc: "Message..."
@@ -526,7 +530,7 @@ Window {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: {} // جلوگیری از کلیک روی لایه‌های زیرین
+            onClicked: {} // Intercept interactions with underlying UI elements
         }
 
         Rectangle {
