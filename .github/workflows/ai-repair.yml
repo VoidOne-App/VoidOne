@@ -3,7 +3,7 @@ name: VoidOne Autonomous AI CI Repair Engine
 on:
   workflow_run:
     workflows:
-      - "Voidone CI/CD"
+      - "VoidOne CI/CD"
     types:
       - completed
 
@@ -54,6 +54,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (
         github.event_name == 'workflow_run' &&
+        github.event.workflow_run.name == 'VoidOne CI/CD' &&
         github.event.workflow_run.conclusion == 'failure' &&
         github.event.workflow_run.head_branch == 'main'
       )
@@ -73,33 +74,70 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
           EVENT_NAME: ${{ github.event_name }}
+
           INPUT_RUN_ID: ${{ inputs.failed_run_id }}
+
           INPUT_FORCE_REPAIR: ${{ inputs.force_repair }}
+
           WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+
           WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+
+          WORKFLOW_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+
         run: |
 
           set -euo pipefail
 
-          TARGET_WORKFLOW="Voidone CI/CD"
+          TARGET_WORKFLOW="VoidOne CI/CD"
+
+          RUN_ID=""
+          HEAD_SHA=""
+          RUN_BRANCH=""
+          RUN_CONCLUSION=""
+          RUN_WORKFLOW_NAME=""
+
+          # =================================================================
+          # workflow_run
+          # =================================================================
 
           if [[ "$EVENT_NAME" == "workflow_run" ]]; then
 
             RUN_ID="$WORKFLOW_RUN_ID"
             HEAD_SHA="$WORKFLOW_HEAD_SHA"
+            RUN_BRANCH="$WORKFLOW_HEAD_BRANCH"
             RUN_WORKFLOW_NAME="$WORKFLOW_NAME"
 
-            if [[ -z "$RUN_ID" || -z "$HEAD_SHA" ]]; then
-              echo "::error::Unable to resolve workflow_run target."
+            if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
+              echo "::error::Unable to resolve workflow run ID."
+              exit 1
+            fi
+
+            if [[ -z "$HEAD_SHA" || "$HEAD_SHA" == "null" ]]; then
+              echo "::error::Unable to resolve workflow head SHA."
               exit 1
             fi
 
             if [[ "$RUN_WORKFLOW_NAME" != "$TARGET_WORKFLOW" ]]; then
-              echo "::error::Unexpected workflow_run target: '$RUN_WORKFLOW_NAME'"
+              echo "::error::Unexpected workflow:"
+              echo "::error::$RUN_WORKFLOW_NAME"
+              echo "::error::Expected: $TARGET_WORKFLOW"
               exit 1
             fi
+
+            if [[ "$RUN_BRANCH" != "main" ]]; then
+              echo "::error::Failed workflow is not from main."
+              echo "::error::Branch: $RUN_BRANCH"
+              exit 1
+            fi
+
+          # =================================================================
+          # workflow_dispatch
+          # =================================================================
 
           else
 
@@ -107,35 +145,31 @@ jobs:
 
               RUN_ID="$INPUT_RUN_ID"
 
+            elif [[ "$INPUT_FORCE_REPAIR" == "true" ]]; then
+
+              RUN_ID="$(
+                gh run list \
+                  --workflow "$TARGET_WORKFLOW" \
+                  --limit 1 \
+                  --json databaseId \
+                  --jq '.[0].databaseId // empty'
+              )"
+
             else
 
-              if [[ "$INPUT_FORCE_REPAIR" == "true" ]]; then
-
-                RUN_ID="$(
-                  gh run list \
-                    --workflow "$TARGET_WORKFLOW" \
-                    --limit 1 \
-                    --json databaseId \
-                    --jq '.[0].databaseId'
-                )"
-
-              else
-
-                RUN_ID="$(
-                  gh run list \
-                    --workflow "$TARGET_WORKFLOW" \
-                    --status failure \
-                    --limit 1 \
-                    --json databaseId \
-                    --jq '.[0].databaseId'
-                )"
-
-              fi
+              RUN_ID="$(
+                gh run list \
+                  --workflow "$TARGET_WORKFLOW" \
+                  --status failure \
+                  --limit 1 \
+                  --json databaseId \
+                  --jq '.[0].databaseId // empty'
+              )"
 
             fi
 
-            if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
-              echo "::error::Unable to find a target Voidone CI/CD workflow run."
+            if [[ -z "$RUN_ID" ]]; then
+              echo "::error::Unable to find a target '$TARGET_WORKFLOW' run."
               exit 1
             fi
 
@@ -150,19 +184,19 @@ jobs:
             )"
 
             RUN_WORKFLOW_NAME="$(
-              jq -r '.workflowName' <<< "$RUN_INFO"
+              jq -r '.workflowName // empty' <<< "$RUN_INFO"
             )"
 
             RUN_CONCLUSION="$(
-              jq -r '.conclusion' <<< "$RUN_INFO"
+              jq -r '.conclusion // empty' <<< "$RUN_INFO"
             )"
 
             RUN_BRANCH="$(
-              jq -r '.headBranch' <<< "$RUN_INFO"
+              jq -r '.headBranch // empty' <<< "$RUN_INFO"
             )"
 
             HEAD_SHA="$(
-              jq -r '.headSha' <<< "$RUN_INFO"
+              jq -r '.headSha // empty' <<< "$RUN_INFO"
             )"
 
             if [[ "$RUN_WORKFLOW_NAME" != "$TARGET_WORKFLOW" ]]; then
@@ -171,33 +205,57 @@ jobs:
               exit 1
             fi
 
-            if [[ "$RUN_CONCLUSION" != "failure" && "$INPUT_FORCE_REPAIR" != "true" ]]; then
-              echo "::error::Selected workflow run is not failed."
-              echo "::error::Conclusion: $RUN_CONCLUSION"
-              echo "::error::Use force_repair=true to repair a successful run."
+            if [[ -z "$HEAD_SHA" ]]; then
+              echo "::error::Selected run does not contain a valid head SHA."
               exit 1
             fi
 
-            if [[ "$RUN_BRANCH" != "main" && "$INPUT_FORCE_REPAIR" != "true" ]]; then
-              echo "::error::Selected failed run is not from main."
-              echo "::error::Branch: $RUN_BRANCH"
-              exit 1
+            if [[ "$INPUT_FORCE_REPAIR" != "true" ]]; then
+
+              if [[ "$RUN_CONCLUSION" != "failure" ]]; then
+                echo "::error::Selected workflow run is not failed."
+                echo "::error::Conclusion: $RUN_CONCLUSION"
+                echo "::error::Use force_repair=true to repair a successful run."
+                exit 1
+              fi
+
+              if [[ "$RUN_BRANCH" != "main" ]]; then
+                echo "::error::Selected failed run is not from main."
+                echo "::error::Branch: $RUN_BRANCH"
+                exit 1
+              fi
+
             fi
 
           fi
 
-          if [[ -z "$RUN_ID" || -z "$HEAD_SHA" || "$HEAD_SHA" == "null" ]]; then
-            echo "::error::Unable to resolve target workflow run."
+          # =================================================================
+          # Final validation
+          # =================================================================
+
+          if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
+            echo "::error::Final run ID is invalid."
+            exit 1
+          fi
+
+          if [[ -z "$HEAD_SHA" || "$HEAD_SHA" == "null" ]]; then
+            echo "::error::Final head SHA is invalid."
             exit 1
           fi
 
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
           echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "head_branch=$RUN_BRANCH" >> "$GITHUB_OUTPUT"
 
-          echo "### 🎯 Target CI Run" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Workflow: \`$TARGET_WORKFLOW\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Run ID: \`$RUN_ID\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Commit: \`$HEAD_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### 🎯 Target CI Run"
+            echo ""
+            echo "- Workflow: \`$TARGET_WORKFLOW\`"
+            echo "- Run ID: \`$RUN_ID\`"
+            echo "- Branch: \`$RUN_BRANCH\`"
+            echo "- Commit: \`$HEAD_SHA\`"
+            echo "- Conclusion: \`${RUN_CONCLUSION:-unknown}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
 
       # ---------------------------------------------------------------------
@@ -254,10 +312,13 @@ jobs:
           tail -n 4000 ci-failure.log \
             > ci-failure-tail.log
 
-          echo "### 📋 CI Failure Log" >> "$GITHUB_STEP_SUMMARY"
-          echo '```text' >> "$GITHUB_STEP_SUMMARY"
-          tail -n 80 ci-failure-tail.log >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### 📋 CI Failure Log"
+            echo ""
+            echo '```text'
+            tail -n 80 ci-failure-tail.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
 
       # ---------------------------------------------------------------------
@@ -330,9 +391,15 @@ jobs:
 
           set -euo pipefail
 
-          curl -fsSL \
-            https://ollama.com/install.sh \
-            | sh
+          if ! command -v ollama >/dev/null 2>&1; then
+
+            curl -fsSL \
+              https://ollama.com/install.sh \
+              | sh
+
+          fi
+
+          command -v ollama
 
 
       - name: Start Ollama
@@ -360,7 +427,10 @@ jobs:
           done
 
           echo "::error::Ollama failed to start."
-          cat ollama.log || true
+
+          if [[ -f ollama.log ]]; then
+            cat ollama.log
+          fi
 
           exit 1
 
@@ -384,11 +454,14 @@ jobs:
 
           else
 
-            echo "::warning::1.5B model unavailable."
+            echo "::warning::qwen2.5-coder:1.5b unavailable."
 
             MODEL="qwen2.5-coder:7b"
 
-            ollama pull "$MODEL"
+            if ! ollama pull "$MODEL"; then
+              echo "::error::Unable to pull fallback local model."
+              exit 1
+            fi
 
             echo "model=$MODEL" >> "$GITHUB_OUTPUT"
 
@@ -453,29 +526,17 @@ jobs:
 
           set -euo pipefail
 
-          echo "### 🤖 VoidOne AI Repair" \
-            >> "$GITHUB_STEP_SUMMARY"
-
-          echo "" \
-            >> "$GITHUB_STEP_SUMMARY"
-
-          echo "AI-generated repair successfully passed:" \
-            >> "$GITHUB_STEP_SUMMARY"
-
-          echo "- 🛡️ Patch security validation" \
-            >> "$GITHUB_STEP_SUMMARY"
-
-          echo "- 🔧 CMake configuration" \
-            >> "$GITHUB_STEP_SUMMARY"
-
-          echo "- 🏗️ C++ build" \
-            >> "$GITHUB_STEP_SUMMARY"
-
-          echo "- 🧪 CTest" \
-            >> "$GITHUB_STEP_SUMMARY"
-
-          echo "- 🧠 Local AI review" \
-            >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### 🤖 VoidOne AI Repair"
+            echo ""
+            echo "AI-generated repair successfully passed:"
+            echo ""
+            echo "- 🛡️ Patch security validation"
+            echo "- 🔧 CMake configuration"
+            echo "- 🏗️ C++ build"
+            echo "- 🧪 CTest"
+            echo "- 🧠 Local AI review"
+          } >> "$GITHUB_STEP_SUMMARY"
 
 
       # ---------------------------------------------------------------------
@@ -499,6 +560,15 @@ jobs:
 
           git config user.email \
             "ai-repair@voidone.internal"
+
+          if git show-ref \
+            --verify \
+            --quiet \
+            "refs/heads/$BRANCH"; then
+
+            git branch -D "$BRANCH"
+
+          fi
 
           git checkout -b "$BRANCH"
 
@@ -544,6 +614,7 @@ jobs:
           set -euo pipefail
 
           git push \
+            --force-with-lease \
             origin \
             "$BRANCH"
 
@@ -574,7 +645,7 @@ jobs:
               --base main \
               --state open \
               --json number \
-              --jq '.[0].number'
+              --jq '.[0].number // empty'
           )"
 
           if [[ -n "$EXISTING_PR" ]]; then
@@ -610,15 +681,11 @@ jobs:
           - 🧪 CTest
           - 🧠 Local Qwen review
 
-          ### Safety
+          ### Review
 
-          The AI engine cannot modify:
+          The repair was generated and validated automatically.
 
-          - \`.git/\`
-          - \`.github/\`
-          - \`scripts/\`
-
-          The repair was generated automatically, but **human review is required before merge**.
+          Human review is required before merge.
 
           > VoidOne AI Repair Engine — Diagnose. Repair. Validate. Review."
 
@@ -632,14 +699,10 @@ jobs:
         shell: bash
         run: |
 
-          echo "### ❌ VoidOne AI Repair Failed" \
-            >> "$GITHUB_STEP_SUMMARY"
-
-          echo "" \
-            >> "$GITHUB_STEP_SUMMARY"
-
-          echo "The engine failed closed." \
-            >> "$GITHUB_STEP_SUMMARY"
-
-          echo "No automatic merge was performed." \
-            >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### ❌ VoidOne AI Repair Failed"
+            echo ""
+            echo "The engine failed closed."
+            echo ""
+            echo "No automatic merge was performed."
+          } >> "$GITHUB_STEP_SUMMARY"
