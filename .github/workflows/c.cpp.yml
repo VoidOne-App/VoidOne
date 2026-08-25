@@ -287,15 +287,16 @@ jobs:
 
           wix --version
 
-          # WiX v7 requires explicit OSMF EULA acceptance.
+          # WiX v7 OSMF EULA
           wix eula accept wix7
-
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "wix eula accept exited $LASTEXITCODE — build will still pass -acceptEula wix7"
+          }
           wix eula show
 
           wix extension add -g WixToolset.UI.wixext
           wix extension add -g WixToolset.Util.wixext
           wix extension add -g WixToolset.Firewall.wixext
-
 
       # ----------------------------------------------------------
       # MSVC
