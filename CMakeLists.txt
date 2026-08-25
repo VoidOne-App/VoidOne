@@ -52,7 +52,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(VOIDONE_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${VOIDONE_GENERATED_DIR}")
 
-# تعیین مقدار نمایشی نسخه (می‌تونی ترکیب کامل‌تری هم در نظر بگیری)
 set(VOIDONE_VERSION_DISPLAY "${PROJECT_VERSION}")
 
 file(WRITE "${VOIDONE_GENERATED_DIR}/VoidOneVersion.h" "\
@@ -78,7 +77,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick Sql Network)
 qt_standard_project_setup(REQUIRES 6.8)
 
 # ============================================================================
-# Core Library (voidone_core) - Updated with exact paths
+# Core Library (voidone_core)
 # ============================================================================
 add_library(voidone_core STATIC
     src/core/Database.cpp           src/core/Database.h
@@ -118,7 +117,7 @@ set(VOIDONE_EXE_EXTRA_SOURCES "")
 if(WIN32)
     set(APP_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/app.ico")
     set(VOIDONE_RC_PATH "${CMAKE_CURRENT_BINARY_DIR}/voidone.rc")
-    
+
     file(WRITE "${VOIDONE_RC_PATH}" "\
 #include <winver.h>
 IDI_ICON1 ICON DISCARDABLE \"${APP_ICON_PATH}\"
@@ -157,7 +156,7 @@ END
 endif()
 
 # ============================================================================
-# Main Executable & QML Module - Updated with exact paths
+# Main Executable & QML Module (With NO_PLUGIN Fix)
 # ============================================================================
 qt_add_executable(VoidOne 
     src/main.cpp
@@ -167,6 +166,7 @@ qt_add_executable(VoidOne
 qt_add_qml_module(VoidOne
     URI VoidOne
     VERSION 1.0
+    NO_PLUGIN
     QML_FILES
         src/ui/qml/Main.qml
         src/ui/qml/GameCard.qml
