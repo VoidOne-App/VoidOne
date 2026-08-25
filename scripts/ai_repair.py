@@ -27,6 +27,26 @@ Pipeline:
 The engine NEVER commits or pushes changes itself.
 The GitHub Actions workflow is responsible for creating a branch
 and opening a draft PR after validation succeeds.
+
+Repair policy:
+
+    Allowed:
+        - Source code
+        - CMake
+        - QML
+        - Tests
+        - Build scripts
+        - Packaging files
+        - GitHub Actions workflows
+        - CI/CD scripts
+        - Python / shell / PowerShell automation
+        - NSIS / WiX configuration
+        - Other repository files required to repair CI
+
+    Protected:
+        - .git/
+        - scripts/ai_repair.py
+        - scripts/requirements-ai-repair.txt
 """
 
 from __future__ import annotations
@@ -36,12 +56,13 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
 
@@ -65,15 +86,16 @@ logger = logging.getLogger("VoidOneAIRepair")
 MAX_LOG_CHARS = 20_000
 MAX_FILE_CHARS = 12_000
 MAX_CONTEXT_CHARS = 60_000
+MAX_REFERENCED_FILES = 40
 
 PROTECTED_PATHS = (
     ".git/",
-    ".github/",
     "scripts/ai_repair.py",
     "scripts/requirements-ai-repair.txt",
 )
 
-ALLOWED_SOURCE_EXTENSIONS = {
+ALLOWED_FILE_EXTENSIONS = {
+    # C / C++
     ".c",
     ".cc",
     ".cpp",
@@ -82,8 +104,52 @@ ALLOWED_SOURCE_EXTENSIONS = {
     ".hh",
     ".hpp",
     ".hxx",
+
+    # Qt / QML
     ".qml",
+    ".qrc",
+    ".ui",
+
+    # CMake / build
     ".cmake",
+
+    # Python / scripting
+    ".py",
+    ".pyw",
+    ".sh",
+    ".bash",
+    ".ps1",
+    ".bat",
+    ".cmd",
+
+    # CI
+    ".yml",
+    ".yaml",
+
+    # Packaging
+    ".nsi",
+    ".nsh",
+    ".wxs",
+    ".wxi",
+
+    # Configuration / metadata
+    ".json",
+    ".xml",
+    ".rc",
+    ".ini",
+    ".cfg",
+    ".conf",
+    ".toml",
+
+    # Documentation / text
+    ".txt",
+    ".md",
+}
+
+ALLOWED_EXTENSIONLESS_FILES = {
+    "CMakeLists.txt",
+    "Makefile",
+    "Dockerfile",
 }
 
 BUILD_DIRECTORIES = (
@@ -113,11 +179,19 @@ class EnvironmentConfig:
     test_timeout: int
 
     @classmethod
-    def from_environment(cls, repo_dir: Path) -> "EnvironmentConfig":
+    def from_environment(
+        cls,
+        repo_dir: Path,
+    ) -> "EnvironmentConfig":
+
         return cls(
             repo_dir=repo_dir.resolve(),
 
-            gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+            gemini_api_key=os.getenv(
+                "GEMINI_API_KEY",
+                "",
+            ).strip(),
+
             gemini_model=os.getenv(
                 "GEMINI_MODEL",
                 "gemini-2.5-pro",
@@ -134,11 +208,17 @@ class EnvironmentConfig:
             ).strip(),
 
             build_timeout=int(
-                os.getenv("AI_REPAIR_BUILD_TIMEOUT", "900")
+                os.getenv(
+                    "AI_REPAIR_BUILD_TIMEOUT",
+                    "900",
+                )
             ),
 
             test_timeout=int(
-                os.getenv("AI_REPAIR_TEST_TIMEOUT", "600")
+                os.getenv(
+                    "AI_REPAIR_TEST_TIMEOUT",
+                    "600",
+                )
             ),
         )
 
@@ -153,9 +233,13 @@ def run_command(
     timeout: int,
 ) -> Tuple[int, str, str]:
 
-    logger.info("$ %s", " ".join(command))
+    logger.info(
+        "$ %s",
+        " ".join(command),
+    )
 
     try:
+
         process = subprocess.Popen(
             command,
             cwd=str(cwd),
@@ -165,11 +249,18 @@ def run_command(
             errors="replace",
         )
 
-        stdout, stderr = process.communicate(timeout=timeout)
+        stdout, stderr = process.communicate(
+            timeout=timeout,
+        )
 
-        return process.returncode, stdout, stderr
+        return (
+            process.returncode,
+            stdout,
+            stderr,
+        )
 
     except subprocess.TimeoutExpired:
+
         process.kill()
 
         stdout, stderr = process.communicate()
@@ -177,29 +268,43 @@ def run_command(
         return (
             -1,
             stdout,
-            f"Command timed out after {timeout} seconds.\n{stderr}",
+            (
+                f"Command timed out after "
+                f"{timeout} seconds.\n"
+                f"{stderr}"
+            ),
         )
 
     except Exception as exc:
-        return -1, "", str(exc)
+
+        return (
+            -1,
+            "",
+            str(exc),
+        )
 
 
 # ---------------------------------------------------------------------------
 # Path security
 # ---------------------------------------------------------------------------
 
-def normalize_repo_path(path: str) -> Optional[str]:
+def normalize_repo_path(
+    path: str,
+) -> Optional[str]:
     """
     Convert a patch path into a safe repository-relative POSIX path.
 
     Reject:
-      - absolute paths
-      - Windows drive paths
-      - ../ traversal
-      - empty paths
+        - absolute paths
+        - Windows drive paths
+        - parent traversal
+        - empty paths
     """
 
-    path = path.strip().replace("\\", "/")
+    path = path.strip().replace(
+        "\\",
+        "/",
+    )
 
     if not path:
         return None
@@ -207,10 +312,17 @@ def normalize_repo_path(path: str) -> Optional[str]:
     if path.startswith("/"):
         return None
 
-    if re.match(r"^[A-Za-z]:/", path):
+    if re.match(
+        r"^[A-Za-z]:/",
+        path,
+    ):
         return None
 
-    path = re.sub(r"^\./", "", path)
+    path = re.sub(
+        r"^\./",
+        "",
+        path,
+    )
 
     parts = Path(path).parts
 
@@ -220,39 +332,99 @@ def normalize_repo_path(path: str) -> Optional[str]:
     return path
 
 
-def is_protected_path(path: str) -> bool:
-    normalized = path.replace("\\", "/").lstrip("./")
+def is_protected_path(
+    path: str,
+) -> bool:
+
+    normalized = (
+        path
+        .replace("\\", "/")
+        .lstrip("./")
+    )
 
     for protected in PROTECTED_PATHS:
-        protected_normalized = protected.replace("\\", "/").lstrip("./")
 
-        if normalized == protected_normalized.rstrip("/"):
+        protected_normalized = (
+            protected
+            .replace("\\", "/")
+            .lstrip("./")
+            .rstrip("/")
+        )
+
+        if normalized == protected_normalized:
             return True
 
-        if normalized.startswith(protected_normalized):
+        if normalized.startswith(
+            protected_normalized + "/"
+        ):
             return True
 
     return False
+
+
+def is_allowed_file_path(
+    path: str,
+) -> bool:
+
+    normalized = normalize_repo_path(
+        path
+    )
+
+    if normalized is None:
+        return False
+
+    if is_protected_path(
+        normalized
+    ):
+        return False
+
+    filename = Path(
+        normalized
+    ).name
+
+    if filename in ALLOWED_EXTENSIONLESS_FILES:
+        return True
+
+    suffix = Path(
+        normalized
+    ).suffix.lower()
+
+    return suffix in ALLOWED_FILE_EXTENSIONS
 
 
 # ---------------------------------------------------------------------------
 # Repository context
 # ---------------------------------------------------------------------------
 
-def read_file_limited(path: Path, limit: int = MAX_FILE_CHARS) -> str:
+def read_file_limited(
+    path: Path,
+    limit: int = MAX_FILE_CHARS,
+) -> str:
+
     try:
+
         text = path.read_text(
             encoding="utf-8",
             errors="replace",
         )
 
         if len(text) > limit:
-            return text[:limit] + "\n... [TRUNCATED] ..."
+
+            return (
+                text[:limit]
+                + "\n... [TRUNCATED] ..."
+            )
 
         return text
 
     except Exception as exc:
-        logger.warning("Unable to read %s: %s", path, exc)
+
+        logger.warning(
+            "Unable to read %s: %s",
+            path,
+            exc,
+        )
+
         return ""
 
 
@@ -261,22 +433,44 @@ def extract_referenced_files(
     log_text: str,
 ) -> List[str]:
 
-    candidates = set()
+    candidates: Set[str] = set()
 
-    # Common compiler / CMake path patterns.
     patterns = [
-        r"(?<![\w./-])([A-Za-z0-9_.\-/]+\.(?:cpp|cc|cxx|c|hpp|hh|hxx|h|qml|cmake))",
-        r"(?:--|\s)([A-Za-z0-9_.\-/]+/CMakeLists\.txt)",
+        (
+            r"(?<![\w./-])"
+            r"([A-Za-z0-9_.\-/]+"
+            r"\.(?:cpp|cc|cxx|c|hpp|hh|hxx|h|"
+            r"qml|cmake|py|sh|bash|ps1|bat|cmd|"
+            r"yml|yaml|nsi|nsh|wxs|wxi|json|xml))"
+        ),
+        (
+            r"(?:--|\s)"
+            r"([A-Za-z0-9_.\-/]+/CMakeLists\.txt)"
+        ),
+        (
+            r"((?:\.github/)?"
+            r"[A-Za-z0-9_.\-/]+"
+            r"/(?:Dockerfile|Makefile))"
+        ),
     ]
 
     for pattern in patterns:
-        for match in re.findall(pattern, log_text):
-            path = normalize_repo_path(match)
+
+        for match in re.findall(
+            pattern,
+            log_text,
+        ):
+
+            path = normalize_repo_path(
+                match
+            )
 
             if not path:
                 continue
 
-            if is_protected_path(path):
+            if is_protected_path(
+                path
+            ):
                 continue
 
             target = repo_dir / path
@@ -301,36 +495,54 @@ def collect_repository_context(
     ]
 
     for filename in core_files:
+
         path = repo_dir / filename
 
-        if path.is_file():
-            content = read_file_limited(path)
+        if not path.is_file():
+            continue
 
-            if content:
-                sections.append(
-                    f"=== FILE: {filename} ===\n{content}"
-                )
+        content = read_file_limited(
+            path
+        )
+
+        if content:
+
+            sections.append(
+                f"=== FILE: {filename} ===\n"
+                f"{content}"
+            )
 
     referenced_files = extract_referenced_files(
         repo_dir,
         failure_log,
     )
 
-    for relative_path in referenced_files[:25]:
+    for relative_path in referenced_files[
+        :MAX_REFERENCED_FILES
+    ]:
 
         path = repo_dir / relative_path
-        content = read_file_limited(path)
+
+        content = read_file_limited(
+            path
+        )
 
         if content:
+
             sections.append(
-                f"=== FILE: {relative_path} ===\n{content}"
+                f"=== FILE: {relative_path} ===\n"
+                f"{content}"
             )
 
-    context = "\n\n".join(sections)
+    context = "\n\n".join(
+        sections
+    )
 
     if len(context) > MAX_CONTEXT_CHARS:
-        context = context[:MAX_CONTEXT_CHARS] + (
-            "\n... [CONTEXT TRUNCATED] ..."
+
+        context = (
+            context[:MAX_CONTEXT_CHARS]
+            + "\n... [CONTEXT TRUNCATED] ..."
         )
 
     return context
@@ -340,14 +552,16 @@ def collect_repository_context(
 # JSON parsing
 # ---------------------------------------------------------------------------
 
-def extract_json_object(text: str) -> Optional[Dict[str, Any]]:
+def extract_json_object(
+    text: str,
+) -> Optional[Dict[str, Any]]:
     """
-    Robustly extract a JSON object from an AI response.
+    Extract the first balanced JSON object.
 
-    Handles:
-      - plain JSON
-      - ```json ... ```
-      - surrounding explanatory text
+    Supports:
+        - plain JSON
+        - fenced JSON
+        - explanatory text around JSON
     """
 
     if not text:
@@ -355,44 +569,103 @@ def extract_json_object(text: str) -> Optional[Dict[str, Any]]:
 
     cleaned = text.strip()
 
-    # Markdown fenced JSON.
-    fenced = re.search(
-        r"```(?:json)?\s*(\{.*?\})\s*```",
+    fenced_match = re.search(
+        r"```(?:json)?\s*(.*?)\s*```",
         cleaned,
-        flags=re.DOTALL,
+        flags=re.DOTALL | re.IGNORECASE,
     )
 
-    if fenced:
-        cleaned = fenced.group(1)
+    if fenced_match:
+
+        cleaned = fenced_match.group(
+            1
+        ).strip()
 
     try:
-        result = json.loads(cleaned)
 
-        if isinstance(result, dict):
+        result = json.loads(
+            cleaned
+        )
+
+        if isinstance(
+            result,
+            dict,
+        ):
             return result
 
     except json.JSONDecodeError:
         pass
 
-    # Try extracting the first JSON object.
     start = cleaned.find("{")
-    end = cleaned.rfind("}")
 
-    if start >= 0 and end > start:
+    if start < 0:
+        return None
 
-        candidate = cleaned[start:end + 1]
+    depth = 0
+    in_string = False
+    escaped = False
 
-        try:
-            result = json.loads(candidate)
+    for index in range(
+        start,
+        len(cleaned),
+    ):
 
-            if isinstance(result, dict):
-                return result
+        char = cleaned[index]
 
-        except json.JSONDecodeError as exc:
-            logger.error(
-                "Unable to parse AI JSON response: %s",
-                exc,
-            )
+        if in_string:
+
+            if escaped:
+
+                escaped = False
+
+            elif char == "\\":
+
+                escaped = True
+
+            elif char == '"':
+
+                in_string = False
+
+            continue
+
+        if char == '"':
+
+            in_string = True
+
+        elif char == "{":
+
+            depth += 1
+
+        elif char == "}":
+
+            depth -= 1
+
+            if depth == 0:
+
+                candidate = cleaned[
+                    start:index + 1
+                ]
+
+                try:
+
+                    result = json.loads(
+                        candidate
+                    )
+
+                    if isinstance(
+                        result,
+                        dict,
+                    ):
+                        return result
+
+                except json.JSONDecodeError as exc:
+
+                    logger.error(
+                        "Unable to parse AI JSON response: %s",
+                        exc,
+                    )
+
+                return None
 
     return None
 
@@ -405,35 +678,133 @@ def validate_patch_response(
     response: Optional[Dict[str, Any]],
 ) -> bool:
 
-    if not response:
+    if not isinstance(
+        response,
+        dict,
+    ):
         return False
 
-    if response.get("status") != "PATCH":
+    if response.get(
+        "status"
+    ) != "PATCH":
         return False
 
-    diagnosis = response.get("diagnosis")
+    diagnosis = response.get(
+        "diagnosis"
+    )
 
-    patch = response.get("patch")
+    patch = response.get(
+        "patch"
+    )
 
-    if not isinstance(diagnosis, str):
+    confidence = response.get(
+        "confidence"
+    )
+
+    files = response.get(
+        "files"
+    )
+
+    if not isinstance(
+        diagnosis,
+        str,
+    ):
         return False
 
-    if not isinstance(patch, str):
+    if not diagnosis.strip():
+        return False
+
+    if not isinstance(
+        patch,
+        str,
+    ):
         return False
 
     if not patch.strip():
+        return False
+
+    if not isinstance(
+        confidence,
+        (int, float),
+    ):
+        return False
+
+    if not 0 <= confidence <= 100:
+        return False
+
+    if files is not None:
+
+        if not isinstance(
+            files,
+            list,
+        ):
+            return False
+
+        if not all(
+            isinstance(item, str)
+            for item in files
+        ):
+            return False
+
+    return True
+
+
+def validate_review_response(
+    response: Optional[Dict[str, Any]],
+) -> bool:
+
+    if not isinstance(
+        response,
+        dict,
+    ):
+        return False
+
+    decision = response.get(
+        "decision"
+    )
+
+    confidence = response.get(
+        "confidence"
+    )
+
+    reason = response.get(
+        "reason"
+    )
+
+    if decision not in {
+        "APPROVE",
+        "REJECT",
+    }:
+        return False
+
+    if not isinstance(
+        confidence,
+        (int, float),
+    ):
+        return False
+
+    if not 0 <= confidence <= 100:
+        return False
+
+    if not isinstance(
+        reason,
+        str,
+    ):
         return False
 
     return True
 
 
 # ---------------------------------------------------------------------------
-# Gemini
+# Gemini / Local AI
 # ---------------------------------------------------------------------------
 
 class AIInferenceClient:
 
-    def __init__(self, config: EnvironmentConfig):
+    def __init__(
+        self,
+        config: EnvironmentConfig,
+    ):
         self.config = config
 
     def query_gemini(
@@ -443,6 +814,7 @@ class AIInferenceClient:
     ) -> Optional[Dict[str, Any]]:
 
         if not self.config.gemini_api_key:
+
             logger.warning(
                 "GEMINI_API_KEY is missing. "
                 "Using local model."
@@ -462,29 +834,73 @@ class AIInferenceClient:
         )
 
         prompt = f"""
-You are the lead C++23 / Qt6 engineer for the VoidOne project.
+You are the lead C++23 / Qt6 / CMake / CI engineer
+for the VoidOne project.
 
-Your task is to diagnose a failed CI build and propose the smallest
-safe source-code patch that fixes the ROOT CAUSE.
+Your task is to diagnose a failed CI build and propose
+the smallest safe patch that fixes the ROOT CAUSE.
+
+The repository contains a native PC gaming platform.
+CI may involve:
+- C++
+- Qt6
+- QML
+- CMake
+- Ninja
+- GitHub Actions
+- Python automation
+- shell scripts
+- PowerShell
+- Windows packaging
+- NSIS
+- WiX
+- tests
+
+REPAIR POLICY:
+
+You MAY modify repository files required to fix the failure,
+including:
+
+- source code
+- headers
+- QML
+- tests
+- CMake files
+- build scripts
+- Python scripts
+- shell scripts
+- PowerShell scripts
+- GitHub Actions workflows
+- CI configuration
+- packaging configuration
+- NSIS files
+- WiX files
+- configuration files
+
+You MUST NOT modify:
+
+- .git/
+- scripts/ai_repair.py
+- scripts/requirements-ai-repair.txt
 
 STRICT RULES:
 
-1. Do NOT modify:
-   - .git/
-   - .github/
-   - scripts/
-   - CI workflows
-   - dependency lock files unless absolutely required
-2. Do NOT rewrite large portions of the project.
-3. Do NOT change unrelated files.
-4. Do NOT disable tests.
-5. Do NOT suppress compiler warnings merely to make CI pass.
-6. Do NOT add telemetry, networking, tracking, or external services.
-7. Do NOT introduce secrets.
-8. Prefer the smallest maintainable fix.
-9. The patch MUST be a valid unified git diff.
-10. If there is not enough information to safely produce a patch,
-    return status "NO_FIX".
+1. Fix the ROOT CAUSE.
+2. Prefer the smallest maintainable change.
+3. Do not rewrite unrelated parts of the project.
+4. Do not disable tests.
+5. Do not weaken security.
+6. Do not add telemetry or tracking.
+7. Do not introduce secrets.
+8. Do not download or execute arbitrary external programs
+   as part of the patch.
+9. Do not modify the AI repair engine itself.
+10. Do not modify Git metadata.
+11. Do not use git push, git reset, git clean, or destructive
+    repository commands inside the patch.
+12. The patch MUST be a valid unified git diff.
+13. If there is insufficient information to safely repair the
+    failure, return "NO_FIX".
 
 Return ONLY valid JSON:
 
@@ -515,7 +931,9 @@ REPOSITORY CONTEXT:
             ],
             "generationConfig": {
                 "temperature": 0.1,
-                "responseMimeType": "application/json",
+                "responseMimeType": (
+                    "application/json"
+                ),
             },
         }
 
@@ -524,13 +942,15 @@ REPOSITORY CONTEXT:
             response = requests.post(
                 endpoint,
                 params={
-                    "key": self.config.gemini_api_key,
+                    "key":
+                        self.config.gemini_api_key,
                 },
                 json=payload,
                 timeout=120,
             )
 
             if response.status_code != 200:
+
                 logger.error(
                     "Gemini returned HTTP %s: %s",
                     response.status_code,
@@ -551,9 +971,14 @@ REPOSITORY CONTEXT:
                 ["text"]
             )
 
-            result = extract_json_object(text)
+            result = extract_json_object(
+                text
+            )
 
-            if validate_patch_response(result):
+            if validate_patch_response(
+                result
+            ):
+
                 return result
 
             logger.error(
@@ -561,6 +986,7 @@ REPOSITORY CONTEXT:
             )
 
         except Exception as exc:
+
             logger.error(
                 "Gemini request failed: %s",
                 exc,
@@ -571,10 +997,6 @@ REPOSITORY CONTEXT:
             repo_context,
             role="repair",
         )
-
-    # -----------------------------------------------------------------------
-    # Local Qwen
-    # -----------------------------------------------------------------------
 
     def query_local_reviewer(
         self,
@@ -592,19 +1014,45 @@ REPOSITORY CONTEXT:
         if role == "review":
 
             prompt = f"""
-You are the final security and correctness reviewer for VoidOne.
+You are the final security and correctness reviewer
+for the VoidOne project.
 
-Review the proposed AI patch.
+Review the proposed AI-generated patch.
 
-Reject the patch if it:
-- modifies protected paths
+Protected files:
+
+- .git/
+- scripts/ai_repair.py
+- scripts/requirements-ai-repair.txt
+
+The patch MAY modify:
+
+- source code
+- CMake
+- QML
+- tests
+- scripts
+- GitHub Actions
+- CI/CD
+- packaging
+- NSIS
+- WiX
+- configuration
+
+REJECT the patch if it:
+
+- modifies protected files
+- contains path traversal
+- modifies .git/
+- modifies the AI repair engine
 - introduces unrelated changes
 - disables tests
 - weakens security
-- adds telemetry
-- contains suspicious commands
-- breaks C++/Qt architecture
+- adds telemetry or tracking
+- introduces secrets
+- contains suspicious destructive commands
 - does not address the CI failure
+- contains an obviously unsafe CI modification
 
 Return ONLY JSON:
 
@@ -627,14 +1075,31 @@ REPOSITORY CONTEXT:
         else:
 
             prompt = f"""
-You are the fallback C++23 / Qt6 repair engineer for VoidOne.
+You are the fallback C++23 / Qt6 / CMake / CI engineer
+for VoidOne.
 
-Analyze the CI failure and create the smallest safe unified diff.
+Analyze the CI failure and create the smallest safe
+unified git diff.
+
+You MAY repair:
+
+- source code
+- CMake
+- QML
+- tests
+- scripts
+- GitHub Actions
+- CI/CD
+- packaging
+- NSIS
+- WiX
+- configuration
 
 Never modify:
+
 - .git/
-- .github/
-- scripts/
+- scripts/ai_repair.py
+- scripts/requirements-ai-repair.txt
 
 Return ONLY JSON:
 
@@ -654,13 +1119,16 @@ REPOSITORY CONTEXT:
 """.strip()
 
         payload = {
-            "model": self.config.local_model_name,
+            "model":
+                self.config.local_model_name,
+
             "messages": [
                 {
                     "role": "user",
                     "content": prompt,
                 }
             ],
+
             "temperature": 0.1,
         }
 
@@ -681,9 +1149,28 @@ REPOSITORY CONTEXT:
                 ["message"]["content"]
             )
 
-            return extract_json_object(text)
+            result = extract_json_object(
+                text
+            )
+
+            if role == "review":
+
+                if validate_review_response(
+                    result
+                ):
+                    return result
+
+                return None
+
+            if validate_patch_response(
+                result
+            ):
+                return result
+
+            return None
 
         except Exception as exc:
+
             logger.error(
                 "Local model request failed: %s",
                 exc,
@@ -696,13 +1183,17 @@ REPOSITORY CONTEXT:
 # Patch validation
 # ---------------------------------------------------------------------------
 
-def extract_patch_files(patch: str) -> List[str]:
+def extract_patch_files(
+    patch: str,
+) -> List[str]:
 
-    files = []
+    files: Set[str] = set()
 
     patterns = [
-        r"^--- a/(.+)$",
-        r"^\+\+\+ b/(.+)$",
+        r"^---\s+a/(.+)$",
+        r"^\+\+\+\s+b/(.+)$",
+        r"^rename from\s+(.+)$",
+        r"^rename to\s+(.+)$",
     ]
 
     for pattern in patterns:
@@ -713,12 +1204,17 @@ def extract_patch_files(patch: str) -> List[str]:
             flags=re.MULTILINE,
         ):
 
-            path = normalize_repo_path(match)
+            if match == "/dev/null":
+                continue
 
-            if path:
-                files.append(path)
+            normalized = normalize_repo_path(
+                match
+            )
 
-    return sorted(set(files))
+            if normalized:
+                files.add(normalized)
+
+    return sorted(files)
 
 
 def validate_patch_security(
@@ -726,50 +1222,71 @@ def validate_patch_security(
     patch: str,
 ) -> Tuple[bool, str]:
 
+    del repo_dir
+
     if not patch.strip():
         return False, "Empty patch."
 
     if "\x00" in patch:
         return False, "Patch contains NUL byte."
 
-    # We intentionally require git diff structure.
-    if "--- a/" not in patch or "+++ b/" not in patch:
-        return False, "Patch is not a valid unified git diff."
+    if (
+        "--- a/" not in patch
+        or "+++ b/" not in patch
+    ):
+        return (
+            False,
+            "Patch is not a valid unified git diff.",
+        )
 
-    files = extract_patch_files(patch)
+    files = extract_patch_files(
+        patch
+    )
 
     if not files:
-        return False, "No patch files detected."
+
+        return (
+            False,
+            "No patch files detected.",
+        )
 
     for path in files:
 
-        if is_protected_path(path):
-            return (
-                False,
-                f"Protected path modification: {path}",
-            )
+        normalized = normalize_repo_path(
+            path
+        )
 
-        if normalize_repo_path(path) is None:
+        if normalized is None:
+
             return (
                 False,
                 f"Unsafe path detected: {path}",
             )
 
-        suffix = Path(path).suffix.lower()
+        if is_protected_path(
+            normalized
+        ):
 
-        if suffix not in ALLOWED_SOURCE_EXTENSIONS:
+            return (
+                False,
+                f"Protected path modification: "
+                f"{path}",
+            )
 
-            # Permit CMakeLists.txt without extension.
-            if Path(path).name != "CMakeLists.txt":
-                return (
-                    False,
-                    f"Unexpected file type in patch: {path}",
-                )
+        if not is_allowed_file_path(
+            normalized
+        ):
 
-    # Dangerous shell-ish constructs.
+            return (
+                False,
+                f"Unexpected file type in patch: "
+                f"{path}",
+            )
+
     forbidden_patterns = [
         r"\bgit\s+push\b",
         r"\bgit\s+reset\b",
+        r"\bgit\s+clean\b",
         r"\brm\s+-rf\b",
         r"\bcurl\s+.*\|\s*(sh|bash)",
         r"\bwget\s+.*\|\s*(sh|bash)",
@@ -783,12 +1300,17 @@ def validate_patch_security(
             patch,
             flags=re.IGNORECASE,
         ):
+
             return (
                 False,
-                f"Suspicious command detected: {pattern}",
+                f"Suspicious command detected: "
+                f"{pattern}",
             )
 
-    return True, "Patch passed security validation."
+    return (
+        True,
+        "Patch passed security validation.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -806,6 +1328,7 @@ def apply_patch(
     )
 
     if not safe:
+
         logger.error(
             "Patch rejected: %s",
             reason,
@@ -826,7 +1349,10 @@ def apply_patch(
         ) as temp:
 
             temp.write(patch)
-            patch_path = Path(temp.name)
+
+            patch_path = Path(
+                temp.name
+            )
 
         check_code, _, check_err = run_command(
             [
@@ -877,15 +1403,150 @@ def apply_patch(
 
     finally:
 
-        if patch_path and patch_path.exists():
-            patch_path.unlink(missing_ok=True)
+        if (
+            patch_path
+            and patch_path.exists()
+        ):
+
+            patch_path.unlink(
+                missing_ok=True
+            )
+
+
+# ---------------------------------------------------------------------------
+# Repository snapshot
+# ---------------------------------------------------------------------------
+
+def get_git_status(
+    repo_dir: Path,
+) -> List[str]:
+
+    code, stdout, stderr = run_command(
+        [
+            "git",
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+        ],
+        cwd=repo_dir,
+        timeout=60,
+    )
+
+    if code != 0:
+
+        raise RuntimeError(
+            f"Unable to read git status: "
+            f"{stderr}"
+        )
+
+    return [
+        line
+        for line in stdout.splitlines()
+        if line.strip()
+    ]
+
+
+def create_repository_snapshot(
+    repo_dir: Path,
+) -> Set[str]:
+
+    status = get_git_status(
+        repo_dir
+    )
+
+    code, _, stderr = run_command(
+        [
+            "git",
+            "diff",
+            "HEAD",
+        ],
+        cwd=repo_dir,
+        timeout=60,
+    )
+
+    if code != 0:
+
+        raise RuntimeError(
+            f"Unable to inspect repository: "
+            f"{stderr}"
+        )
+
+    untracked: Set[str] = set()
+
+    for line in status:
+
+        if line.startswith(
+            "?? "
+        ):
+
+            path = normalize_repo_path(
+                line[3:]
+            )
+
+            if path:
+                untracked.add(path)
+
+    return untracked
+
+
+def rollback(
+    repo_dir: Path,
+    original_untracked: Set[str],
+) -> None:
+
+    logger.warning(
+        "Rolling back AI-generated changes..."
+    )
+
+    code, _, stderr = run_command(
+        [
+            "git",
+            "reset",
+            "--hard",
+            "HEAD",
+        ],
+        cwd=repo_dir,
+        timeout=60,
+    )
+
+    if code != 0:
+
+        logger.error(
+            "git reset failed: %s",
+            stderr,
+        )
+
+    code, _, stderr = run_command(
+        [
+            "git",
+            "clean",
+            "-fd",
+            "--exclude=.git/",
+        ],
+        cwd=repo_dir,
+        timeout=60,
+    )
+
+    if code != 0:
+
+        logger.error(
+            "git clean failed: %s",
+            stderr,
+        )
+
+    # Original untracked files must survive rollback.
+    # If one was removed by a patch, git clean cannot restore it.
+    # Such files are therefore intentionally excluded from
+    # the AI repair process by the clean repository requirement.
 
 
 # ---------------------------------------------------------------------------
 # Build validation
 # ---------------------------------------------------------------------------
 
-def clean_build_directory(repo_dir: Path) -> None:
+def clean_build_directory(
+    repo_dir: Path,
+) -> None:
 
     build_dir = repo_dir / "build"
 
@@ -894,8 +1555,6 @@ def clean_build_directory(repo_dir: Path) -> None:
         logger.info(
             "Removing previous build directory."
         )
-
-        import shutil
 
         shutil.rmtree(
             build_dir,
@@ -909,7 +1568,9 @@ def validate_build(
 
     repo_dir = config.repo_dir
 
-    clean_build_directory(repo_dir)
+    clean_build_directory(
+        repo_dir
+    )
 
     logger.info(
         "Configuring CMake..."
@@ -1001,22 +1662,25 @@ def validate_build(
 
 
 # ---------------------------------------------------------------------------
-# Git state
+# Git diff
 # ---------------------------------------------------------------------------
 
-def git_diff(repo_dir: Path) -> str:
+def git_diff(
+    repo_dir: Path,
+) -> str:
 
     code, stdout, stderr = run_command(
         [
             "git",
             "diff",
-            "--",
+            "HEAD",
         ],
         cwd=repo_dir,
         timeout=60,
     )
 
     if code != 0:
+
         logger.warning(
             "Unable to obtain git diff: %s",
             stderr,
@@ -1025,30 +1689,6 @@ def git_diff(repo_dir: Path) -> str:
         return ""
 
     return stdout
-
-
-def rollback(repo_dir: Path) -> None:
-
-    logger.warning(
-        "Rolling back AI-generated changes..."
-    )
-
-    code, _, stderr = run_command(
-        [
-            "git",
-            "reset",
-            "--hard",
-            "HEAD",
-        ],
-        cwd=repo_dir,
-        timeout=60,
-    )
-
-    if code != 0:
-        logger.error(
-            "Rollback failed: %s",
-            stderr,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -1086,6 +1726,7 @@ def main() -> int:
     ).resolve()
 
     if not repo_dir.is_dir():
+
         logger.error(
             "Repository directory does not exist: %s",
             repo_dir,
@@ -1094,6 +1735,7 @@ def main() -> int:
         return 1
 
     if not log_file.is_file():
+
         logger.error(
             "Failure log does not exist: %s",
             log_file,
@@ -1106,9 +1748,12 @@ def main() -> int:
         errors="replace",
     )
 
-    failure_log = failure_log[-MAX_LOG_CHARS:]
+    failure_log = failure_log[
+        -MAX_LOG_CHARS:
+    ]
 
     if not failure_log.strip():
+
         logger.error(
             "CI failure log is empty."
         )
@@ -1124,6 +1769,42 @@ def main() -> int:
         config.repo_dir,
     )
 
+    try:
+
+        original_untracked = (
+            create_repository_snapshot(
+                config.repo_dir
+            )
+        )
+
+        initial_status = get_git_status(
+            config.repo_dir
+        )
+
+    except RuntimeError as exc:
+
+        logger.error(
+            "Unable to inspect repository: %s",
+            exc,
+        )
+
+        return 1
+
+    if initial_status:
+
+        logger.error(
+            "Repository contains changes before "
+            "AI repair."
+        )
+
+        for line in initial_status:
+            logger.error(
+                "  %s",
+                line,
+            )
+
+        return 1
+
     logger.info(
         "Collecting repository context..."
     )
@@ -1133,7 +1814,9 @@ def main() -> int:
         failure_log,
     )
 
-    client = AIInferenceClient(config)
+    client = AIInferenceClient(
+        config
+    )
 
     logger.info(
         "Requesting repair diagnosis..."
@@ -1144,7 +1827,9 @@ def main() -> int:
         repo_context,
     )
 
-    if not validate_patch_response(repair):
+    if not validate_patch_response(
+        repair
+    ):
 
         logger.error(
             "AI failed to produce a valid repair patch."
@@ -1185,7 +1870,8 @@ def main() -> int:
     if not safe:
 
         logger.error(
-            "Security validation rejected patch: %s",
+            "Security validation rejected patch: "
+            "%s",
             reason,
         )
 
@@ -1206,9 +1892,14 @@ def main() -> int:
         "Running post-patch validation..."
     )
 
-    if not validate_build(config):
+    if not validate_build(
+        config
+    ):
 
-        rollback(config.repo_dir)
+        rollback(
+            config.repo_dir,
+            original_untracked,
+        )
 
         logger.error(
             "Post-patch validation failed."
@@ -1220,10 +1911,23 @@ def main() -> int:
         config.repo_dir
     )
 
-    if not applied_diff.strip():
+    current_status = get_git_status(
+        config.repo_dir
+    )
+
+    if (
+        not applied_diff.strip()
+        and not current_status
+    ):
+
+        rollback(
+            config.repo_dir,
+            original_untracked,
+        )
 
         logger.error(
-            "No git changes detected after repair."
+            "No repository changes detected "
+            "after repair."
         )
 
         return 1
@@ -1241,7 +1945,10 @@ def main() -> int:
 
     if not review:
 
-        rollback(config.repo_dir)
+        rollback(
+            config.repo_dir,
+            original_untracked,
+        )
 
         logger.error(
             "Final AI review unavailable. "
@@ -1250,13 +1957,46 @@ def main() -> int:
 
         return 1
 
-    if review.get("decision") != "APPROVE":
+    if not validate_review_response(
+        review
+    ):
 
-        rollback(config.repo_dir)
+        rollback(
+            config.repo_dir,
+            original_untracked,
+        )
 
         logger.error(
-            "Local AI reviewer rejected the patch: %s",
-            review.get("reason", "unknown"),
+            "Final AI reviewer returned "
+            "an invalid response."
+        )
+
+        return 1
+
+    decision = review.get(
+        "decision"
+    )
+
+    review_confidence = review.get(
+        "confidence"
+    )
+
+    review_reason = review.get(
+        "reason",
+        "unknown",
+    )
+
+    if decision != "APPROVE":
+
+        rollback(
+            config.repo_dir,
+            original_untracked,
+        )
+
+        logger.error(
+            "Local AI reviewer rejected "
+            "the patch: %s",
+            review_reason,
         )
 
         return 1
@@ -1288,6 +2028,11 @@ def main() -> int:
     )
 
     logger.info(
+        "Reviewer Confidence: %s",
+        review_confidence,
+    )
+
+    logger.info(
         "Build: PASSED"
     )
 
@@ -1303,4 +2048,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(
+        main()
+    )
