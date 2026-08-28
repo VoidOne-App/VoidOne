@@ -55,6 +55,7 @@ void SteamScannerWorker::doScan() {
 }
 
 SteamScanner::SteamScanner(QObject *parent) : QObject(parent) {
+    qRegisterMetaType<QVector<GameRecord>>("QVector<GameRecord>");
     worker = new SteamScannerWorker;
     worker->moveToThread(&workerThread);
 

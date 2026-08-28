@@ -4,6 +4,7 @@
 #include <QString>
 #include <QSqlDatabase>
 #include <QVector>
+#include <QMetaType>
 
 struct GameRecord {
     int id = -1;
@@ -12,6 +13,9 @@ struct GameRecord {
     QString iconPath;
     QString platform;
 };
+
+Q_DECLARE_METATYPE(GameRecord)
+Q_DECLARE_METATYPE(QVector<GameRecord>)
 
 class Database
 {
