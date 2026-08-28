@@ -1,0 +1,229 @@
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║ 🌌 VoidOne — Production GitHub Pages Deployment                    ║
+# ║                                                                      ║
+# ║ Static Website CI/CD                                                ║
+# ║ Validate → Package → Deploy                                        ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+name: 🌌 VoidOne — Website Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "website/**"
+      - ".github/workflows/pages.yml"
+
+  workflow_dispatch:
+
+# ──────────────────────────────────────────────────────────────────────
+# GitHub Pages permissions
+# ──────────────────────────────────────────────────────────────────────
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# ──────────────────────────────────────────────────────────────────────
+# Prevent multiple production deployments
+# ──────────────────────────────────────────────────────────────────────
+
+concurrency:
+  group: voidone-pages
+  cancel-in-progress: true
+
+env:
+  WEBSITE_DIR: website
+
+jobs:
+
+  # ════════════════════════════════════════════════════════════════════
+  # BUILD / VALIDATION
+  # ════════════════════════════════════════════════════════════════════
+
+  build:
+    name: 🔨 Build & Validate Website
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: ⚙️ Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      # ────────────────────────────────────────────────────────────────
+      # Structure validation
+      # ────────────────────────────────────────────────────────────────
+
+      - name: 🔍 Validate website structure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "🌌 Validating VoidOne website..."
+
+          test -d "$WEBSITE_DIR" \
+            || { echo "❌ Missing website directory."; exit 1; }
+
+          test -f "$WEBSITE_DIR/index.html" \
+            || { echo "❌ Missing website/index.html."; exit 1; }
+
+          test -f "$WEBSITE_DIR/style.css" \
+            || { echo "❌ Missing website/style.css."; exit 1; }
+
+          echo "✅ Website structure is valid."
+
+      # ────────────────────────────────────────────────────────────────
+      # HTML validation
+      # ────────────────────────────────────────────────────────────────
+
+      - name: 🧪 Validate HTML
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          FILE="$WEBSITE_DIR/index.html"
+
+          echo "🧪 Validating HTML..."
+
+          grep -qi '<!doctype html>' "$FILE" \
+            || { echo "❌ Missing HTML5 doctype."; exit 1; }
+
+          grep -qi '<title>' "$FILE" \
+            || { echo "❌ Missing <title>."; exit 1; }
+
+          grep -qi 'name="viewport"' "$FILE" \
+            || { echo "❌ Missing viewport metadata."; exit 1; }
+
+          echo "✅ HTML validation passed."
+
+      # ────────────────────────────────────────────────────────────────
+      # SEO validation
+      # ────────────────────────────────────────────────────────────────
+
+      - name: 🧠 Validate SEO metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          FILE="$WEBSITE_DIR/index.html"
+
+          echo "🧠 Checking SEO metadata..."
+
+          grep -qi 'name="description"' "$FILE" \
+            || { echo "❌ Missing meta description."; exit 1; }
+
+          echo "✅ SEO baseline passed."
+
+      # ────────────────────────────────────────────────────────────────
+      # CSS validation
+      # ────────────────────────────────────────────────────────────────
+
+      - name: 🎨 Validate CSS
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -s "$WEBSITE_DIR/style.css" \
+            || { echo "❌ style.css is empty."; exit 1; }
+
+          echo "✅ CSS validation passed."
+
+      # ────────────────────────────────────────────────────────────────
+      # Detect unfinished development placeholders
+      # ────────────────────────────────────────────────────────────────
+
+      - name: 🚨 Detect unfinished placeholders
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -RniE \
+            --exclude-dir=.git \
+            'TODO|FIXME|PLACEHOLDER|REPLACE_ME|YOUR_DOMAIN' \
+            "$WEBSITE_DIR"; then
+
+            echo "❌ Unfinished placeholder detected."
+            exit 1
+          fi
+
+          echo "✅ No obvious placeholders detected."
+
+      # ────────────────────────────────────────────────────────────────
+      # Basic secret detection
+      # ────────────────────────────────────────────────────────────────
+
+      - name: 🛡️ Check for exposed secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -RniE \
+            --exclude-dir=.git \
+            'ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z_-]{20,}' \
+            "$WEBSITE_DIR"; then
+
+            echo "❌ Possible secret detected."
+            exit 1
+          fi
+
+          echo "✅ No obvious GitHub/API token patterns detected."
+
+      # ────────────────────────────────────────────────────────────────
+      # Package website
+      # ────────────────────────────────────────────────────────────────
+
+      - name: 📦 Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./website
+
+  # ════════════════════════════════════════════════════════════════════
+  # DEPLOY
+  # ════════════════════════════════════════════════════════════════════
+
+  deploy:
+    name: 🚀 Deploy VoidOne Website
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+      - name: 📋 Deployment summary
+        shell: bash
+        run: |
+          {
+            echo "# 🌌 VoidOne Website"
+            echo ""
+            echo "## Deployment Status"
+            echo ""
+            echo "✅ Production deployment successful."
+            echo ""
+            echo "**URL:** ${{ steps.deployment.outputs.page_url }}"
+            echo ""
+            echo "**Commit:** \`$GITHUB_SHA\`"
+            echo ""
+            echo "### Pipeline"
+            echo "- 🔍 Structure validation"
+            echo "- 🧪 HTML validation"
+            echo "- 🧠 SEO validation"
+            echo "- 🎨 CSS validation"
+            echo "- 🚨 Placeholder detection"
+            echo "- 🛡️ Secret detection"
+            echo "- 📦 Pages artifact"
+            echo "- 🚀 Production deployment"
+          } >> "$GITHUB_STEP_SUMMARY"
