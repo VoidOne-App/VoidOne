@@ -78,17 +78,15 @@ void GameModel::launchGame(const QString &exePath) {
     QString program = exePath;
     QStringList arguments;
 
-#if defined(Q_OS_WIN)
     if (targetInfo.isDir()) {
+#if defined(Q_OS_WIN)
         qWarning() << "[VoidOne] Cannot launch a directory on Windows:" << exePath;
         return;
-    }
 #else
-    if (targetInfo.isDir()) {
         program = QStringLiteral("xdg-open");
         arguments << exePath;
-    }
 #endif
+    }
 
     if (!QProcess::startDetached(program, arguments, workingDirectory)) {
         qWarning() << "[VoidOne] Failed to launch game path:" << exePath;
