@@ -21,6 +21,7 @@
 #include <QDateTime>
 #include <QSysInfo>
 #include <QMutex>
+#include <QThread>
 #include <QDebug>
 
 #include <exception>
@@ -132,9 +133,11 @@ int main(int argc, char *argv[])
     // 0. Hardened Environment & Signal Interception Setup
     registerEnterpriseSignalHandlers();
 
-    // High-DPI Scaling configuration for ultra-crisp modern display rendering
+    // High-DPI scaling is automatic in Qt 6. Keep Qt 5 attributes guarded for compatibility.
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling, true);
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps, true);
+#endif
 
     QGuiApplication app(argc, argv);
 

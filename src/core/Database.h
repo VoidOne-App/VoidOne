@@ -2,8 +2,8 @@
 #define DATABASE_H
 
 #include <QString>
-#include <QVariantList>
 #include <QSqlDatabase>
+#include <QVector>
 
 struct GameRecord {
     int id = -1;

@@ -1,5 +1,6 @@
 #include "GameModel.h"
 #include <QDebug>
+#include <QFileInfo>
 
 GameModel::GameModel(QObject *parent) : QAbstractListModel(parent) {}
 
@@ -64,7 +65,31 @@ bool GameModel::deleteGame(int id, int index) {
 }
 
 void GameModel::launchGame(const QString &exePath) {
-    if (!exePath.isEmpty()) {
-        QProcess::startDetached(exePath, QStringList());
+    if (exePath.isEmpty()) {
+        return;
+    }
+
+    const QFileInfo targetInfo(exePath);
+    const QString workingDirectory = targetInfo.isDir()
+        ? targetInfo.absoluteFilePath()
+        : targetInfo.absolutePath();
+
+    QString program = exePath;
+    QStringList arguments;
+
+#if defined(Q_OS_WIN)
+    if (targetInfo.isDir()) {
+        qWarning() << "[VoidOne] Cannot launch a directory on Windows:" << exePath;
+        return;
+    }
+#else
+    if (targetInfo.isDir()) {
+        program = QStringLiteral("xdg-open");
+        arguments << exePath;
+    }
+#endif
+
+    if (!QProcess::startDetached(program, arguments, workingDirectory)) {
+        qWarning() << "[VoidOne] Failed to launch game path:" << exePath;
     }
 }

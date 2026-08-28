@@ -31,6 +31,7 @@ private slots:
 
 private:
     QThread workerThread;
+    SteamScannerWorker *worker = nullptr;
 };
 
 #endif // STEAMSCANNER_H
