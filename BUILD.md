@@ -58,10 +58,9 @@ For Linux, install the GCC 64-bit desktop kit.
 
 Clone the repository:
 
-git clone https://github.com/mohammedmk3900-rgb/NeonLauncher-Qt.git
-cd NeonLauncher-Qt
+git clone https://github.com/VoidOne-App/VoidOne.git
+cd VoidOne
 
-«The repository is currently named "NeonLauncher-Qt". The project may be renamed to "VoidOne" in the future.»
 
 ---
 

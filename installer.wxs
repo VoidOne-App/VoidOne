@@ -9,15 +9,15 @@
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
      xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall">
 
-  <Package Name="VoidOne" 
-           Manufacturer="VoidOne_app" 
-           Version="$(var.ProductVersion)" 
-           UpgradeCode="B6E1A0B2-9F3D-4C7A-B1C2-3D4E5F6A7B8C" 
+  <Package Name="VoidOne"
+           Manufacturer="VoidOne_app"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="B6E1A0B2-9F3D-4C7A-B1C2-3D4E5F6A7B8C"
            Scope="perMachine"
            InstallerVersion="500">
 
     <!-- 1. بررسی سیستم‌عامل 64 بیتی -->
-    <Launch Message="این نرم‌افزار نیازمند سیستم‌عامل 64 بیتی (Windows 10/11 x64) است." 
+    <Launch Message="این نرم‌افزار نیازمند سیستم‌عامل 64 بیتی (Windows 10/11 x64) است."
             Condition="VersionNT64" />
 
     <!-- 2. بستن خودکار پروسه‌ها -->
@@ -36,8 +36,8 @@
     <!-- 4. تنظیمات Control Panel -->
     <Property Id="ARPCOMMENTS" Value="VoidOne High-Performance Gamer Engine" />
     <Property Id="ARPCONTACT" Value="VoidOne_app Support Team" />
-    <Property Id="ARPHELPLINK" Value="https://github.com/VoidOne-App/NeonLauncher-Qt/issues" />
-    <Property Id="ARPURLINFOABOUT" Value="https://github.com/VoidOne-App/NeonLauncher-Qt" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/VoidOne-App/VoidOne/issues" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/VoidOne-App/VoidOne" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Property Id="ARPNOMODIFY" Value="1" />
 
@@ -45,7 +45,9 @@
 
     <!-- 5. پوشه‌ها -->
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="VoidOne" />
+      <Directory Id="INSTALLFOLDER" Name="VoidOne">
+        <Directory Id="INSTALLBINFOLDER" Name="bin" />
+      </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
@@ -55,20 +57,20 @@
     <StandardDirectory Id="DesktopFolder" />
 
     <!-- 6. بسته‌بندی فایل‌ها و ریجستری‌ها -->
-    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-      <Files Include="package\**" />
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLBINFOLDER">
+      <Files Include="package\bin\**" />
 
       <Component Id="GamerIntegrationComponent" Guid="C3D4E5F6-A7B8-9C0D-1E2F-3A4B5C6D7E8F">
-        
+
         <fw:FirewallException Id="VoidoneFirewallRule"
                               Name="VoidOne Engine Service"
-                              Target="[INSTALLFOLDER]VoidOne.exe"
+                              Target="[INSTALLBINFOLDER]VoidOne.exe"
                               Scope="any"
                               IgnoreFailure="yes" />
 
         <ProgId Id="VoidOne.ProjectFile" Description="VoidOne Project File" Icon="AppIcon.ico">
           <Extension Id="vone" ContentType="application/x-voidone">
-            <Verb Id="open" Command="Open with VoidOne" Target="[INSTALLFOLDER]VoidOne.exe" Argument="&quot;%1&quot;" />
+            <Verb Id="open" Command="Open with VoidOne" Target="[INSTALLBINFOLDER]VoidOne.exe" Argument="&quot;%1&quot;" />
           </Extension>
         </ProgId>
 
@@ -76,23 +78,24 @@
           <RegistryValue Type="string" Value="URL:VoidOne Protocol" />
           <RegistryValue Type="string" Name="URL Protocol" Value="" />
           <RegistryKey Key="DefaultIcon">
-            <RegistryValue Type="string" Value="[INSTALLFOLDER]VoidOne.exe,0" />
+            <RegistryValue Type="string" Value="[INSTALLBINFOLDER]VoidOne.exe,0" />
           </RegistryKey>
           <RegistryKey Key="shell\open\command">
-            <RegistryValue Type="string" Value="&quot;[INSTALLFOLDER]VoidOne.exe&quot; &quot;%1&quot;" />
+            <RegistryValue Type="string" Value="&quot;[INSTALLBINFOLDER]VoidOne.exe&quot; &quot;%1&quot;" />
           </RegistryKey>
         </RegistryKey>
 
         <RegistryKey Root="HKCR" Key="Directory\shell\VoidOne">
           <RegistryValue Type="string" Value="Open with VoidOne" />
-          <RegistryValue Type="string" Name="Icon" Value="[INSTALLFOLDER]VoidOne.exe,0" />
+          <RegistryValue Type="string" Name="Icon" Value="[INSTALLBINFOLDER]VoidOne.exe,0" />
           <RegistryKey Key="command">
-            <RegistryValue Type="string" Value="&quot;[INSTALLFOLDER]VoidOne.exe&quot; &quot;--game-path=%1&quot;" />
+            <RegistryValue Type="string" Value="&quot;[INSTALLBINFOLDER]VoidOne.exe&quot; &quot;--game-path=%1&quot;" />
           </RegistryKey>
         </RegistryKey>
 
         <RegistryValue Root="HKMU" Key="Software\VoidOne_app\VoidOne" Name="EnterpriseIntegrated" Type="integer" Value="1" KeyPath="yes" />
       </Component>
+
     </ComponentGroup>
 
     <!-- 7. شورت‌کت‌ها -->
@@ -102,7 +105,7 @@
         <Shortcut Id="ApplicationStartMenuShortcut"
                   Name="VoidOne"
                   Description="Launch VoidOne Engine"
-                  Target="[INSTALLFOLDER]VoidOne.exe"
+                  Target="[INSTALLBINFOLDER]VoidOne.exe"
                   WorkingDirectory="INSTALLFOLDER"
                   Icon="AppIcon.ico" />
         <RemoveFolder Id="CleanUpStartMenuFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
@@ -113,42 +116,26 @@
         <Shortcut Id="DesktopShortcut"
                   Name="VoidOne"
                   Description="Launch VoidOne Engine"
-                  Target="[INSTALLFOLDER]VoidOne.exe"
+                  Target="[INSTALLBINFOLDER]VoidOne.exe"
                   WorkingDirectory="INSTALLFOLDER"
                   Icon="AppIcon.ico" />
         <RegistryValue Root="HKMU" Key="Software\VoidOne_app\VoidOne" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
 
-      <Component Id="StartupShortcutComponent" Directory="INSTALLFOLDER" Guid="D4E5F6A7-B8C9-0D1E-2F3A-4B5C6D7E8F9A">
-        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="VoidOne" Type="string" Value="&quot;[INSTALLFOLDER]VoidOne.exe&quot; --autostart" KeyPath="yes" />
-      </Component>
-
     </ComponentGroup>
 
-    <!-- 8. پیش‌نیازها -->
-    <CustomAction Id="InstallVCRedist"
-                  Directory="INSTALLFOLDER"
-                  ExeCommand="&quot;[INSTALLFOLDER]VC_redist.x64.exe&quot; /install /quiet /norestart"
-                  Execute="deferred"
-                  Impersonate="no"
-                  Return="ignore" />
-
-    <InstallExecuteSequence>
-      <Custom Id="InstallVCRedist" Before="InstallFinalize" Condition="NOT Installed" />
-    </InstallExecuteSequence>
-
-    <!-- 9. رابط کاربری -->
+    <!-- 8. رابط کاربری -->
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
 
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="اجرای فوری VoidOne" />
-    <Property Id="WixShellExecTarget" Value="[INSTALLFOLDER]VoidOne.exe" />
+    <Property Id="WixShellExecTarget" Value="[INSTALLBINFOLDER]VoidOne.exe" />
     <CustomAction Id="LaunchApplication" BinaryRef="Wix4UtilCA_X86" DllEntry="WixShellExec" Impersonate="yes" />
 
     <UI>
       <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
     </UI>
 
-    <!-- 10. فیچر اصلی -->
+    <!-- 9. فیچر اصلی -->
     <Feature Id="MainFeature" Title="VoidOne Core" Level="1" ConfigurableDirectory="INSTALLFOLDER">
       <ComponentGroupRef Id="ProductComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />

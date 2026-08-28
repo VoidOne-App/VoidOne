@@ -13,14 +13,14 @@ void TranslationManager::setCurrentLanguage(const QString &lang) {
 
 void TranslationManager::initDictionary() {
     // English
-    m_dictionary["en"]["app_title"] = "Neon Launcher Pro";
+    m_dictionary["en"]["app_title"] = "VoidOne Pro";
     m_dictionary["en"]["launch"] = "Play Game";
     m_dictionary["en"]["scan_steam"] = "Scan Steam Library";
     m_dictionary["en"]["auto_save"] = "Real-Time Cloud Backup";
     m_dictionary["en"]["settings"] = "Settings";
 
     // Persian
-    m_dictionary["fa"]["app_title"] = "لانچر نئون پرو";
+    m_dictionary["fa"]["app_title"] = "VoidOne پرو";
     m_dictionary["fa"]["launch"] = "اجرای بازی";
     m_dictionary["fa"]["scan_steam"] = "اسکن کتابخانه استیم";
     m_dictionary["fa"]["auto_save"] = "پشتیبان‌گیری ابری خودکار";

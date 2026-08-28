@@ -3,7 +3,7 @@
 **  V O I D O N E   E N G I N E   [ENTERPRISE CORE]
 **  High-Performance Cross-Platform QML & C++ Game Launcher Architecture
 ** 
-**  Copyright (C) 2026 VoidOne-App Core Team
+**  Copyright (C) 2026 VoidOne_app
 **  Repository: https://github.com/VoidOne-App/VoidOne
 **  SPDX-License-Identifier: MIT
 ** 
@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     // Core Metadata Architecture
-    QCoreApplication::setOrganizationName("VoidOne-App-Enterprise");
+    QCoreApplication::setOrganizationName("VoidOne_app");
     QCoreApplication::setOrganizationDomain("voidone.app");
     QCoreApplication::setApplicationName("VoidOne");
     QCoreApplication::setApplicationVersion(VOIDONE_VERSION_DISPLAY);
