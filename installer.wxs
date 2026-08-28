@@ -10,7 +10,7 @@
      xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall">
 
   <Package Name="VoidOne"
-           Manufacturer="VoidOne-App Core Team"
+           Manufacturer="VoidOne_app"
            Version="$(var.ProductVersion)"
            UpgradeCode="B6E1A0B2-9F3D-4C7A-B1C2-3D4E5F6A7B8C"
            Scope="perMachine"
@@ -35,7 +35,7 @@
 
     <!-- 4. تنظیمات Control Panel -->
     <Property Id="ARPCOMMENTS" Value="VoidOne High-Performance Gamer Engine" />
-    <Property Id="ARPCONTACT" Value="VoidOne-App Support Team" />
+    <Property Id="ARPCONTACT" Value="VoidOne_app Support Team" />
     <Property Id="ARPHELPLINK" Value="https://github.com/VoidOne-App/VoidOne/issues" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/VoidOne-App/VoidOne" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
@@ -93,7 +93,7 @@
           </RegistryKey>
         </RegistryKey>
 
-        <RegistryValue Root="HKMU" Key="Software\VoidOne-App\VoidOne" Name="EnterpriseIntegrated" Type="integer" Value="1" KeyPath="yes" />
+        <RegistryValue Root="HKMU" Key="Software\VoidOne_app\VoidOne" Name="EnterpriseIntegrated" Type="integer" Value="1" KeyPath="yes" />
       </Component>
 
     </ComponentGroup>
@@ -109,7 +109,7 @@
                   WorkingDirectory="INSTALLFOLDER"
                   Icon="AppIcon.ico" />
         <RemoveFolder Id="CleanUpStartMenuFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
-        <RegistryValue Root="HKMU" Key="Software\VoidOne-App\VoidOne" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+        <RegistryValue Root="HKMU" Key="Software\VoidOne_app\VoidOne" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
 
       <Component Id="DesktopShortcutComponent" Directory="DesktopFolder" Guid="B2C3D4E5-F6A7-8B9C-0D1E-2F3A4B5C6D7E">
@@ -119,7 +119,7 @@
                   Target="[INSTALLBINFOLDER]VoidOne.exe"
                   WorkingDirectory="INSTALLFOLDER"
                   Icon="AppIcon.ico" />
-        <RegistryValue Root="HKMU" Key="Software\VoidOne-App\VoidOne" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+        <RegistryValue Root="HKMU" Key="Software\VoidOne_app\VoidOne" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
 
     </ComponentGroup>

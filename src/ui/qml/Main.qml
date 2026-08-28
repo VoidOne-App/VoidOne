@@ -1,7 +1,7 @@
 /****************************************************************************
 **  V O I D O N E   E N G I N E   -   QUANTUM ENTERPRISE CORE
 **  Ultra-High Performance Commercial QML & C++ Game Launcher Architecture
-**  Copyright (C) 2026 VoidOne-App | SPDX-License-Identifier: MIT
+**  Copyright (C) 2026 VoidOne_app | SPDX-License-Identifier: MIT
 ****************************************************************************/
 
 import QtQuick

@@ -134,11 +134,11 @@ BEGIN
     BEGIN
         BLOCK \"040904b0\"
         BEGIN
-            VALUE \"CompanyName\", \"VoidOne-App Core Team\"
+            VALUE \"CompanyName\", \"VoidOne_app\"
             VALUE \"FileDescription\", \"${PROJECT_DESCRIPTION}\"
             VALUE \"FileVersion\", \"${PROJECT_VERSION}\"
             VALUE \"InternalName\", \"VoidOne\"
-            VALUE \"LegalCopyright\", \"Copyright (c) 2026 VoidOne-App Core Team\"
+            VALUE \"LegalCopyright\", \"Copyright (c) 2026 VoidOne_app\"
             VALUE \"OriginalFilename\", \"VoidOne.exe\"
             VALUE \"ProductName\", \"VoidOne\"
             VALUE \"ProductVersion\", \"${PROJECT_VERSION}\"
@@ -259,7 +259,7 @@ if(WIN32)
 endif()
 
 set(CPACK_PACKAGE_NAME "VoidOne")
-set(CPACK_PACKAGE_VENDOR "VoidOne-App Core Team")
+set(CPACK_PACKAGE_VENDOR "VoidOne_app")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "VoidOne Ultimate Enterprise Game Launcher")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "VoidOne")

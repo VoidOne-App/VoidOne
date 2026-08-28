@@ -6,9 +6,9 @@
 ; Application & Dynamic Version Configuration
 ; ============================================
 !define APP_NAME "VoidOne"
-!define COMPANY_NAME "VoidOne-App"
+!define COMPANY_NAME "VoidOne_app"
 !define EXE_NAME "VoidOne.exe"
-!define PUBLISHER "VoidOne-App Core Team"
+!define PUBLISHER "VoidOne_app"
 !define WEB_SITE "https://github.com/VoidOne-App/VoidOne"
 !define FILE_EXT "vone"
 !define PROTOCOL_SCHEME "voidone"

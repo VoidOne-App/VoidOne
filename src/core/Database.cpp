@@ -3,7 +3,7 @@
 **  V O I D O N E   E N G I N E
 **  High-Performance QML & C++ Core
 ** 
-**  Copyright (C) 2026 VoidOne-App
+**  Copyright (C) 2026 VoidOne_app
 **  Repository: https://github.com/VoidOne-App/VoidOne
 **  SPDX-License-Identifier: MIT
 ** 
