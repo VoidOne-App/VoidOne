@@ -74,9 +74,21 @@ bool Database::addGame(const GameRecord& game)
 
 bool Database::addGamesBatch(const QVector<GameRecord>& games)
 {
+    if (games.isEmpty()) {
+        return true;
+    }
+
     QSqlDatabase db = QSqlDatabase::database();
-    db.transaction();
-    
+    if (!db.isOpen()) {
+        qWarning() << "[VoidOne] Database Warning: Batch insert requested before database was opened.";
+        return false;
+    }
+
+    if (!db.transaction()) {
+        qWarning() << "[VoidOne] Database Warning: Could not start batch transaction -" << db.lastError().text();
+        return false;
+    }
+
     QSqlQuery query;
     query.prepare("INSERT OR REPLACE INTO games (name, exe_path, icon_path, platform) "
                   "VALUES (:name, :exe_path, :icon_path, :platform)");
@@ -85,15 +97,20 @@ bool Database::addGamesBatch(const QVector<GameRecord>& games)
         query.bindValue(":name", game.name);
         query.bindValue(":exe_path", game.exePath);
         query.bindValue(":icon_path", game.iconPath);
-        query.bindValue(":platform", game.platform);
-        query.exec();
+        query.bindValue(":platform", game.platform.isEmpty() ? "Custom" : game.platform);
+
+        if (!query.exec()) {
+            qWarning() << "[VoidOne] Database Warning: Batch insert failed -" << query.lastError().text();
+            db.rollback();
+            return false;
+        }
     }
 
     if (!db.commit()) {
         qWarning() << "[VoidOne] Database Warning: Batch insert failed to commit -" << db.lastError().text();
         return false;
     }
-    
+
     qDebug() << "[VoidOne] Database: Batch inserted" << games.size() << "games.";
     return true;
 }

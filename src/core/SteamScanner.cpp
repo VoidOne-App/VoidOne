@@ -55,7 +55,8 @@ void SteamScannerWorker::doScan() {
 }
 
 SteamScanner::SteamScanner(QObject *parent) : QObject(parent) {
-    SteamScannerWorker *worker = new SteamScannerWorker;
+    qRegisterMetaType<QVector<GameRecord>>("QVector<GameRecord>");
+    worker = new SteamScannerWorker;
     worker->moveToThread(&workerThread);
 
     connect(&workerThread, &QThread::finished, worker, &QObject::deleteLater);
@@ -70,10 +71,13 @@ SteamScanner::~SteamScanner() {
 }
 
 void SteamScanner::startAsyncScan() {
-    QMetaObject::invokeMethod(&workerThread, [this]() {
-        SteamScannerWorker worker;
-        worker.doScan();
-    });
+    if (!workerThread.isRunning() || worker == nullptr) {
+        qWarning() << "[VoidOne] Steam scanner worker thread is not available.";
+        emit scanCompleted(0);
+        return;
+    }
+
+    QMetaObject::invokeMethod(worker, &SteamScannerWorker::doScan, Qt::QueuedConnection);
 }
 
 void SteamScanner::handleScanFinished(const QVector<GameRecord>& games) {

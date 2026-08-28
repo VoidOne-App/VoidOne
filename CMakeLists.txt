@@ -115,7 +115,7 @@ endif()
 # ============================================================================
 set(VOIDONE_EXE_EXTRA_SOURCES "")
 if(WIN32)
-    set(APP_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/app.ico")
+    set(APP_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/app-icon.ico")
     set(VOIDONE_RC_PATH "${CMAKE_CURRENT_BINARY_DIR}/voidone.rc")
 
     file(WRITE "${VOIDONE_RC_PATH}" "\
@@ -172,6 +172,10 @@ qt_add_qml_module(VoidOne
         src/ui/qml/GameCard.qml
         src/ui/qml/Sidebar.qml
         src/ui/qml/SaveBackupView.qml
+        src/ui/qml/SidebarButton.qml
+        src/ui/qml/EnterpriseDialog.qml
+        src/ui/qml/MusicControllerWidget.qml
+        src/ui/qml/SystemTelemetryWidget.qml
 )
 
 target_link_libraries(VoidOne PRIVATE 
@@ -256,8 +260,8 @@ if(WIN32 AND VOIDONE_GENERATE_INSTALLER)
     set(CPACK_NSIS_COMPRESSOR "/SOLID lzma")
     set(CPACK_NSIS_CREATE_ICONS_EXTRA "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\VoidOne.lnk' '$INSTDIR\\\\bin\\\\VoidOne.exe'")
     set(CPACK_NSIS_MUI_FINISHPAGE_RUN "$INSTDIR\\\\bin\\\\VoidOne.exe")
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app.ico")
-        set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/app.ico")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app-icon.ico")
+        set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/app-icon.ico")
     endif()
 endif()
 
