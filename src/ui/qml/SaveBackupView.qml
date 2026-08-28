@@ -11,6 +11,23 @@ Rectangle {
     border.color: "#00ffee30"
     border.width: 1
 
+    property string saveDirPath: ""
+    property string backupDestinationPath: ""
+
+    function refreshAutoSaveConfiguration() {
+        saveBackupManager.configureAutoSave(saveDirPath, backupDestinationPath)
+        saveBackupManager.autoSaveIntervalSeconds = intervalSpinBox.value
+        saveBackupManager.autoSaveEnabled = autoSaveSwitch.checked && saveDirPath.length > 0 && backupDestinationPath.length > 0
+    }
+
+    Connections {
+        target: saveBackupManager
+        function onBackupCompleted(success, message) {
+            statusText.text = message
+            statusText.color = success ? "#00ffee" : "#ef4444"
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
@@ -78,7 +95,9 @@ Rectangle {
                 id: autoSaveSwitch
                 checked: false
                 onCheckedChanged: {
-                    statusText.text = checked 
+                    root.refreshAutoSaveConfiguration()
+                    statusText.color = "#00ffee"
+                    statusText.text = checked
                         ? (trManager.currentLanguage === "fa" ? "وضعیت: ذخیره خودکار فعال شد" : "Status: Auto-save enabled")
                         : (trManager.currentLanguage === "fa" ? "وضعیت: ذخیره خودکار غیرفعال شد" : "Status: Auto-save disabled")
                 }
@@ -118,6 +137,43 @@ Rectangle {
                 value: 30
                 editable: true
                 Layout.preferredWidth: 120
+                onValueModified: root.refreshAutoSaveConfiguration()
+            }
+
+            Text {
+                text: trManager.currentLanguage === "fa" ? "مسیر سیو بازی:" : "Save Folder:"
+                color: "#00ffee80"
+                font.pixelSize: 14
+            }
+
+            TextField {
+                Layout.fillWidth: true
+                placeholderText: trManager.currentLanguage === "fa" ? "مثال: /home/user/Game/Saves" : "Example: /home/user/Game/Saves"
+                text: root.saveDirPath
+                color: "#f8fafc"
+                placeholderTextColor: "#64748b"
+                onEditingFinished: {
+                    root.saveDirPath = text.trim()
+                    root.refreshAutoSaveConfiguration()
+                }
+            }
+
+            Text {
+                text: trManager.currentLanguage === "fa" ? "مقصد بکاپ:" : "Backup Destination:"
+                color: "#00ffee80"
+                font.pixelSize: 14
+            }
+
+            TextField {
+                Layout.fillWidth: true
+                placeholderText: trManager.currentLanguage === "fa" ? "مثال: /home/user/VoidOneBackups" : "Example: /home/user/VoidOneBackups"
+                text: root.backupDestinationPath
+                color: "#f8fafc"
+                placeholderTextColor: "#64748b"
+                onEditingFinished: {
+                    root.backupDestinationPath = text.trim()
+                    root.refreshAutoSaveConfiguration()
+                }
             }
         }
 
@@ -161,8 +217,18 @@ Rectangle {
                     font.bold: true
                 }
                 onClicked: {
-                    saveBackupManager.createBackup("", "")
-                    statusText.text = trManager.currentLanguage === "fa" ? "وضعیت: بکاپ با موفقیت ایجاد شد" : "Status: Backup created successfully"
+                    root.saveDirPath = root.saveDirPath.trim()
+                    root.backupDestinationPath = root.backupDestinationPath.trim()
+
+                    if (root.saveDirPath.length === 0 || root.backupDestinationPath.length === 0) {
+                        statusText.color = "#f59e0b"
+                        statusText.text = trManager.currentLanguage === "fa"
+                            ? "وضعیت: مسیر سیو و مقصد بکاپ را وارد کنید"
+                            : "Status: Enter both save and backup paths"
+                        return
+                    }
+
+                    saveBackupManager.createBackup(root.saveDirPath, root.backupDestinationPath)
                 }
             }
 

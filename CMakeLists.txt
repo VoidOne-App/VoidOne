@@ -7,8 +7,8 @@ cmake_minimum_required(VERSION 3.25)
 message(STATUS "
     ██╗   ██╗ ██████╗ ██╗██████╗  ██████╗ ███╗   ██╗███████╗
     ██║   ██║██╔═══██╗██║██╔══██╗██╔═══██╗████╗  ██║██╔════╝
-    ██║   ██║██║   ██║██║██║  ██║██║   ██║██╔██╗ ██║█████╗  
-    ╚██╗ ██╔╝██║   ██║██║██║  ██║██║   ██║██║╚██╗██║██╔══╝  
+    ██║   ██║██║   ██║██║██║  ██║██║   ██║██╔██╗ ██║█████╗
+    ╚██╗ ██╔╝██║   ██║██║██║  ██║██║   ██║██║╚██╗██║██╔══╝
      ╚████╔╝ ╚██████╔╝██║██████╔╝╚██████╔╝██║ ╚████║███████╗
       ╚═══╝   ╚═════╝ ╚═╝╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚══════╝
     :: VOIDONE-APP ENTERPRISE LAUNCHER BUILD ENGINE ::
@@ -93,9 +93,9 @@ target_include_directories(voidone_core PUBLIC
     "${VOIDONE_GENERATED_DIR}"
 )
 
-target_link_libraries(voidone_core PUBLIC 
-    Qt6::Core 
-    Qt6::Sql 
+target_link_libraries(voidone_core PUBLIC
+    Qt6::Core
+    Qt6::Sql
     Qt6::Network
 )
 
@@ -115,7 +115,7 @@ endif()
 # ============================================================================
 set(VOIDONE_EXE_EXTRA_SOURCES "")
 if(WIN32)
-    set(APP_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/app.ico")
+    set(APP_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/app-icon.ico")
     set(VOIDONE_RC_PATH "${CMAKE_CURRENT_BINARY_DIR}/voidone.rc")
 
     file(WRITE "${VOIDONE_RC_PATH}" "\
@@ -158,7 +158,7 @@ endif()
 # ============================================================================
 # Main Executable & QML Module (With NO_PLUGIN Fix)
 # ============================================================================
-qt_add_executable(VoidOne 
+qt_add_executable(VoidOne
     src/main.cpp
     ${VOIDONE_EXE_EXTRA_SOURCES}
 )
@@ -172,11 +172,15 @@ qt_add_qml_module(VoidOne
         src/ui/qml/GameCard.qml
         src/ui/qml/Sidebar.qml
         src/ui/qml/SaveBackupView.qml
+        src/ui/qml/SidebarButton.qml
+        src/ui/qml/EnterpriseDialog.qml
+        src/ui/qml/MusicControllerWidget.qml
+        src/ui/qml/SystemTelemetryWidget.qml
 )
 
-target_link_libraries(VoidOne PRIVATE 
-    voidone_core 
-    Qt6::Gui 
+target_link_libraries(VoidOne PRIVATE
+    voidone_core
+    Qt6::Gui
     Qt6::Quick
 )
 
@@ -223,12 +227,12 @@ if(WIN32 AND VOIDONE_ENABLE_CODE_SIGNING)
     if(SIGNTOOL_EXECUTABLE)
         if(DEFINED ENV{VOIDONE_SIGN_CERT_PATH} AND DEFINED ENV{VOIDONE_SIGN_PASSWORD})
             add_custom_command(TARGET VoidOne POST_BUILD
-                COMMAND "${SIGNTOOL_EXECUTABLE}" sign 
-                    /f "$ENV{VOIDONE_SIGN_CERT_PATH}" 
-                    /p "$ENV{VOIDONE_SIGN_PASSWORD}" 
-                    /fd sha256 
-                    /tr http://timestamp.digicert.com 
-                    /td sha256 
+                COMMAND "${SIGNTOOL_EXECUTABLE}" sign
+                    /f "$ENV{VOIDONE_SIGN_CERT_PATH}"
+                    /p "$ENV{VOIDONE_SIGN_PASSWORD}"
+                    /fd sha256
+                    /tr http://timestamp.digicert.com
+                    /td sha256
                     "$<TARGET_FILE:VoidOne>"
                 COMMENT "🔐 Enterprise: Signing executable..."
                 VERBATIM
@@ -240,15 +244,25 @@ endif()
 # ============================================================================
 # Packaging & Installation (CPack)
 # ============================================================================
-install(TARGETS VoidOne 
-    BUNDLE DESTINATION . 
+install(TARGETS VoidOne
+    BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )
+
+if(WIN32)
+    qt_generate_deploy_qml_app_script(
+        TARGET VoidOne
+        OUTPUT_SCRIPT VOIDONE_QT_DEPLOY_SCRIPT
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+    install(SCRIPT "${VOIDONE_QT_DEPLOY_SCRIPT}")
+endif()
 
 set(CPACK_PACKAGE_NAME "VoidOne")
 set(CPACK_PACKAGE_VENDOR "VoidOne-App Core Team")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "VoidOne Ultimate Enterprise Game Launcher")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "VoidOne")
 
 if(WIN32 AND VOIDONE_GENERATE_INSTALLER)
     set(CPACK_GENERATOR "NSIS")
@@ -256,8 +270,8 @@ if(WIN32 AND VOIDONE_GENERATE_INSTALLER)
     set(CPACK_NSIS_COMPRESSOR "/SOLID lzma")
     set(CPACK_NSIS_CREATE_ICONS_EXTRA "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\VoidOne.lnk' '$INSTDIR\\\\bin\\\\VoidOne.exe'")
     set(CPACK_NSIS_MUI_FINISHPAGE_RUN "$INSTDIR\\\\bin\\\\VoidOne.exe")
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app.ico")
-        set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/app.ico")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app-icon.ico")
+        set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/app-icon.ico")
     endif()
 endif()
 

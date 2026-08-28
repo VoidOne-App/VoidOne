@@ -1,5 +1,7 @@
 #include "GameModel.h"
 #include <QDebug>
+#include <QFileInfo>
+#include <utility>
 
 GameModel::GameModel(QObject *parent) : QAbstractListModel(parent) {}
 
@@ -36,7 +38,8 @@ QHash<int, QByteArray> GameModel::roleNames() const {
 
 void GameModel::loadGamesFromDatabase() {
     beginResetModel();
-    m_games = Database::getAllGames();
+    m_allGames = Database::getAllGames();
+    m_games = m_allGames;
     endResetModel();
     emit countChanged();
 }
@@ -51,20 +54,63 @@ bool GameModel::addNewGame(const QString &name, const QString &exePath, const QS
 }
 
 bool GameModel::deleteGame(int id, int index) {
-    if (index < 0 || index >= m_games.size()) return false;
-    
+    if (index < 0 || index >= m_games.size() || m_games.at(index).id != id) {
+        return false;
+    }
+
     if (Database::removeGame(id)) {
-        beginRemoveRows(QModelIndex(), index, index);
-        m_games.removeAt(index);
-        endRemoveRows();
-        emit countChanged();
+        loadGamesFromDatabase();
         return true;
     }
     return false;
 }
 
 void GameModel::launchGame(const QString &exePath) {
-    if (!exePath.isEmpty()) {
-        QProcess::startDetached(exePath, QStringList());
+    if (exePath.isEmpty()) {
+        return;
     }
+
+    const QFileInfo targetInfo(exePath);
+    const QString workingDirectory = targetInfo.isDir()
+        ? targetInfo.absoluteFilePath()
+        : targetInfo.absolutePath();
+
+    QString program = exePath;
+    QStringList arguments;
+
+#if defined(Q_OS_WIN)
+    if (targetInfo.isDir()) {
+        qWarning() << "[VoidOne] Cannot launch a directory on Windows:" << exePath;
+        return;
+    }
+#else
+    if (targetInfo.isDir()) {
+        program = QStringLiteral("xdg-open");
+        arguments << exePath;
+    }
+#endif
+
+    if (!QProcess::startDetached(program, arguments, workingDirectory)) {
+        qWarning() << "[VoidOne] Failed to launch game path:" << exePath;
+    }
+}
+
+void GameModel::filter(const QString &searchText) {
+    const QString needle = searchText.trimmed();
+
+    beginResetModel();
+    if (needle.isEmpty()) {
+        m_games = m_allGames;
+    } else {
+        m_games.clear();
+        for (const auto &game : std::as_const(m_allGames)) {
+            if (game.name.contains(needle, Qt::CaseInsensitive)
+                || game.platform.contains(needle, Qt::CaseInsensitive)
+                || game.exePath.contains(needle, Qt::CaseInsensitive)) {
+                m_games.append(game);
+            }
+        }
+    }
+    endResetModel();
+    emit countChanged();
 }

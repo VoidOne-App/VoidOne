@@ -1,5 +1,6 @@
 #include "SaveBackupManager.h"
 #include <QDebug>
+#include <QFile>
 #include <QFileInfo>
 #include <QDateTime>
 

@@ -12,6 +12,8 @@ Rectangle {
     required property string platform
     required property int itemIndex
 
+    signal launchRequested(string path)
+
     width: 280
     height: 190
     radius: 16
@@ -104,7 +106,7 @@ Rectangle {
                 }
                 Item { Layout.fillWidth: true }
             }
-            onClicked: gameModel.launchGame(exePath)
+            onClicked: cardRoot.launchRequested(exePath)
         }
     }
 }

@@ -29,11 +29,13 @@ public:
     Q_INVOKABLE bool addNewGame(const QString &name, const QString &exePath, const QString &iconPath);
     Q_INVOKABLE bool deleteGame(int id, int index);
     Q_INVOKABLE void launchGame(const QString &exePath);
+    Q_INVOKABLE void filter(const QString &searchText);
 
 signals:
     void countChanged();
 
 private:
+    QVector<GameRecord> m_allGames;
     QVector<GameRecord> m_games;
 };
 

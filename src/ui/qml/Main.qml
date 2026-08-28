@@ -372,10 +372,13 @@ Window {
                             itemIndex: index
 
                             onLaunchRequested: function(path) {
-                                root.showNotification(qsTr("Spawning secure isolated process container..."))
-                                if (typeof gameManager !== "undefined" && gameManager !== null && typeof gameManager.launchGame === "function") {
-                                    gameManager.launchGame(path)
+                                if (path.length === 0) {
+                                    root.showNotification(qsTr("Launch path is empty."), true)
+                                    return
                                 }
+
+                                root.showNotification(qsTr("Spawning secure isolated process container..."))
+                                gameModel.launchGame(path)
                             }
                         }
                     }
