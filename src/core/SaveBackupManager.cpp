@@ -31,6 +31,22 @@ bool SaveBackupManager::createBackup(const QString &saveDirPath, const QString &
     return success;
 }
 
+QString SaveBackupManager::latestBackupPath(const QString &backupDestinationPath) {
+    QDir destDir(backupDestinationPath);
+    if (!destDir.exists()) return QString();
+
+    const QStringList entries = destDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    QString latest;
+    for (const QString &entry : entries) {
+        if (entry.startsWith("autosave_")) {
+            if (entry > latest) {
+                latest = entry;
+            }
+        }
+    }
+    return latest.isEmpty() ? QString() : destDir.absoluteFilePath(latest);
+}
+
 bool SaveBackupManager::restoreBackup(const QString &backupFilePath, const QString &targetSaveDirPath) {
     bool success = copyRecursively(backupFilePath, targetSaveDirPath);
     emit backupCompleted(success, success ? "Backup restored successfully! / بازگردانی بکاپ با موفقیت انجام شد!" 

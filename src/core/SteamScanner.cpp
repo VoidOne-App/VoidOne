@@ -5,30 +5,80 @@
 #include <QStandardPaths>
 #include <QRegularExpression>
 #include <QDebug>
+#include <algorithm>
 
 #if defined(Q_OS_WIN)
+static bool isLikelyNonGameExe(const QString &fileName) {
+    static const QStringList prefixes = {
+        "uninstall", "setup", "redist", "vcredist",
+        "dxsetup", "dotnet", "install", "remove"
+    };
+    static const QStringList substrings = {
+        "uninstall", "setup", "redist", "crashhandler",
+        "crash_handler", "launcher", "updater", "patcher",
+        "helper", "service", "agent", "installer"
+    };
+    const QString lower = fileName.toLower();
+    for (const QString &p : prefixes) {
+        if (lower.startsWith(p)) return true;
+    }
+    for (const QString &s : substrings) {
+        if (lower.contains(s)) return true;
+    }
+    return false;
+}
+
 static QString findMainExecutable(const QString &gameDir, const QString &gameName) {
     QDir dir(gameDir);
-    if (!dir.exists()) return gameDir;
+    if (!dir.exists()) {
+        qWarning() << "[VoidOne] Game directory does not exist:" << gameDir;
+        return QString();
+    }
 
-    // First pass: prefer an exe whose stem matches the game name (case-insensitive)
     const QStringList exeFiles = dir.entryList(QStringList() << "*.exe", QDir::Files);
+    if (exeFiles.isEmpty()) {
+        qWarning() << "[VoidOne] No .exe files found in:" << gameDir;
+        return QString();
+    }
+
+    // Pass 1: prefer an exe whose stem matches the game name (case-insensitive)
     const QString lowerName = gameName.toLower();
     for (const QString &f : exeFiles) {
         if (QFileInfo(f).completeBaseName().toLower() == lowerName)
             return dir.absoluteFilePath(f);
     }
 
-    // Second pass: single .exe in the root — use it
+    // Pass 2: single .exe in the root — use it
     if (exeFiles.size() == 1)
         return dir.absoluteFilePath(exeFiles.first());
 
-    // Third pass: first .exe found at any depth
-    const QStringList recursiveExes = dir.entryList(QStringList() << "*.exe", QDir::Files);
-    if (!recursiveExes.isEmpty())
-        return dir.absoluteFilePath(recursiveExes.first());
+    // Pass 3: filter out known non-game executables, then pick the largest remaining
+    // (game executables are typically larger than launchers, crash reporters, uninstallers)
+    QList<QPair<qint64, QString>> candidates;
+    for (const QString &f : exeFiles) {
+        if (isLikelyNonGameExe(f)) continue;
+        QFileInfo fi(dir.absoluteFilePath(f));
+        candidates.append({fi.size(), f});
+    }
 
-    return gameDir;
+    if (!candidates.isEmpty()) {
+        std::sort(candidates.begin(), candidates.end(),
+                  [](const auto &a, const auto &b) { return a.first > b.first; });
+        return dir.absoluteFilePath(candidates.first().second);
+    }
+
+    // Pass 4 (last resort): if all exes looked like non-game executables,
+    // still pick the largest one rather than returning the directory
+    QList<QPair<qint64, QString>> allBySize;
+    for (const QString &f : exeFiles) {
+        QFileInfo fi(dir.absoluteFilePath(f));
+        allBySize.append({fi.size(), f});
+    }
+    std::sort(allBySize.begin(), allBySize.end(),
+              [](const auto &a, const auto &b) { return a.first > b.first; });
+    qWarning() << "[VoidOne] No ideal exe match for" << gameName
+               << "; falling back to largest exe:" << allBySize.first().second;
+    return dir.absoluteFilePath(allBySize.first().second);
 }
 #endif
 

@@ -16,6 +16,7 @@ public:
     // Manual backup and restore methods (توابع دستی بکاپ و ریستور)
     Q_INVOKABLE bool createBackup(const QString &saveDirPath, const QString &backupDestinationPath);
     Q_INVOKABLE bool restoreBackup(const QString &backupFilePath, const QString &targetSaveDirPath);
+    Q_INVOKABLE QString latestBackupPath(const QString &backupDestinationPath);
 
     // Auto-save settings management (مدیریت تنظیمات ذخیره خودکار)
     bool isAutoSaveEnabled() const { return m_autoSaveEnabled; }
