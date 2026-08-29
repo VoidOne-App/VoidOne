@@ -247,7 +247,29 @@ Rectangle {
                     verticalAlignment: Text.AlignVCenter
                 }
                 onClicked: {
+                    root.saveDirPath = root.saveDirPath.trim()
+                    root.backupDestinationPath = root.backupDestinationPath.trim()
+
+                    if (root.saveDirPath.length === 0 || root.backupDestinationPath.length === 0) {
+                        statusText.color = "#f59e0b"
+                        statusText.text = trManager.currentLanguage === "fa"
+                            ? "وضعیت: مسیر سیو و مقصد بکاپ را وارد کنید"
+                            : "Status: Enter both save and backup paths"
+                        return
+                    }
+
+                    var latestPath = saveBackupManager.latestBackupPath(root.backupDestinationPath)
+                    if (latestPath.length === 0) {
+                        statusText.color = "#ef4444"
+                        statusText.text = trManager.currentLanguage === "fa"
+                            ? "وضعیت: هیچ بکاپی یافت نشد"
+                            : "Status: No backups found"
+                        return
+                    }
+
                     statusText.text = trManager.currentLanguage === "fa" ? "وضعیت: در حال بازگردانی بکاپ..." : "Status: Restoring backup..."
+                    statusText.color = "#00ffee"
+                    saveBackupManager.restoreBackup(latestPath, root.saveDirPath)
                 }
             }
         }
