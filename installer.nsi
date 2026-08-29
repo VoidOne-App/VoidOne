@@ -3,7 +3,7 @@
 !include "x64.nsh"
 
 ; ============================================
-; Application & Dynamic Version Configuration
+; Application & CI-Driven Version Configuration
 ; ============================================
 !define APP_NAME "VoidOne"
 !define COMPANY_NAME "VoidOne_app"
@@ -15,9 +15,9 @@
 !define INSTALL_BIN_DIR "$INSTDIR\bin"
 !define APP_EXE_PATH "${INSTALL_BIN_DIR}\${EXE_NAME}"
 
-; دریافت خودکار نسخه از CLI (در صورت عدم ارسال، نسخه پیش‌فرض اعمال می‌شود)
+; CI passes /DVERSION=... . Keep a local fallback for manual builds.
 !ifndef VERSION
-  !define VERSION "0.1.0"
+  !define VERSION "0.0.0-dev"
 !endif
 
 Name "${APP_NAME} ${VERSION}"
@@ -34,24 +34,20 @@ RequestExecutionLevel admin
 !define MUI_UNICON "app-icon.ico"
 !define MUI_ABORTWARNING
 
-; Finish Page Settings
 !define MUI_FINISHPAGE_RUN "${APP_EXE_PATH}"
 !define MUI_FINISHPAGE_RUN_TEXT "Run ${APP_NAME} Now"
 !define MUI_FINISHPAGE_SHOWREADME ""
 !define MUI_FINISHPAGE_SHOWREADME_TEXT "Create Desktop Shortcut"
 !define MUI_FINISHPAGE_SHOWREADME_FUNCTION CreateDesktopShortcut
 
-; Installer Pages
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
-; Uninstaller Pages
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
-; Languages (English & Farsi Support)
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Farsi"
 
@@ -81,29 +77,24 @@ FunctionEnd
 Section "MainSection" SEC01
     SetOutPath "$INSTDIR"
 
-    ; 1. Soft-Close Running Instances
     DetailPrint "Checking for running VoidOne instances..."
     nsExec::ExecToLog 'taskkill /F /IM "${EXE_NAME}" /T'
     Sleep 1000
 
-    ; 2. Smart Backup of User Settings (AppData)
     DetailPrint "Backing up user configurations..."
     CreateDirectory "$PLUGINSDIR\UserDataBackup"
     ${If} ${FileExists} "$APPDATA\VoidOne\config.json"
         CopyFiles "$APPDATA\VoidOne\config.json" "$PLUGINSDIR\UserDataBackup\"
     ${EndIf}
 
-    ; 3. Extract Payload Files
     DetailPrint "Extracting VoidOne core files..."
     File /r "package\*"
 
-    ; 4. Restore User Settings
     ${If} ${FileExists} "$PLUGINSDIR\UserDataBackup\config.json"
         CreateDirectory "$APPDATA\VoidOne"
         CopyFiles "$PLUGINSDIR\UserDataBackup\config.json" "$APPDATA\VoidOne\"
     ${EndIf}
 
-    ; 5. Smart VC++ Redistributable Check & Setup
     ClearErrors
     ReadRegDword $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
     ${If} $0 != 1
@@ -119,44 +110,35 @@ Section "MainSection" SEC01
         ${EndIf}
     ${EndIf}
 
-    ; 6. Configure Windows Firewall Exception
     DetailPrint "Configuring Windows Firewall rules..."
     nsExec::ExecToLog 'netsh advfirewall firewall add rule name="VoidOne Engine Service" dir=in action=allow program="${APP_EXE_PATH}" enable=yes'
 
-    ; 7. High Performance Gaming Optimization RegKeys
     DetailPrint "Optimizing system preferences for VoidOne Engine..."
     WriteRegStr HKCU "Software\Microsoft\DirectX\UserGpuPreferences" "${APP_EXE_PATH}" "GpuPreference=2;"
     WriteRegDword HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" "GPU Priority" 8
 
-    ; 8. Create Uninstaller Executable
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-    ; 9. Create Start Menu Shortcuts
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
     CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "${APP_EXE_PATH}" "" "${APP_EXE_PATH}" 0
     CreateShortCut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
 
-    ; 10. Register Custom URI Protocol (voidone://)
     WriteRegStr HKCR "${PROTOCOL_SCHEME}" "" "URL:${APP_NAME} Protocol"
     WriteRegStr HKCR "${PROTOCOL_SCHEME}" "URL Protocol" ""
     WriteRegStr HKCR "${PROTOCOL_SCHEME}\DefaultIcon" "" "${APP_EXE_PATH},0"
     WriteRegStr HKCR "${PROTOCOL_SCHEME}\shell\open\command" "" '"${APP_EXE_PATH}" "%1"'
 
-    ; 11. Register Custom File Extension (.vone)
     WriteRegStr HKCR ".${FILE_EXT}" "" "${APP_NAME}.ProjectFile"
     WriteRegStr HKCR "${APP_NAME}.ProjectFile" "" "${APP_NAME} Project File"
     WriteRegStr HKCR "${APP_NAME}.ProjectFile\DefaultIcon" "" "${APP_EXE_PATH},0"
     WriteRegStr HKCR "${APP_NAME}.ProjectFile\shell\open\command" "" '"${APP_EXE_PATH}" "%1"'
 
-    ; 12. Register Context Menu (Right-Click Directory Option)
     WriteRegStr HKCR "Directory\shell\VoidOne" "" "Open with VoidOne"
     WriteRegStr HKCR "Directory\shell\VoidOne" "Icon" "${APP_EXE_PATH},0"
     WriteRegStr HKCR "Directory\shell\VoidOne\command" "" '"${APP_EXE_PATH}" "--game-path=%1"'
 
-    ; 13. Optional Auto-Start Entry
-    ; Auto-start is opt-in from the application settings; the installer must not enable it silently.
+    ; Auto-start is opt-in from application settings; installer does not enable it silently.
 
-    ; 14. Register in Windows Add/Remove Programs (Control Panel)
     !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
     WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
     WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${VERSION}"
@@ -169,8 +151,6 @@ Section "MainSection" SEC01
     WriteRegDword HKLM "${UNINST_KEY}" "NoRepair" 1
 
     WriteRegStr HKLM "Software\${COMPANY_NAME}\${APP_NAME}" "InstallDir" "$INSTDIR"
-
-    ; Refresh Windows Explorer Shell Icons
     System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 SectionEnd
 
@@ -182,15 +162,12 @@ Section "Uninstall"
     nsExec::ExecToLog 'taskkill /F /IM "${EXE_NAME}" /T'
     Sleep 500
 
-    ; Remove Firewall Exception
     DetailPrint "Removing Windows Firewall rules..."
     nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="VoidOne Engine Service"'
 
-    ; Delete Shortcuts
     Delete "$DESKTOP\${APP_NAME}.lnk"
     RMDir /r "$SMPROGRAMS\${APP_NAME}"
 
-    ; Clean Registry Entries
     DeleteRegKey HKCR "${PROTOCOL_SCHEME}"
     DeleteRegKey HKCR ".${FILE_EXT}"
     DeleteRegKey HKCR "${APP_NAME}.ProjectFile"
@@ -200,9 +177,6 @@ Section "Uninstall"
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}"
     DeleteRegValue HKCU "Software\Microsoft\DirectX\UserGpuPreferences" "${APP_EXE_PATH}"
 
-    ; Remove Application Files
     RMDir /r "$INSTDIR"
-
-    ; Refresh Icons
     System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 SectionEnd
