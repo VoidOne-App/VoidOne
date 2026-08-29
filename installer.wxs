@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- دریافت خودکار نسخه از کامپایلر -->
+<!-- ProductVersion is supplied by CI with -dProductVersion=... -->
 <?ifndef ProductVersion ?>
-  <?define ProductVersion = "0.1.0.0" ?>
+  <?define ProductVersion = "0.0.0.0" ?>
 <?endif ?>
 
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
@@ -16,24 +16,20 @@
            Scope="perMachine"
            InstallerVersion="500">
 
-    <!-- 1. بررسی سیستم‌عامل 64 بیتی -->
     <Launch Message="این نرم‌افزار نیازمند سیستم‌عامل 64 بیتی (Windows 10/11 x64) است."
             Condition="VersionNT64" />
 
-    <!-- 2. بستن خودکار پروسه‌ها -->
     <util:CloseApplication Id="CloseVoidoneApp"
                            Target="VoidOne.exe"
                            CloseMessage="yes"
                            PromptToContinue="yes"
                            Description="جهت ادامه فرایند، نرم‌افزار VoidOne باید بسته شود." />
 
-    <!-- 3. ارتقاء خودکار -->
     <MajorUpgrade DowngradeErrorMessage="نسخه جدیدتری از VoidOne قبلاً روی سیستم شما نصب شده است."
                   Schedule="afterInstallInitialize" />
 
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
-    <!-- 4. تنظیمات Control Panel -->
     <Property Id="ARPCOMMENTS" Value="VoidOne High-Performance Gamer Engine" />
     <Property Id="ARPCONTACT" Value="VoidOne_app Support Team" />
     <Property Id="ARPHELPLINK" Value="https://github.com/VoidOne-App/VoidOne/issues" />
@@ -43,7 +39,6 @@
 
     <Icon Id="AppIcon.ico" SourceFile="app-icon.ico" />
 
-    <!-- 5. پوشه‌ها -->
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="VoidOne">
         <Directory Id="INSTALLBINFOLDER" Name="bin" />
@@ -56,12 +51,10 @@
 
     <StandardDirectory Id="DesktopFolder" />
 
-    <!-- 6. بسته‌بندی فایل‌ها و ریجستری‌ها -->
     <ComponentGroup Id="ProductComponents" Directory="INSTALLBINFOLDER">
       <Files Include="package\bin\**" />
 
       <Component Id="GamerIntegrationComponent" Guid="C3D4E5F6-A7B8-9C0D-1E2F-3A4B5C6D7E8F">
-
         <fw:FirewallException Id="VoidoneFirewallRule"
                               Name="VoidOne Engine Service"
                               Target="[INSTALLBINFOLDER]VoidOne.exe"
@@ -95,12 +88,9 @@
 
         <RegistryValue Root="HKMU" Key="Software\VoidOne_app\VoidOne" Name="EnterpriseIntegrated" Type="integer" Value="1" KeyPath="yes" />
       </Component>
-
     </ComponentGroup>
 
-    <!-- 7. شورت‌کت‌ها -->
     <ComponentGroup Id="ShortcutComponents">
-
       <Component Id="ApplicationShortcut" Directory="ApplicationProgramsFolder" Guid="A1B2C3D4-E5F6-7A8B-9C0D-1E2F3A4B5C6D">
         <Shortcut Id="ApplicationStartMenuShortcut"
                   Name="VoidOne"
@@ -121,10 +111,8 @@
                   Icon="AppIcon.ico" />
         <RegistryValue Root="HKMU" Key="Software\VoidOne_app\VoidOne" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
-
     </ComponentGroup>
 
-    <!-- 8. رابط کاربری -->
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
 
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="اجرای فوری VoidOne" />
@@ -135,7 +123,6 @@
       <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
     </UI>
 
-    <!-- 9. فیچر اصلی -->
     <Feature Id="MainFeature" Title="VoidOne Core" Level="1" ConfigurableDirectory="INSTALLFOLDER">
       <ComponentGroupRef Id="ProductComponents" />
       <ComponentGroupRef Id="ShortcutComponents" />
