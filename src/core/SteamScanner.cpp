@@ -6,6 +6,28 @@
 #include <QRegularExpression>
 #include <QDebug>
 
+#if defined(Q_OS_WIN)
+static QString findMainExecutable(const QString &gameDir, const QString &gameName) {
+    QDir dir(gameDir);
+    if (!dir.exists()) return gameDir;
+
+    // First pass: prefer an exe whose stem matches the game name (case-insensitive)
+    const QStringList exeFiles = dir.entryList(QStringList() << "*.exe", QDir::Files);
+    const QString lowerName = gameName.toLower();
+    for (const QString &f : exeFiles) {
+        if (QFileInfo(f).completeBaseName().toLower() == lowerName)
+            return dir.absoluteFilePath(f);
+    }
+
+    // Second pass: single .exe in the root — use it
+    if (exeFiles.size() == 1)
+        return dir.absoluteFilePath(exeFiles.first());
+
+    // No unique match found; fall back to the directory path
+    return gameDir;
+}
+#endif
+
 void SteamScannerWorker::doScan() {
     QVector<GameRecord> games;
     QString steamPath = "";
@@ -43,7 +65,12 @@ void SteamScannerWorker::doScan() {
                 if (nameMatch.hasMatch() && dirMatch.hasMatch()) {
                     GameRecord rec;
                     rec.name = nameMatch.captured(1);
-                    rec.exePath = steamappsPath + "/common/" + dirMatch.captured(1);
+                    const QString gameDir = steamappsPath + "/common/" + dirMatch.captured(1);
+#if defined(Q_OS_WIN)
+                    rec.exePath = findMainExecutable(gameDir, rec.name);
+#else
+                    rec.exePath = gameDir;
+#endif
                     rec.platform = "Steam";
                     games.append(rec);
                 }
