@@ -1,22 +1,19 @@
-add_executable(voidone_core_tests
-    test_database.cpp
-    test_save_backup_manager.cpp
-)
+function(voidone_configure_test target)
+    target_link_libraries(${target} PRIVATE voidone_core Qt6::Core Qt6::Sql Qt6::Test)
+    target_compile_features(${target} PRIVATE cxx_std_23)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /WX /permissive- /EHsc)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endfunction()
 
-target_link_libraries(voidone_core_tests PRIVATE
-    voidone_core
-    Qt6::Core
-    Qt6::Sql
-    Qt6::Test
-)
+add_executable(voidone_database_tests test_database.cpp)
+voidone_configure_test(voidone_database_tests)
+add_test(NAME VoidOne.DatabaseTests COMMAND voidone_database_tests)
+set_tests_properties(VoidOne.DatabaseTests PROPERTIES TIMEOUT 120)
 
-target_compile_features(voidone_core_tests PRIVATE cxx_std_23)
-
-if(MSVC)
-    target_compile_options(voidone_core_tests PRIVATE /W4 /WX /permissive- /EHsc)
-else()
-    target_compile_options(voidone_core_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
-endif()
-
-add_test(NAME VoidOne.CoreTests COMMAND voidone_core_tests)
-set_tests_properties(VoidOne.CoreTests PROPERTIES TIMEOUT 120)
+add_executable(voidone_save_backup_tests test_save_backup_manager.cpp)
+voidone_configure_test(voidone_save_backup_tests)
+add_test(NAME VoidOne.SaveBackupTests COMMAND voidone_save_backup_tests)
+set_tests_properties(VoidOne.SaveBackupTests PROPERTIES TIMEOUT 120)
