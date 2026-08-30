@@ -1,58 +1,136 @@
-name: CodeQL Security Analysis
+name: "🔐 VoidOne — Enterprise CodeQL"
 
 on:
   push:
-    branches: [ "main", "release/*" ]
+    branches:
+      - main
+      - "release/**"
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
+      - "release/**"
   schedule:
-    - cron: '35 5 * * 6'
+    - cron: "35 5 * * 6"
+  workflow_dispatch:
 
 permissions:
-  security-events: write
-  packages: read
-  actions: read
   contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  QT_VERSION: "6.8.*"
+  QT_ARCH: win64_msvc2022_64
+  BUILD_DIR: build-codeql
 
 jobs:
   analyze:
-    name: CodeQL Analysis (C++/Qt6)
+    name: "CodeQL — C++/Qt6/MSVC"
     runs-on: windows-2025
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
+      - name: 📦 Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
 
-    - name: Setup MSVC Dev Environment
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: x64
+      - name: 🛠️ Setup MSVC x64
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
-    - name: Setup Qt 6
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: "6.8.*"
-        target: desktop
-        arch: win64_msvc2022_64
-        cache: true
+      - name: 🟦 Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: ${{ env.QT_ARCH }}
+          cache: true
+          setup-python: false
 
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: c-cpp
-        build-mode: manual
-        queries: security-extended,security-and-quality
+      - name: 🔎 Verify toolchain
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Write-Host "=== MSVC ==="
+          cl.exe
+          Write-Host "=== CMake ==="
+          cmake --version
+          Write-Host "=== Ninja ==="
+          ninja --version
+          Write-Host "=== Qt ==="
+          qmake --version
 
-    - name: Build C++ Source Code
-      shell: pwsh
-      run: |
-        mkdir build -ErrorAction SilentlyContinue
-        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=23
-        cmake --build build --config Release --parallel
+      - name: 🧠 Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: c-cpp
+          build-mode: manual
+          config-file: ./.github/codeql/codeql-config.yml
+          trap-caching: false
+          ram: 5500
+          threads: 2
 
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
-      with:
-        category: "/language:c-cpp"
+      - name: ⚙️ Configure CMake
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Remove-Item "${{ env.BUILD_DIR }}" -Recurse -Force -ErrorAction SilentlyContinue
+          cmake `
+            -S . `
+            -B "${{ env.BUILD_DIR }}" `
+            -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_CXX_STANDARD=23 `
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON `
+            -DCMAKE_CXX_EXTENSIONS=OFF `
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: 🏗️ Build — CodeQL traced
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          cmake --build "${{ env.BUILD_DIR }}" --config Release --parallel
+
+      - name: 🧪 Verify native artifacts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $artifacts = Get-ChildItem "${{ env.BUILD_DIR }}" -Recurse -File |
+            Where-Object { $_.Extension -in @('.exe', '.dll', '.lib') }
+          if (-not $artifacts) {
+            throw "No native build artifacts were produced. CodeQL analysis is not trustworthy without a real build."
+          }
+          $artifacts | ForEach-Object { Write-Host "FOUND: $($_.FullName)" }
+
+      - name: 🔐 Analyze & upload SARIF
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:c-cpp"
+          upload: always
+
+      - name: 📋 Security summary
+        if: always()
+        shell: pwsh
+        run: |
+          @"
+          ## 🔐 VoidOne Enterprise CodeQL
+
+          - **Language:** C/C++
+          - **Framework:** Qt 6
+          - **Compiler:** MSVC x64
+          - **Standard:** C++23
+          - **Build:** Release / real compiled database
+          - **Queries:** security-extended + security-and-quality
+          - **SARIF:** uploaded to GitHub Code Scanning
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

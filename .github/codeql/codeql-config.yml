@@ -1,0 +1,22 @@
+name: VoidOne Enterprise CodeQL
+
+# Keep generated/build trees out of the database while analyzing the real
+# compiled C/C++ source graph.
+paths:
+  - src
+
+paths-ignore:
+  - build
+  - build-*
+  - cmake-build-*
+  - out
+  - dist
+  - package
+  - website
+  - docs
+  - '**/generated/**'
+
+# Broad security coverage plus correctness/quality checks.
+queries:
+  - uses: security-extended
+  - uses: security-and-quality
