@@ -1,9 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
 
-# ============================================================================
-# VOIDONE — production build system
-# ============================================================================
-
 set(VOIDONE_VERSION_OVERRIDE "0.0.1" CACHE STRING "Override application version (normally supplied by CI/tag)")
 project(VoidOne
     VERSION ${VOIDONE_VERSION_OVERRIDE}
@@ -16,7 +12,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
     message(FATAL_ERROR "In-source builds are not allowed. Use: cmake -S . -B build -G Ninja")
 endif()
 
-# Build options are explicit so CI cannot silently pass ignored -D flags.
 option(VOIDONE_ENABLE_CODE_SIGNING "Sign binaries for Windows (Authenticode)" ON)
 option(VOIDONE_GENERATE_INSTALLER "Generate NSIS installer (Windows)" ON)
 option(VOIDONE_ENABLE_LTO "Enable link-time optimization in Release" ON)
@@ -59,27 +54,21 @@ endif()
 set(VOIDONE_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${VOIDONE_GENERATED_DIR}")
 set(VOIDONE_VERSION_DISPLAY "${PROJECT_VERSION}")
-
-configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VoidOneVersion.h.in"
-    "${VOIDONE_GENERATED_DIR}/VoidOneVersion.h"
-    @ONLY
-)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/VoidOneVersion.h.in"
+               "${VOIDONE_GENERATED_DIR}/VoidOneVersion.h" @ONLY)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick Sql Network)
+if(VOIDONE_BUILD_TESTS)
+    find_package(Qt6 6.8 REQUIRED COMPONENTS Test)
+endif()
 qt_standard_project_setup(REQUIRES 6.8)
 
 add_library(voidone_core STATIC
-    src/core/Database.cpp
-    src/core/Database.h
-    src/core/SteamScanner.cpp
-    src/core/SteamScanner.h
-    src/core/GameModel.cpp
-    src/core/GameModel.h
-    src/core/TranslationManager.cpp
-    src/core/TranslationManager.h
-    src/core/SaveBackupManager.cpp
-    src/core/SaveBackupManager.h
+    src/core/Database.cpp src/core/Database.h
+    src/core/SteamScanner.cpp src/core/SteamScanner.h
+    src/core/GameModel.cpp src/core/GameModel.h
+    src/core/TranslationManager.cpp src/core/TranslationManager.h
+    src/core/SaveBackupManager.cpp src/core/SaveBackupManager.h
 )
 
 target_include_directories(voidone_core PUBLIC
@@ -87,7 +76,6 @@ target_include_directories(voidone_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
     "${VOIDONE_GENERATED_DIR}"
 )
-
 target_link_libraries(voidone_core PUBLIC Qt6::Core Qt6::Sql Qt6::Network)
 target_precompile_headers(voidone_core PRIVATE <QObject> <QString> <QList> <memory> <vector> <string>)
 
@@ -108,11 +96,8 @@ if(WIN32)
 endif()
 
 qt_add_executable(VoidOne src/main.cpp ${VOIDONE_EXE_EXTRA_SOURCES})
-
 qt_add_qml_module(VoidOne
-    URI VoidOne
-    VERSION 1.0
-    NO_PLUGIN
+    URI VoidOne VERSION 1.0 NO_PLUGIN
     QML_FILES
         src/ui/qml/Main.qml
         src/ui/qml/GameCard.qml
@@ -123,7 +108,6 @@ qt_add_qml_module(VoidOne
         src/ui/qml/MusicControllerWidget.qml
         src/ui/qml/SystemTelemetryWidget.qml
 )
-
 target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick)
 
 if(MSVC)
@@ -134,51 +118,34 @@ endif()
 
 if(WIN32)
     set_target_properties(VoidOne PROPERTIES WIN32_EXECUTABLE TRUE)
-endif()
-
-if(WIN32)
     find_program(WINDEPLOYQT_EXECUTABLE windeployqt)
     if(WINDEPLOYQT_EXECUTABLE)
         add_custom_command(TARGET VoidOne POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E env PATH="$<TARGET_FILE_DIR:Qt6::Core>"
                     "${WINDEPLOYQT_EXECUTABLE}"
                     --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/qml"
-                    --no-translations
-                    --no-compiler-runtime
+                    --no-translations --no-compiler-runtime
                     "$<TARGET_FILE:VoidOne>"
             COMMENT "Deploying Qt/QML runtime dependencies"
-            VERBATIM
-        )
+            VERBATIM)
     endif()
 endif()
 
-# Signing is deliberately opt-in at runtime of the CI environment. Never fail a
-# developer build merely because signtool/certificates are absent.
 if(WIN32 AND VOIDONE_ENABLE_CODE_SIGNING)
     find_program(SIGNTOOL_EXECUTABLE signtool)
     if(SIGNTOOL_EXECUTABLE AND DEFINED ENV{VOIDONE_SIGN_CERT_PATH} AND DEFINED ENV{VOIDONE_SIGN_PASSWORD})
         add_custom_command(TARGET VoidOne POST_BUILD
-            COMMAND "${SIGNTOOL_EXECUTABLE}" sign
-                /f "$ENV{VOIDONE_SIGN_CERT_PATH}"
-                /p "$ENV{VOIDONE_SIGN_PASSWORD}"
-                /fd sha256
-                /tr http://timestamp.digicert.com
-                /td sha256
-                "$<TARGET_FILE:VoidOne>"
-            COMMENT "Signing VoidOne.exe"
-            VERBATIM
-        )
+            COMMAND "${SIGNTOOL_EXECUTABLE}" sign /f "$ENV{VOIDONE_SIGN_CERT_PATH}"
+                    /p "$ENV{VOIDONE_SIGN_PASSWORD}" /fd sha256
+                    /tr http://timestamp.digicert.com /td sha256 "$<TARGET_FILE:VoidOne>"
+            COMMENT "Signing VoidOne.exe" VERBATIM)
     endif()
 endif()
 
 install(TARGETS VoidOne BUNDLE DESTINATION . RUNTIME DESTINATION bin)
-
 if(WIN32)
-    qt_generate_deploy_qml_app_script(
-        TARGET VoidOne
-        OUTPUT_SCRIPT VOIDONE_QT_DEPLOY_SCRIPT
-        NO_UNSUPPORTED_PLATFORM_ERROR
-    )
+    qt_generate_deploy_qml_app_script(TARGET VoidOne OUTPUT_SCRIPT VOIDONE_QT_DEPLOY_SCRIPT
+        NO_UNSUPPORTED_PLATFORM_ERROR)
     install(SCRIPT "${VOIDONE_QT_DEPLOY_SCRIPT}")
 endif()
 
@@ -187,7 +154,6 @@ set(CPACK_PACKAGE_VENDOR "VoidOne_app")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "VoidOne PC Game Launcher")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "VoidOne")
-
 if(WIN32 AND VOIDONE_GENERATE_INSTALLER)
     set(CPACK_GENERATOR "NSIS")
     set(CPACK_NSIS_DISPLAY_NAME "VoidOne")
@@ -197,7 +163,6 @@ if(WIN32 AND VOIDONE_GENERATE_INSTALLER)
         set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/app-icon.ico")
     endif()
 endif()
-
 include(CPack)
 
 if(VOIDONE_BUILD_TESTS)
