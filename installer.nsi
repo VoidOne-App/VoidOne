@@ -58,10 +58,11 @@ Function CreateDesktopShortcut
 FunctionEnd
 
 Section "MainSection" SEC01
-    SetOutPath "$INSTDIR"
+    ; The CI staging directory contains the executable and all windeployqt
+    ; output at its root. Install that payload under the same bin directory
+    ; used by the shortcuts/registry entries.
+    SetOutPath "${INSTALL_BIN_DIR}"
 
-    ; Ask the existing process to exit without /F so user data is not
-    ; force-terminated while it may still be writing to SQLite/save files.
     DetailPrint "Requesting VoidOne to close..."
     nsExec::ExecToLog 'taskkill /IM "${EXE_NAME}" /T'
     Sleep 1000
@@ -99,9 +100,8 @@ Section "MainSection" SEC01
         ${EndIf}
     ${EndIf}
 
-    ; VoidOne does not require inbound network access. Do not silently add
-    ; a machine-wide Windows Firewall exception from the installer.
-    ; Application networking remains governed by normal Windows policy.
+    ; VoidOne does not require inbound network access. No machine-wide
+    ; Windows Firewall exception is silently created by the installer.
 
     WriteUninstaller "$INSTDIR\Uninstall.exe"
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
@@ -141,8 +141,6 @@ Section "Uninstall"
     nsExec::ExecToLog 'taskkill /IM "${EXE_NAME}" /T'
     Sleep 500
 
-    ; No firewall rule is created by current installers, so there is no
-    ; machine-wide firewall state to remove here.
     Delete "$DESKTOP\${APP_NAME}.lnk"
     RMDir /r "$SMPROGRAMS\${APP_NAME}"
     DeleteRegKey HKCR "${PROTOCOL_SCHEME}"
