@@ -1,5 +1,6 @@
 #include <QtTest>
 #include <QDateTime>
+#include <algorithm>
 
 #include "Database.h"
 
@@ -71,9 +72,8 @@ void DatabaseTests::batchInsertIsAtomic()
     QVERIFY(Database::addGamesBatch({first, second}));
 
     const auto games = Database::getAllGames();
-    const auto hasFirst = std::any_of(games.cbegin(), games.cend(), [&](const GameRecord &g) { return g.exePath == first.exePath; });
-    const auto hasSecond = std::any_of(games.cbegin(), games.cend(), [&](const GameRecord &g) { return g.exePath == second.exePath; });
-    QVERIFY(hasFirst && hasSecond);
+    QVERIFY(std::any_of(games.cbegin(), games.cend(), [&](const GameRecord &g) { return g.exePath == first.exePath; }));
+    QVERIFY(std::any_of(games.cbegin(), games.cend(), [&](const GameRecord &g) { return g.exePath == second.exePath; }));
 }
 
 QTEST_APPLESS_MAIN(DatabaseTests)
