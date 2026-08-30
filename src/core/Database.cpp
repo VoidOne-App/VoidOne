@@ -1,124 +1,158 @@
 /****************************************************************************
-** 
-**  V O I D O N E   E N G I N E
-**  High-Performance QML & C++ Core
-** 
-**  Copyright (C) 2026 VoidOne_app
-**  Repository: https://github.com/VoidOne-App/VoidOne
+**  V O I D O N E   E N G I N E — SQLite persistence layer
 **  SPDX-License-Identifier: MIT
-** 
 ****************************************************************************/
 
 #include "Database.h"
-#include <QSqlDatabase>
-#include <QSqlQuery>
-#include <QSqlError>
-#include <QStandardPaths>
 #include <QDir>
 #include <QDebug>
+#include <QSqlError>
+#include <QSqlQuery>
+#include <QStandardPaths>
+
+namespace {
+constexpr auto kConnectionName = "voidone-main";
+constexpr auto kDatabaseFileName = "voidone.db";
+}
 
 bool Database::initialize()
 {
-    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
-    QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    
-    if (!QDir().mkpath(appDataDir)) {
-        qCritical() << "[VoidOne] Database Error: Could not create AppData directory.";
+    if (QSqlDatabase::contains(kConnectionName)) {
+        const QSqlDatabase existing = QSqlDatabase::database(kConnectionName);
+        if (existing.isOpen())
+            return true;
+    }
+
+    QSqlDatabase db = QSqlDatabase::contains(kConnectionName)
+        ? QSqlDatabase::database(kConnectionName)
+        : QSqlDatabase::addDatabase("QSQLITE", kConnectionName);
+
+    const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (appDataDir.isEmpty() || !QDir().mkpath(appDataDir)) {
+        qCritical() << "[Database] Could not create application data directory.";
         return false;
     }
 
-    // استفاده از نام ثابت voidone.db برای حفظ دیتای کاربر در آپدیت‌های بعدی
-    db.setDatabaseName(appDataDir + "/voidone.db");
-
+    db.setDatabaseName(QDir(appDataDir).filePath(kDatabaseFileName));
     if (!db.open()) {
-        qCritical() << "[VoidOne] Database Error: Connection failed -" << db.lastError().text();
+        qCritical() << "[Database] SQLite open failed:" << db.lastError().text();
         return false;
     }
 
-    QSqlQuery query;
-    bool success = query.exec(
-        "CREATE TABLE IF NOT EXISTS games ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-        "name TEXT NOT NULL, "
-        "exe_path TEXT UNIQUE, "
-        "icon_path TEXT, "
-        "platform TEXT DEFAULT 'Custom'"
-        ")"
-    );
+    QSqlQuery pragma(db);
+    if (!pragma.exec("PRAGMA foreign_keys = ON"))
+        qWarning() << "[Database] Could not enable foreign keys:" << pragma.lastError().text();
 
-    if (!success) {
-        qCritical() << "[VoidOne] Database Error: Failed to create table -" << query.lastError().text();
+    QSqlQuery schema(db);
+    if (!schema.exec(
+            "CREATE TABLE IF NOT EXISTS games ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "name TEXT NOT NULL, "
+            "exe_path TEXT UNIQUE, "
+            "icon_path TEXT, "
+            "platform TEXT NOT NULL DEFAULT 'Custom'"
+            ")")) {
+        qCritical() << "[Database] Schema creation failed:" << schema.lastError().text();
         return false;
     }
 
-    qDebug() << "[VoidOne] Database initialized successfully at:" << appDataDir + "/voidone.db";
+    qInfo() << "[Database] SQLite initialized:" << db.databaseName();
     return true;
 }
 
-bool Database::addGame(const GameRecord& game)
+bool Database::addGame(const GameRecord &game)
 {
-    QSqlQuery query;
-    query.prepare("INSERT OR REPLACE INTO games (name, exe_path, icon_path, platform) "
-                  "VALUES (:name, :exe_path, :icon_path, :platform)");
+    if (game.name.trimmed().isEmpty()) {
+        qWarning() << "[Database] Refusing to insert a game without a name.";
+        return false;
+    }
+
+    QSqlDatabase db = QSqlDatabase::database(kConnectionName, false);
+    if (!db.isValid() || !db.isOpen()) {
+        qWarning() << "[Database] Insert requested before initialization.";
+        return false;
+    }
+
+    QSqlQuery query(db);
+    query.prepare(
+        "INSERT INTO games (name, exe_path, icon_path, platform) "
+        "VALUES (:name, :exe_path, :icon_path, :platform) "
+        "ON CONFLICT(exe_path) DO UPDATE SET "
+        "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform");
     query.bindValue(":name", game.name);
     query.bindValue(":exe_path", game.exePath);
     query.bindValue(":icon_path", game.iconPath);
-    query.bindValue(":platform", game.platform.isEmpty() ? "Custom" : game.platform);
+    query.bindValue(":platform", game.platform.isEmpty() ? QStringLiteral("Custom") : game.platform);
 
     if (!query.exec()) {
-        qWarning() << "[VoidOne] Database Warning: Insert game failed -" << query.lastError().text();
+        qWarning() << "[Database] Insert/update failed:" << query.lastError().text();
         return false;
     }
     return true;
 }
 
-bool Database::addGamesBatch(const QVector<GameRecord>& games)
+bool Database::addGamesBatch(const QVector<GameRecord> &games)
 {
-    if (games.isEmpty()) {
+    if (games.isEmpty())
         return true;
-    }
 
-    QSqlDatabase db = QSqlDatabase::database();
-    if (!db.isOpen()) {
-        qWarning() << "[VoidOne] Database Warning: Batch insert requested before database was opened.";
+    QSqlDatabase db = QSqlDatabase::database(kConnectionName, false);
+    if (!db.isValid() || !db.isOpen()) {
+        qWarning() << "[Database] Batch insert requested before initialization.";
         return false;
     }
 
     if (!db.transaction()) {
-        qWarning() << "[VoidOne] Database Warning: Could not start batch transaction -" << db.lastError().text();
+        qWarning() << "[Database] Could not start transaction:" << db.lastError().text();
         return false;
     }
 
-    QSqlQuery query;
-    query.prepare("INSERT OR REPLACE INTO games (name, exe_path, icon_path, platform) "
-                  "VALUES (:name, :exe_path, :icon_path, :platform)");
+    QSqlQuery query(db);
+    query.prepare(
+        "INSERT INTO games (name, exe_path, icon_path, platform) "
+        "VALUES (:name, :exe_path, :icon_path, :platform) "
+        "ON CONFLICT(exe_path) DO UPDATE SET "
+        "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform");
 
-    for (const auto& game : games) {
+    for (const auto &game : games) {
+        if (game.name.trimmed().isEmpty()) {
+            qWarning() << "[Database] Batch contains an empty game name; rolling back.";
+            db.rollback();
+            return false;
+        }
         query.bindValue(":name", game.name);
         query.bindValue(":exe_path", game.exePath);
         query.bindValue(":icon_path", game.iconPath);
-        query.bindValue(":platform", game.platform.isEmpty() ? "Custom" : game.platform);
-
+        query.bindValue(":platform", game.platform.isEmpty() ? QStringLiteral("Custom") : game.platform);
         if (!query.exec()) {
-            qWarning() << "[VoidOne] Database Warning: Batch insert failed -" << query.lastError().text();
+            qWarning() << "[Database] Batch insert/update failed:" << query.lastError().text();
             db.rollback();
             return false;
         }
     }
 
     if (!db.commit()) {
-        qWarning() << "[VoidOne] Database Warning: Batch insert failed to commit -" << db.lastError().text();
+        qWarning() << "[Database] Transaction commit failed:" << db.lastError().text();
+        db.rollback();
         return false;
     }
-
-    qDebug() << "[VoidOne] Database: Batch inserted" << games.size() << "games.";
     return true;
 }
 
 QVector<GameRecord> Database::getAllGames()
 {
     QVector<GameRecord> games;
-    QSqlQuery query("SELECT id, name, exe_path, icon_path, platform FROM games ORDER BY name ASC");
+    QSqlDatabase db = QSqlDatabase::database(kConnectionName, false);
+    if (!db.isValid() || !db.isOpen()) {
+        qWarning() << "[Database] Read requested before initialization.";
+        return games;
+    }
+
+    QSqlQuery query(db);
+    if (!query.exec("SELECT id, name, exe_path, icon_path, platform FROM games ORDER BY name COLLATE NOCASE ASC")) {
+        qWarning() << "[Database] Query failed:" << query.lastError().text();
+        return games;
+    }
 
     while (query.next()) {
         GameRecord rec;
@@ -127,20 +161,26 @@ QVector<GameRecord> Database::getAllGames()
         rec.exePath = query.value(2).toString();
         rec.iconPath = query.value(3).toString();
         rec.platform = query.value(4).toString();
-        games.append(rec);
+        games.append(std::move(rec));
     }
     return games;
 }
 
 bool Database::removeGame(int id)
 {
-    QSqlQuery query;
+    if (id < 0)
+        return false;
+
+    QSqlDatabase db = QSqlDatabase::database(kConnectionName, false);
+    if (!db.isValid() || !db.isOpen())
+        return false;
+
+    QSqlQuery query(db);
     query.prepare("DELETE FROM games WHERE id = :id");
     query.bindValue(":id", id);
-    
     if (!query.exec()) {
-        qWarning() << "[VoidOne] Database Warning: Remove game failed -" << query.lastError().text();
+        qWarning() << "[Database] Remove failed:" << query.lastError().text();
         return false;
     }
-    return true;
+    return query.numRowsAffected() > 0;
 }
