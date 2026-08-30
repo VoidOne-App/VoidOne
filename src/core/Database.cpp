@@ -161,7 +161,7 @@ QVector<GameRecord> Database::getAllGames()
         rec.exePath = query.value(2).toString();
         rec.iconPath = query.value(3).toString();
         rec.platform = query.value(4).toString();
-        games.append(std::move(rec));
+        games.append(rec);
     }
     return games;
 }
