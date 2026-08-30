@@ -2,9 +2,6 @@
 !include "LogicLib.nsh"
 !include "x64.nsh"
 
-; ============================================
-; Application & CI-Driven Version Configuration
-; ============================================
 !define APP_NAME "VoidOne"
 !define COMPANY_NAME "VoidOne_app"
 !define EXE_NAME "VoidOne.exe"
@@ -15,25 +12,19 @@
 !define INSTALL_BIN_DIR "$INSTDIR\bin"
 !define APP_EXE_PATH "${INSTALL_BIN_DIR}\${EXE_NAME}"
 
-; CI passes /DVERSION=... . Keep a local fallback for manual builds.
 !ifndef VERSION
   !define VERSION "0.0.0-dev"
 !endif
 
 Name "${APP_NAME} ${VERSION}"
 OutFile "dist\VoidOne-Setup-${VERSION}-x64.exe"
-
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
 InstallDirRegKey HKLM "Software\${COMPANY_NAME}\${APP_NAME}" "InstallDir"
 RequestExecutionLevel admin
 
-; ============================================
-; Modern UI (MUI2) Visuals & Multi-Language
-; ============================================
 !define MUI_ICON "app-icon.ico"
 !define MUI_UNICON "app-icon.ico"
 !define MUI_ABORTWARNING
-
 !define MUI_FINISHPAGE_RUN "${APP_EXE_PATH}"
 !define MUI_FINISHPAGE_RUN_TEXT "Run ${APP_NAME} Now"
 !define MUI_FINISHPAGE_SHOWREADME ""
@@ -44,16 +35,11 @@ RequestExecutionLevel admin
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
-
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
-
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Farsi"
 
-; ============================================
-; Logic & Architecture Checks
-; ============================================
 Function .onInit
     ${If} ${RunningX64}
         SetRegView 64
@@ -71,17 +57,16 @@ Function CreateDesktopShortcut
     CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "${APP_EXE_PATH}" "" "${APP_EXE_PATH}" 0
 FunctionEnd
 
-; ============================================
-; Main Installation Process
-; ============================================
 Section "MainSection" SEC01
     SetOutPath "$INSTDIR"
 
-    DetailPrint "Checking for running VoidOne instances..."
-    nsExec::ExecToLog 'taskkill /F /IM "${EXE_NAME}" /T'
+    ; Ask the existing process to exit without /F so user data is not
+    ; force-terminated while it may still be writing to SQLite/save files.
+    DetailPrint "Requesting VoidOne to close..."
+    nsExec::ExecToLog 'taskkill /IM "${EXE_NAME}" /T'
     Sleep 1000
 
-    DetailPrint "Backing up user configurations..."
+    DetailPrint "Backing up user configuration..."
     CreateDirectory "$PLUGINSDIR\UserDataBackup"
     ${If} ${FileExists} "$APPDATA\VoidOne\config.json"
         CopyFiles "$APPDATA\VoidOne\config.json" "$PLUGINSDIR\UserDataBackup\"
@@ -101,24 +86,24 @@ Section "MainSection" SEC01
         ${If} ${FileExists} "$INSTDIR\VC_redist.x64.exe"
             DetailPrint "Installing Visual C++ Redistributable Runtime..."
             nsExec::ExecToLog '"$INSTDIR\VC_redist.x64.exe" /install /quiet /norestart'
+            Pop $1
+            ${If} $1 != 0
+                DetailPrint "VC++ Redistributable installer returned exit code $1."
+            ${EndIf}
             Delete "$INSTDIR\VC_redist.x64.exe"
         ${EndIf}
     ${Else}
-        DetailPrint "Visual C++ Runtime already installed. Skipping..."
+        DetailPrint "Visual C++ Runtime already installed."
         ${If} ${FileExists} "$INSTDIR\VC_redist.x64.exe"
             Delete "$INSTDIR\VC_redist.x64.exe"
         ${EndIf}
     ${EndIf}
 
-    DetailPrint "Configuring Windows Firewall rules..."
-    nsExec::ExecToLog 'netsh advfirewall firewall add rule name="VoidOne Engine Service" dir=in action=allow program="${APP_EXE_PATH}" enable=yes'
-
-    DetailPrint "Optimizing system preferences for VoidOne Engine..."
-    WriteRegStr HKCU "Software\Microsoft\DirectX\UserGpuPreferences" "${APP_EXE_PATH}" "GpuPreference=2;"
-    WriteRegDword HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" "GPU Priority" 8
+    ; VoidOne does not require inbound network access. Do not silently add
+    ; a machine-wide Windows Firewall exception from the installer.
+    ; Application networking remains governed by normal Windows policy.
 
     WriteUninstaller "$INSTDIR\Uninstall.exe"
-
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
     CreateShortCut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "${APP_EXE_PATH}" "" "${APP_EXE_PATH}" 0
     CreateShortCut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
@@ -137,8 +122,6 @@ Section "MainSection" SEC01
     WriteRegStr HKCR "Directory\shell\VoidOne" "Icon" "${APP_EXE_PATH},0"
     WriteRegStr HKCR "Directory\shell\VoidOne\command" "" '"${APP_EXE_PATH}" "--game-path=%1"'
 
-    ; Auto-start is opt-in from application settings; installer does not enable it silently.
-
     !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
     WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
     WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${VERSION}"
@@ -149,25 +132,19 @@ Section "MainSection" SEC01
     WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
     WriteRegDword HKLM "${UNINST_KEY}" "NoModify" 1
     WriteRegDword HKLM "${UNINST_KEY}" "NoRepair" 1
-
     WriteRegStr HKLM "Software\${COMPANY_NAME}\${APP_NAME}" "InstallDir" "$INSTDIR"
     System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 SectionEnd
 
-; ============================================
-; Completely Clean Uninstaller
-; ============================================
 Section "Uninstall"
-    DetailPrint "Closing running instances..."
-    nsExec::ExecToLog 'taskkill /F /IM "${EXE_NAME}" /T'
+    DetailPrint "Requesting VoidOne to close..."
+    nsExec::ExecToLog 'taskkill /IM "${EXE_NAME}" /T'
     Sleep 500
 
-    DetailPrint "Removing Windows Firewall rules..."
-    nsExec::ExecToLog 'netsh advfirewall firewall delete rule name="VoidOne Engine Service"'
-
+    ; No firewall rule is created by current installers, so there is no
+    ; machine-wide firewall state to remove here.
     Delete "$DESKTOP\${APP_NAME}.lnk"
     RMDir /r "$SMPROGRAMS\${APP_NAME}"
-
     DeleteRegKey HKCR "${PROTOCOL_SCHEME}"
     DeleteRegKey HKCR ".${FILE_EXT}"
     DeleteRegKey HKCR "${APP_NAME}.ProjectFile"
@@ -175,8 +152,6 @@ Section "Uninstall"
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
     DeleteRegKey HKLM "Software\${COMPANY_NAME}\${APP_NAME}"
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}"
-    DeleteRegValue HKCU "Software\Microsoft\DirectX\UserGpuPreferences" "${APP_EXE_PATH}"
-
     RMDir /r "$INSTDIR"
     System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
 SectionEnd
