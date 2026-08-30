@@ -4,7 +4,6 @@
 #include <QDebug>
 #include <QFile>
 #include <QFileInfo>
-#include <QSet>
 #include <algorithm>
 
 SaveBackupManager::SaveBackupManager(QObject *parent)
@@ -29,15 +28,13 @@ bool SaveBackupManager::createBackup(const QString &saveDirPath, const QString &
 
     const QString sourceCanonical = QFileInfo(saveDirPath).canonicalFilePath();
     const QString destinationCanonical = destinationRoot.canonicalPath();
-    if (!sourceCanonical.isEmpty() && !destinationCanonical.isEmpty()) {
-        if (destinationCanonical == sourceCanonical ||
-            destinationCanonical.startsWith(sourceCanonical + QDir::separator())) {
-            emit backupCompleted(false, "Backup destination cannot be inside the save directory. / مسیر بکاپ نمی‌تواند داخل پوشه سیو باشد.");
-            return false;
-        }
+    if (!sourceCanonical.isEmpty() && !destinationCanonical.isEmpty() &&
+        (destinationCanonical == sourceCanonical ||
+         destinationCanonical.startsWith(sourceCanonical + QDir::separator()))) {
+        emit backupCompleted(false, "Backup destination cannot be inside the save directory. / مسیر بکاپ نمی‌تواند داخل پوشه سیو باشد.");
+        return false;
     }
 
-    // Include milliseconds so repeated backups cannot collide within one second.
     const QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss-zzz");
     const QString finalDestPath = destinationRoot.filePath("autosave_" + timestamp);
     if (!QDir().mkpath(finalDestPath)) {
@@ -46,11 +43,10 @@ bool SaveBackupManager::createBackup(const QString &saveDirPath, const QString &
     }
 
     const bool success = copyRecursively(saveDirPath, finalDestPath);
-    if (!success) {
+    if (!success)
         QDir(finalDestPath).removeRecursively();
-    } else {
+    else
         pruneOldBackups(backupDestinationPath);
-    }
 
     emit backupCompleted(
         success,
@@ -80,9 +76,11 @@ bool SaveBackupManager::restoreBackup(const QString &backupFilePath, const QStri
 
     const QString backupCanonical = backupInfo.canonicalFilePath();
     const QString targetCanonical = QFileInfo(targetSaveDirPath).canonicalFilePath();
-    if (!backupCanonical.isEmpty() && !targetCanonical.isEmpty() &&
+    const bool overlaps = !backupCanonical.isEmpty() && !targetCanonical.isEmpty() &&
         (backupCanonical == targetCanonical ||
-         backupCanonical.startsWith(targetCanonical + QDir::separator()))) {
+         backupCanonical.startsWith(targetCanonical + QDir::separator()) ||
+         targetCanonical.startsWith(backupCanonical + QDir::separator()));
+    if (overlaps) {
         emit backupCompleted(false, "Restore source and target overlap. / مبدا و مقصد ریستور هم‌پوشانی دارند.");
         return false;
     }
@@ -170,13 +168,8 @@ void SaveBackupManager::pruneOldBackups(const QString &backupDestinationPath) co
 bool SaveBackupManager::copyRecursively(const QString &srcFilePath, const QString &tgtFilePath)
 {
     const QFileInfo srcInfo(srcFilePath);
-    if (!srcInfo.exists())
+    if (!srcInfo.exists() || srcInfo.isSymLink())
         return false;
-
-    if (srcInfo.isSymLink()) {
-        // Do not follow arbitrary symlinks/reparse points during a backup.
-        return false;
-    }
 
     if (srcInfo.isDir()) {
         QDir targetDir(tgtFilePath);
