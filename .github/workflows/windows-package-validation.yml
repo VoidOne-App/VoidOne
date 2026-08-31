@@ -1,0 +1,158 @@
+name: VoidOne Windows Package Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'installer.nsi'
+      - 'installer.wxs'
+      - 'app-icon.ico'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: voidone-package-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  QT_VERSION: '6.8.3'
+  QT_ARCH: win64_msvc2022_64
+  APP_NAME: VoidOne
+
+jobs:
+  package-validation:
+    name: Windows EXE/MSI/ZIP Validation
+    runs-on: windows-2025
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: ${{ env.QT_ARCH }}
+          cache: true
+          cache-key-prefix: voidone-qt-validation
+          setup-python: false
+
+      - name: Install packaging toolchain
+        shell: pwsh
+        run: |
+          choco install ninja nsis dotnet-8.0-sdk -y --no-progress
+          dotnet tool install --global wix
+          "${HOME}\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          wix extension add -g WixToolset.UI.wixext
+          wix extension add -g WixToolset.Util.wixext
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DVOIDONE_VERSION_OVERRIDE="0.0.0-pr.${{ github.event.pull_request.number || github.run_number }}" `
+            -DVOIDONE_BUILD_TESTS=ON `
+            -DVOIDONE_ENABLE_CODE_SIGNING=OFF `
+            -DVOIDONE_GENERATE_INSTALLER=OFF
+
+      - name: Build and test
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel
+          if (Test-Path 'tests\CMakeLists.txt') {
+            ctest --test-dir build -C Release --output-on-failure --timeout 120
+          }
+
+      - name: Stage deployable payload
+        shell: pwsh
+        run: |
+          Remove-Item package -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory package | Out-Null
+          $exe = Get-ChildItem build -Filter 'VoidOne.exe' -Recurse | Select-Object -First 1
+          if (-not $exe) { throw 'VoidOne.exe was not produced' }
+          Copy-Item $exe.FullName 'package\VoidOne.exe' -Force
+          windeployqt --release --compiler-runtime --no-translations `
+            --qmldir "$env:GITHUB_WORKSPACE\src\ui\qml" `
+            'package\VoidOne.exe'
+
+      - name: Validate deployed payload
+        shell: pwsh
+        run: |
+          $required = @(
+            'package\VoidOne.exe',
+            'package\platforms\qwindows.dll'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) { throw "Missing required payload: $path" }
+          }
+          if ((Get-Item 'package\VoidOne.exe').Length -le 0) { throw 'VoidOne.exe is empty' }
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          & 'C:\Program Files (x86)\NSIS\makensis.exe' /DVERSION=0.0.0-pr installer.nsi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) { throw 'NSIS installer was not produced' }
+
+      - name: Build WiX MSI
+        shell: pwsh
+        run: |
+          wix build installer.wxs `
+            -d ProductVersion=0.0.0.0 `
+            -ext WixToolset.UI.wixext `
+            -ext WixToolset.Util.wixext `
+            -o 'dist\VoidOne-Setup-x64.msi'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'dist\VoidOne-Setup-x64.msi')) { throw 'WiX MSI was not produced' }
+
+      - name: Build portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path package\* -DestinationPath 'dist\VoidOne-Windows-x64-Portable.zip' -CompressionLevel Optimal
+          if (-not (Test-Path 'dist\VoidOne-Windows-x64-Portable.zip')) { throw 'Portable ZIP was not produced' }
+
+      - name: Validate all artifacts
+        shell: pwsh
+        run: |
+          foreach ($file in @(
+            'dist\VoidOne-Setup-x64.exe',
+            'dist\VoidOne-Setup-x64.msi',
+            'dist\VoidOne-Windows-x64-Portable.zip'
+          )) {
+            if (-not (Test-Path $file)) { throw "Missing artifact: $file" }
+            if ((Get-Item $file).Length -le 0) { throw "Empty artifact: $file" }
+          }
+          Expand-Archive -Path 'dist\VoidOne-Windows-x64-Portable.zip' -DestinationPath "$env:RUNNER_TEMP\portable-check" -Force
+          if (-not (Test-Path "$env:RUNNER_TEMP\portable-check\VoidOne.exe")) { throw 'Portable ZIP does not contain VoidOne.exe' }
+
+      - name: Upload package validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoidOne-Windows-Package-Validation
+          path: |
+            dist/*.exe
+            dist/*.msi
+            dist/*.zip
+          retention-days: 7
+          if-no-files-found: error
