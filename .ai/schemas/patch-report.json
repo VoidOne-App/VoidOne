@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "diagnosis", "patch", "review", "validation"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "generated_at": {"type": "number"},
+    "diagnosis": {"type": "object"},
+    "patch": {"type": "object"},
+    "review": {"type": "object"},
+    "validation": {"type": "object"}
+  },
+  "additionalProperties": true
+}
