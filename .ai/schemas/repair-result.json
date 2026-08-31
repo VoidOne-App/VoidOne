@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["status", "diagnosis", "confidence", "patch"],
+  "properties": {
+    "status": {"enum": ["PATCH", "NO_FIX"]},
+    "diagnosis": {"type": "string", "minLength": 1},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 100},
+    "patch": {"type": "string"}
+  },
+  "additionalProperties": false
+}
