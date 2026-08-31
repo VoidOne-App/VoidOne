@@ -43,6 +43,7 @@ RequestExecutionLevel admin
 Function .onInit
     ${If} ${RunningX64}
         SetRegView 64
+        SetShellVarContext all
     ${Else}
         MessageBox MB_ICONSTOP "This application requires a 64-bit version of Windows 10/11."
         Abort
@@ -51,6 +52,7 @@ FunctionEnd
 
 Function un.onInit
     SetRegView 64
+    SetShellVarContext all
 FunctionEnd
 
 Function CreateDesktopShortcut
