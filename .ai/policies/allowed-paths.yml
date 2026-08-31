@@ -1,0 +1,18 @@
+version: 1
+allowed:
+  - ".github/workflows/**"
+  - "cmake/**"
+  - "installer/**"
+  - "packaging/**"
+  - "scripts/**"
+  - "*.nsi"
+  - "*.nsh"
+  - "*.wxs"
+  - "*.wxi"
+  - "*.ps1"
+  - "*.bat"
+  - "*.cmd"
+  - "*.yml"
+  - "*.yaml"
+  - "CMakeLists.txt"
+  - "CMakePresets.json"

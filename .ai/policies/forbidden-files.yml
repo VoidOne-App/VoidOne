@@ -1,0 +1,12 @@
+version: 1
+forbidden:
+  - ".git/**"
+  - ".ai/**"
+  - "scripts/ai/**"
+  - "scripts/validation/**"
+  - "scripts/reporting/**"
+  - "secrets/**"
+  - "*.pem"
+  - "*.key"
+  - "*.p12"
+  - "*.pfx"

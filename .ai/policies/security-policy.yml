@@ -1,0 +1,22 @@
+version: 1
+policy:
+  fail_closed: true
+  max_patch_files: 25
+  max_added_lines: 1500
+  max_removed_lines: 1500
+  max_patch_chars: 120000
+  forbidden_operations:
+    - "git push"
+    - "git reset"
+    - "git clean"
+    - "rm -rf"
+    - "mkfs"
+    - "dd if="
+    - "curl | sh"
+    - "wget | sh"
+  forbid_secrets: true
+  forbid_telemetry: true
+  forbid_test_disabling: true
+  forbid_repair_engine_changes: true
+  require_independent_review: true
+  require_authoritative_ci: true
