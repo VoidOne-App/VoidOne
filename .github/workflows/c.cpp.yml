@@ -21,9 +21,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  QT_VERSION: '6.8.0'
+  QT_VERSION: '6.8.3'
   QT_ARCH: win64_msvc2022_64
   APP_NAME: VoidOne
+  CMAKE_BUILD_PARALLEL_LEVEL: 2
 
 jobs:
   workflow-validation:
@@ -31,12 +32,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
-      - uses: actions/setup-python@v6
+      - name: Setup Python
+        uses: actions/setup-python@v6
         with:
           python-version: '3.13'
+          cache: pip
       - name: Validate Python tooling
         run: python -m compileall -q scripts
       - name: Validate workflow contract
@@ -52,13 +56,17 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
           submodules: recursive
-      - uses: ilammy/msvc-dev-cmd@v1
+          fetch-depth: 1
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-      - uses: jurplel/install-qt-action@v4
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
           target: desktop
@@ -68,7 +76,8 @@ jobs:
       - name: Install analysis tools
         shell: pwsh
         run: choco install ninja cppcheck -y --no-progress
-      - uses: github/codeql-action/init@v3
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
         with:
           languages: cpp
           build-mode: manual
@@ -76,16 +85,20 @@ jobs:
       - name: Configure
         shell: pwsh
         run: cmake -S . -B build-codeql -G Ninja -DCMAKE_BUILD_TYPE=Release -DVOIDONE_BUILD_TESTS=ON
-      - name: Build
+      - name: Build for CodeQL
         shell: pwsh
         run: cmake --build build-codeql --config Release --parallel
-      - uses: github/codeql-action/analyze@v3
-      - name: Cppcheck
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:cpp
+      - name: Run Cppcheck
         shell: pwsh
         run: |
           cppcheck --enable=warning,performance,portability --error-exitcode=1 --xml --xml-version=2 src/ 2> cppcheck-report.xml
-      - uses: actions/upload-artifact@v4
+      - name: Upload static-analysis report
         if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: cppcheck-report-${{ github.run_id }}
           path: cppcheck-report.xml
@@ -103,10 +116,17 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
           submodules: recursive
           fetch-depth: 0
+      - name: Capture start time
+        id: timing
+        shell: pwsh
+        run: |
+          $started = [DateTimeOffset]::UtcNow
+          "started=$($started.ToUnixTimeSeconds())" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - name: Resolve version
         id: version
         shell: pwsh
@@ -114,6 +134,11 @@ jobs:
           if ('${{ github.ref_type }}' -eq 'tag') { $v = '${{ github.ref_name }}' -replace '^v','' }
           else { $v = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))" }
           "value=$v" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "### Build identity" >> $env:GITHUB_STEP_SUMMARY
+          "- Version: **$v**" >> $env:GITHUB_STEP_SUMMARY
+          "- Commit: `${{ github.sha }}`" >> $env:GITHUB_STEP_SUMMARY
+          "- Runner: `${{ runner.os }} / ${{ runner.arch }}`" >> $env:GITHUB_STEP_SUMMARY
+          "- Qt: `${{ env.QT_VERSION }}`" >> $env:GITHUB_STEP_SUMMARY
       - name: Install build and packaging tools
         shell: pwsh
         run: choco install ninja nsis dotnet-8.0-sdk -y --no-progress
@@ -125,10 +150,12 @@ jobs:
           wix extension add -g WixToolset.UI.wixext
           wix extension add -g WixToolset.Util.wixext
           wix eula accept wix
-      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-      - uses: jurplel/install-qt-action@v4
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
           target: desktop
@@ -138,28 +165,47 @@ jobs:
       - name: Configure C++/Qt
         shell: pwsh
         run: |
+          $tests = if ('${{ inputs.skip_tests }}' -eq 'true') { 'OFF' } else { 'ON' }
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
             -DVOIDONE_VERSION_OVERRIDE='${{ steps.version.outputs.value }}' `
-            -DVOIDONE_BUILD_TESTS=${{ inputs.skip_tests && 'OFF' || 'ON' }}
+            -DVOIDONE_BUILD_TESTS=$tests
       - name: Build
         shell: pwsh
-        run: cmake --build build --config Release --parallel
+        run: |
+          cmake --build build --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { throw 'VoidOne C++ build failed.' }
       - name: Test
-        if: ${{ !inputs.skip_tests }}
+        if: ${{ inputs.skip_tests != true }}
         shell: pwsh
         run: |
-          if (Test-Path 'tests\CMakeLists.txt') { ctest --test-dir build -C Release --output-on-failure --timeout 120 }
-          else { Write-Host 'No tests/CMakeLists.txt; compile validation completed.' }
+          if (Test-Path 'tests\CMakeLists.txt') {
+            ctest --test-dir build -C Release --output-on-failure --timeout 120 --output-junit test-results.xml
+          } else {
+            Write-Host 'No tests/CMakeLists.txt; compile validation completed.'
+          }
+      - name: Upload test results
+        if: always() && hashFiles('build/test-results.xml') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_id }}
+          path: build/test-results.xml
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Stage Qt runtime
         shell: pwsh
         run: |
           Remove-Item package -Recurse -Force -ErrorAction SilentlyContinue
           New-Item package -ItemType Directory -Force | Out-Null
-          $exe = Get-ChildItem build -Filter "$env:APP_NAME.exe" -Recurse | Select-Object -First 1
+          $exe = Get-ChildItem build -Filter "$env:APP_NAME.exe" -Recurse | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } | Select-Object -First 1
           if (-not $exe) { throw 'VoidOne.exe was not produced by CMake.' }
           Copy-Item $exe.FullName "package\$env:APP_NAME.exe"
-          windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
-          if (-not (Test-Path "package\platforms\qwindows.dll")) { throw 'windeployqt did not produce qwindows.dll.' }
+          $qmlDir = Join-Path $env:GITHUB_WORKSPACE 'src\ui\qml'
+          if (Test-Path $qmlDir) {
+            windeployqt --release --compiler-runtime --no-translations --qmldir $qmlDir "package\$env:APP_NAME.exe"
+          } else {
+            windeployqt --release --compiler-runtime --no-translations "package\$env:APP_NAME.exe"
+          }
+          if (-not (Test-Path 'package\platforms\qwindows.dll')) { throw 'windeployqt did not produce qwindows.dll.' }
       - name: Build NSIS installer
         shell: pwsh
         run: |
@@ -180,9 +226,15 @@ jobs:
         shell: pwsh
         run: |
           $items = @('dist\VoidOne-Setup-x64.exe','dist\VoidOne-Setup-x64.msi','dist\VoidOne-Portable-x64.zip')
-          foreach ($item in $items) { if (-not (Test-Path $item)) { throw "Missing artifact: $item" }; if ((Get-Item $item).Length -le 0) { throw "Empty artifact: $item" } }
+          foreach ($item in $items) {
+            if (-not (Test-Path $item)) { throw "Missing artifact: $item" }
+            if ((Get-Item $item).Length -le 0) { throw "Empty artifact: $item" }
+          }
           Expand-Archive -Path 'dist\VoidOne-Portable-x64.zip' -DestinationPath 'zip-check' -Force
           if (-not (Test-Path 'zip-check\VoidOne.exe')) { throw 'Portable ZIP does not contain VoidOne.exe at its root.' }
+          $sizes = Get-Item dist\*
+          "### Artifact verification" >> $env:GITHUB_STEP_SUMMARY
+          foreach ($item in $sizes) { "- **$($item.Name)** — $([math]::Round($item.Length / 1MB, 2)) MB" >> $env:GITHUB_STEP_SUMMARY }
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -196,7 +248,9 @@ jobs:
       - name: Generate SHA256 manifest
         shell: pwsh
         run: |
-          Get-FileHash dist\* -Algorithm SHA256 | Format-Table -AutoSize | Out-File dist\SHA256SUMS.txt
+          Get-FileHash dist\VoidOne-Setup-x64.exe,dist\VoidOne-Setup-x64.msi,dist\VoidOne-Portable-x64.zip -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } |
+            Set-Content dist\SHA256SUMS.txt -Encoding utf8
       - name: Upload checksums
         uses: actions/upload-artifact@v4
         with:
@@ -212,3 +266,92 @@ jobs:
             dist/VoidOne-Setup-x64.exe
             dist/VoidOne-Setup-x64.msi
             dist/VoidOne-Portable-x64.zip
+      - name: Final build summary
+        if: always()
+        shell: pwsh
+        run: |
+          $status = if ($env:JOB_STATUS -eq 'success') { 'SUCCESS' } else { 'FAILED' }
+          "## VoidOne Windows Build: $status" >> $env:GITHUB_STEP_SUMMARY
+          "- Workflow: **${{ github.workflow }}**" >> $env:GITHUB_STEP_SUMMARY
+          "- Ref: **${{ github.ref_name }}**" >> $env:GITHUB_STEP_SUMMARY
+          "- Run: **${{ github.run_id }}**" >> $env:GITHUB_STEP_SUMMARY
+        env:
+          JOB_STATUS: ${{ job.status }}
+
+  discord-notification:
+    name: Discord CI Status
+    needs: [workflow-validation, static-analysis, build-package]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Publish CI result to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          VALIDATION_RESULT: ${{ needs.workflow-validation.result }}
+          STATIC_RESULT: ${{ needs.static-analysis.result }}
+          BUILD_RESULT: ${{ needs.build-package.result }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from datetime import datetime, timezone
+
+          webhook = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
+          if not webhook:
+              print("DISCORD_WEBHOOK_URL is not configured; skipping Discord notification.")
+              raise SystemExit(0)
+
+          results = {
+              "Contracts": os.environ.get("VALIDATION_RESULT", "unknown"),
+              "Static analysis": os.environ.get("STATIC_RESULT", "unknown"),
+              "Windows build/package": os.environ.get("BUILD_RESULT", "unknown"),
+          }
+
+          if all(value == "success" for value in results.values()):
+              status = "SUCCESS"
+              title = "🟢 VoidOne CI/CD — Build Successful"
+              color = 0x2ECC71
+          elif any(value == "cancelled" for value in results.values()):
+              status = "CANCELLED"
+              title = "🟡 VoidOne CI/CD — Build Cancelled"
+              color = 0xF1C40F
+          else:
+              status = "FAILED"
+              title = "🔴 VoidOne CI/CD — Build Failed"
+              color = 0xE74C3C
+
+          fields = [
+              {"name": name, "value": f"`{value}`", "inline": True}
+              for name, value in results.items()
+          ]
+          fields += [
+              {"name": "Branch / Tag", "value": f"`{os.environ.get('GITHUB_REF_NAME', '')}`", "inline": True},
+              {"name": "Commit", "value": f"`{os.environ.get('GITHUB_SHA', '')[:7]}`", "inline": True},
+              {"name": "Run", "value": f"[#{os.environ.get('GITHUB_RUN_NUMBER', '')}]({os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')})", "inline": True},
+          ]
+
+          payload = {
+              "username": "VoidOne CI",
+              "embeds": [{
+                  "title": title,
+                  "description": f"**{status}** — Windows Release Pipeline",
+                  "color": color,
+                  "fields": fields,
+                  "url": f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}",
+                  "timestamp": datetime.now(timezone.utc).isoformat(),
+                  "footer": {"text": "VoidOne • GitHub Actions"},
+              }],
+          }
+
+          request = urllib.request.Request(
+              webhook,
+              data=json.dumps(payload).encode("utf-8"),
+              headers={"Content-Type": "application/json", "User-Agent": "VoidOne-CI/1.0"},
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=15) as response:
+              print(f"Discord webhook delivered: HTTP {response.status}")
