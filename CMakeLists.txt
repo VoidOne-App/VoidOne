@@ -24,6 +24,8 @@ option(VOIDONE_GENERATE_INSTALLER "Generate NSIS installer (Windows)" ON)
 option(VOIDONE_ENABLE_LTO "Enable link-time optimization in Release" ON)
 option(VOIDONE_ENABLE_SANITIZERS "Enable AddressSanitizer in supported Debug builds" OFF)
 option(VOIDONE_BUILD_TESTS "Build and register VoidOne unit tests" OFF)
+option(VOIDONE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
+option(VOIDONE_REPRODUCIBLE_BUILD "Enable deterministic compiler/linker settings" OFF)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -32,6 +34,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
+
+if(VOIDONE_REPRODUCIBLE_BUILD)
+    if(NOT DEFINED ENV{SOURCE_DATE_EPOCH})
+        message(FATAL_ERROR "VOIDONE_REPRODUCIBLE_BUILD requires SOURCE_DATE_EPOCH to be set")
+    endif()
+    message(STATUS "VoidOne reproducible build enabled (SOURCE_DATE_EPOCH=$ENV{SOURCE_DATE_EPOCH})")
+endif()
 
 if(VOIDONE_ENABLE_SANITIZERS)
     if(MSVC)
@@ -70,7 +79,30 @@ if(VOIDONE_BUILD_TESTS)
 endif()
 qt_standard_project_setup(REQUIRES 6.8)
 
-add_library(voidone_core STATIC
+function(voidone_apply_compile_policy target)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /permissive- /guard:cf /EHsc)
+        if(VOIDONE_WARNINGS_AS_ERRORS)
+            target_compile_options(${target} PRIVATE /WX)
+        endif()
+        if(VOIDONE_REPRODUCIBLE_BUILD)
+            target_compile_options(${target} PRIVATE /Brepro)
+            target_link_options(${target} PRIVATE /Brepro)
+        endif()
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -fstack-protector-strong)
+        if(VOIDONE_WARNINGS_AS_ERRORS)
+            target_compile_options(${target} PRIVATE -Werror)
+        endif()
+        if(VOIDONE_REPRODUCIBLE_BUILD)
+            target_compile_options(${target} PRIVATE
+                "-ffile-prefix-map=${CMAKE_SOURCE_DIR}=."
+                "-fdebug-prefix-map=${CMAKE_SOURCE_DIR}=.")
+        endif()
+    endif()
+endfunction()
+
+set(VOIDONE_CORE_SOURCES
     src/core/Database.cpp src/core/Database.h
     src/core/SteamScanner.cpp src/core/SteamScanner.h
     src/core/GameModel.cpp src/core/GameModel.h
@@ -78,6 +110,7 @@ add_library(voidone_core STATIC
     src/core/SaveBackupManager.cpp src/core/SaveBackupManager.h
 )
 
+add_library(voidone_core STATIC ${VOIDONE_CORE_SOURCES})
 target_include_directories(voidone_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
@@ -85,12 +118,7 @@ target_include_directories(voidone_core PUBLIC
 )
 target_link_libraries(voidone_core PUBLIC Qt6::Core Qt6::Sql Qt6::Network)
 target_precompile_headers(voidone_core PRIVATE <QObject> <QString> <QList> <memory> <vector> <string>)
-
-if(MSVC)
-    target_compile_options(voidone_core PRIVATE /W4 /WX /permissive- /guard:cf /EHsc)
-else()
-    target_compile_options(voidone_core PRIVATE -Wall -Wextra -Wpedantic -Werror -fstack-protector-strong)
-endif()
+voidone_apply_compile_policy(voidone_core)
 
 set(VOIDONE_EXE_EXTRA_SOURCES "")
 if(WIN32)
@@ -117,12 +145,7 @@ qt_add_qml_module(VoidOne
         src/ui/qml/SystemTelemetryWidget.qml
 )
 target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick)
-
-if(MSVC)
-    target_compile_options(VoidOne PRIVATE /W4 /WX /permissive- /guard:cf /EHsc)
-else()
-    target_compile_options(VoidOne PRIVATE -Wall -Wextra -Wpedantic -Werror -fstack-protector-strong)
-endif()
+voidone_apply_compile_policy(VoidOne)
 
 if(WIN32)
     set_target_properties(VoidOne PROPERTIES WIN32_EXECUTABLE TRUE)
@@ -148,12 +171,12 @@ endif()
 
 set(CPACK_PACKAGE_NAME "VoidOne")
 set(CPACK_PACKAGE_VENDOR "VoidOne_app")
-set(CPACK_PACKAGE_VERSION "${VOIDONE_VERSION_DISPLAY}")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "VoidOne PC Game Launcher")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "VoidOne PC Game Launcher (${VOIDONE_VERSION_DISPLAY})")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "VoidOne")
 if(WIN32 AND VOIDONE_GENERATE_INSTALLER)
     set(CPACK_GENERATOR "NSIS")
-    set(CPACK_NSIS_DISPLAY_NAME "VoidOne")
+    set(CPACK_NSIS_DISPLAY_NAME "VoidOne ${VOIDONE_VERSION_DISPLAY}")
     set(CPACK_NSIS_COMPRESSOR "/SOLID lzma")
     set(CPACK_NSIS_MUI_FINISHPAGE_RUN "$INSTDIR\\bin\\VoidOne.exe")
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app-icon.ico")
