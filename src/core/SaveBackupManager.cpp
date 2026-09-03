@@ -6,6 +6,35 @@
 #include <QFileInfo>
 #include <algorithm>
 
+namespace {
+bool pathsOverlap(const QString &firstPath, const QString &secondPath)
+{
+    const QString first = QDir::cleanPath(QFileInfo(firstPath).absoluteFilePath());
+    const QString second = QDir::cleanPath(QFileInfo(secondPath).absoluteFilePath());
+
+    if (first.isEmpty() || second.isEmpty())
+        return false;
+
+    const Qt::CaseSensitivity sensitivity =
+#ifdef Q_OS_WIN
+        Qt::CaseInsensitive;
+#else
+        Qt::CaseSensitive;
+#endif
+
+    auto isSameOrChild = [sensitivity](const QString &path, const QString &parent) {
+        if (path.compare(parent, sensitivity) == 0)
+            return true;
+        const QString prefix = parent.endsWith(QDir::separator())
+            ? parent
+            : parent + QDir::separator();
+        return path.startsWith(prefix, sensitivity);
+    };
+
+    return isSameOrChild(first, second) || isSameOrChild(second, first);
+}
+}
+
 SaveBackupManager::SaveBackupManager(QObject *parent)
     : QObject(parent), m_autoSaveTimer(new QTimer(this))
 {
@@ -20,18 +49,14 @@ bool SaveBackupManager::createBackup(const QString &saveDirPath, const QString &
         return false;
     }
 
-    QDir destinationRoot(backupDestinationPath);
-    if (!destinationRoot.exists() && !destinationRoot.mkpath(".")) {
-        emit backupCompleted(false, "Backup destination could not be created. / مسیر بکاپ ساخته نشد.");
+    if (pathsOverlap(saveDirPath, backupDestinationPath)) {
+        emit backupCompleted(false, "Backup destination cannot overlap the save directory. / مسیر بکاپ نمی‌تواند با پوشه سیو هم‌پوشانی داشته باشد.");
         return false;
     }
 
-    const QString sourceCanonical = QFileInfo(saveDirPath).canonicalFilePath();
-    const QString destinationCanonical = destinationRoot.canonicalPath();
-    if (!sourceCanonical.isEmpty() && !destinationCanonical.isEmpty() &&
-        (destinationCanonical == sourceCanonical ||
-         destinationCanonical.startsWith(sourceCanonical + QDir::separator()))) {
-        emit backupCompleted(false, "Backup destination cannot be inside the save directory. / مسیر بکاپ نمی‌تواند داخل پوشه سیو باشد.");
+    QDir destinationRoot(backupDestinationPath);
+    if (!destinationRoot.exists() && !destinationRoot.mkpath(".")) {
+        emit backupCompleted(false, "Backup destination could not be created. / مسیر بکاپ ساخته نشد.");
         return false;
     }
 
@@ -74,13 +99,7 @@ bool SaveBackupManager::restoreBackup(const QString &backupFilePath, const QStri
         return false;
     }
 
-    const QString backupCanonical = backupInfo.canonicalFilePath();
-    const QString targetCanonical = QFileInfo(targetSaveDirPath).canonicalFilePath();
-    const bool overlaps = !backupCanonical.isEmpty() && !targetCanonical.isEmpty() &&
-        (backupCanonical == targetCanonical ||
-         backupCanonical.startsWith(targetCanonical + QDir::separator()) ||
-         targetCanonical.startsWith(backupCanonical + QDir::separator()));
-    if (overlaps) {
+    if (pathsOverlap(backupFilePath, targetSaveDirPath)) {
         emit backupCompleted(false, "Restore source and target overlap. / مبدا و مقصد ریستور هم‌پوشانی دارند.");
         return false;
     }
@@ -172,6 +191,9 @@ bool SaveBackupManager::copyRecursively(const QString &srcFilePath, const QStrin
         return false;
 
     if (srcInfo.isDir()) {
+        if (pathsOverlap(srcFilePath, tgtFilePath))
+            return false;
+
         QDir targetDir(tgtFilePath);
         if (!targetDir.exists() && !targetDir.mkpath("."))
             return false;
