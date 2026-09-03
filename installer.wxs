@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <?ifndef ProductVersion ?>
-  <?define ProductVersion = "0.0.0.0" ?>
+  <?define ProductVersion = "0.0.0" ?>
+<?endif ?>
+<?ifndef ProductVersionDisplay ?>
+  <?define ProductVersionDisplay = "0.0.0" ?>
 <?endif ?>
 
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
-  <Package Name="VoidOne"
+  <Package Name="VoidOne $(var.ProductVersionDisplay)"
            Manufacturer="VoidOne_app"
            Version="$(var.ProductVersion)"
            UpgradeCode="B6E1A0B2-9F3D-4C7A-B1C2-3D4E5F6A7B8C"
