@@ -183,6 +183,7 @@ int main(int argc, char *argv[])
 
         QObject::connect(&app, &QCoreApplication::aboutToQuit, []() {
             qInfo() << "[Lifecycle] Shutdown sequence initiated.";
+            Database::shutdown();
             QMutexLocker locker(&g_logMutex);
             if (g_logFile.isOpen())
                 g_logFile.close();
