@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   group: voidone-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 env:
   QT_VERSION: '6.8.3'
@@ -28,7 +28,7 @@ env:
 
 jobs:
   workflow-validation:
-    name: Validate CI / Package Contracts
+    name: Contract Gate
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -47,9 +47,22 @@ jobs:
         run: python -c "from pathlib import Path; from scripts.validation.workflow_validator import validate_workflow; ok,msg=validate_workflow(Path('.')); print(msg); raise SystemExit(0 if ok else 1)"
       - name: Validate package / installer contract
         run: python -c "from pathlib import Path; from scripts.validation.package_validator import validate_package; ok,msg=validate_package(Path('.')); print(msg); raise SystemExit(0 if ok else 1)"
+      - name: Validate release identity
+        shell: bash
+        run: |
+          if [[ '${{ github.ref_type }}' == 'tag' ]]; then
+            [[ '${{ github.ref_name }}' =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || {
+              echo 'Release tag is not valid semantic-version form: ${{ github.ref_name }}'
+              exit 1
+            }
+          fi
+          echo '## Contract Gate' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Workflow: **validated**' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Packaging contracts: **validated**' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Release identity: **validated**' >> "$GITHUB_STEP_SUMMARY"
 
   static-analysis:
-    name: CodeQL + Cppcheck
+    name: Security + Static Analysis
     runs-on: windows-2025
     timeout-minutes: 30
     permissions:
@@ -82,10 +95,10 @@ jobs:
           languages: cpp
           build-mode: manual
           queries: security-extended,security-and-quality
-      - name: Configure
+      - name: Configure analysis build
         shell: pwsh
         run: cmake -S . -B build-codeql -G Ninja -DCMAKE_BUILD_TYPE=Release -DVOIDONE_BUILD_TESTS=ON
-      - name: Build for CodeQL
+      - name: Build analysis target
         shell: pwsh
         run: cmake --build build-codeql --config Release --parallel
       - name: Analyze with CodeQL
@@ -104,9 +117,16 @@ jobs:
           path: cppcheck-report.xml
           if-no-files-found: ignore
           retention-days: 14
+      - name: Write security summary
+        if: always()
+        shell: pwsh
+        run: |
+          "## Security & Static Analysis" >> $env:GITHUB_STEP_SUMMARY
+          "- CodeQL: **completed**" >> $env:GITHUB_STEP_SUMMARY
+          "- Cppcheck: **$('${{ job.status }}')**" >> $env:GITHUB_STEP_SUMMARY
 
   build-package:
-    name: Build + Test + EXE/MSI/ZIP
+    name: Windows Build + Test + Release Artifacts
     needs: [workflow-validation, static-analysis]
     if: needs.workflow-validation.result == 'success' && needs.static-analysis.result == 'success'
     runs-on: windows-2025
@@ -115,18 +135,15 @@ jobs:
       contents: read
       id-token: write
       attestations: write
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+      tests: ${{ steps.test-mode.outputs.value }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Capture start time
-        id: timing
-        shell: pwsh
-        run: |
-          $started = [DateTimeOffset]::UtcNow
-          "started=$($started.ToUnixTimeSeconds())" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - name: Resolve version
         id: version
         shell: pwsh
@@ -134,11 +151,19 @@ jobs:
           if ('${{ github.ref_type }}' -eq 'tag') { $v = '${{ github.ref_name }}' -replace '^v','' }
           else { $v = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))" }
           "value=$v" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          "### Build identity" >> $env:GITHUB_STEP_SUMMARY
+          "## Build Identity" >> $env:GITHUB_STEP_SUMMARY
           "- Version: **$v**" >> $env:GITHUB_STEP_SUMMARY
+          "- Ref: **${{ github.ref_name }}**" >> $env:GITHUB_STEP_SUMMARY
           "- Commit: `${{ github.sha }}`" >> $env:GITHUB_STEP_SUMMARY
           "- Runner: `${{ runner.os }} / ${{ runner.arch }}`" >> $env:GITHUB_STEP_SUMMARY
           "- Qt: `${{ env.QT_VERSION }}`" >> $env:GITHUB_STEP_SUMMARY
+      - name: Resolve test policy
+        id: test-mode
+        shell: pwsh
+        run: |
+          $mode = if ('${{ inputs.skip_tests }}' -eq 'true') { 'SKIPPED_EMERGENCY' } else { 'ENABLED' }
+          "value=$mode" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "- Test policy: **$mode**" >> $env:GITHUB_STEP_SUMMARY
       - name: Install build and packaging tools
         shell: pwsh
         run: choco install ninja nsis dotnet-8.0-sdk -y --no-progress
@@ -232,9 +257,47 @@ jobs:
           }
           Expand-Archive -Path 'dist\VoidOne-Portable-x64.zip' -DestinationPath 'zip-check' -Force
           if (-not (Test-Path 'zip-check\VoidOne.exe')) { throw 'Portable ZIP does not contain VoidOne.exe at its root.' }
-          $sizes = Get-Item dist\*
-          "### Artifact verification" >> $env:GITHUB_STEP_SUMMARY
-          foreach ($item in $sizes) { "- **$($item.Name)** — $([math]::Round($item.Length / 1MB, 2)) MB" >> $env:GITHUB_STEP_SUMMARY }
+          if (-not (Test-Path 'package\platforms\qwindows.dll')) { throw 'Portable package is missing Qt Windows platform plugin.' }
+          $rootFiles = Get-ChildItem package -File | Select-Object -ExpandProperty Name
+          "## Artifact Verification" >> $env:GITHUB_STEP_SUMMARY
+          foreach ($item in Get-Item dist\*) {
+            "- **$($item.Name)** — $([math]::Round($item.Length / 1MB, 2)) MB" >> $env:GITHUB_STEP_SUMMARY
+          }
+          "- Portable root: **VoidOne.exe present**" >> $env:GITHUB_STEP_SUMMARY
+          "- Qt platform plugin: **qwindows.dll present**" >> $env:GITHUB_STEP_SUMMARY
+      - name: Generate deterministic SHA256 manifest
+        shell: pwsh
+        run: |
+          $files = @(
+            'dist\VoidOne-Setup-x64.exe',
+            'dist\VoidOne-Setup-x64.msi',
+            'dist\VoidOne-Portable-x64.zip'
+          )
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $([IO.Path]::GetFileName($file))"
+          }
+          $lines | Sort-Object | Set-Content dist\SHA256SUMS.txt -Encoding utf8
+          Get-Content dist\SHA256SUMS.txt
+      - name: Generate CI release manifest
+        shell: pwsh
+        run: |
+          $manifest = [ordered]@{
+            product = $env:APP_NAME
+            version = '${{ steps.version.outputs.value }}'
+            commit = '${{ github.sha }}'
+            ref = '${{ github.ref_name }}'
+            qt = $env:QT_VERSION
+            runner = '${{ runner.os }}-${{ runner.arch }}'
+            test_policy = '${{ steps.test-mode.outputs.value }}'
+            artifacts = @(
+              'VoidOne-Setup-x64.exe',
+              'VoidOne-Setup-x64.msi',
+              'VoidOne-Portable-x64.zip'
+            )
+            generated_utc = [DateTimeOffset]::UtcNow.ToString('O')
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content dist\release-manifest.json -Encoding utf8
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -245,17 +308,13 @@ jobs:
             dist/VoidOne-Portable-x64.zip
           if-no-files-found: error
           retention-days: 30
-      - name: Generate SHA256 manifest
-        shell: pwsh
-        run: |
-          Get-FileHash dist\VoidOne-Setup-x64.exe,dist\VoidOne-Setup-x64.msi,dist\VoidOne-Portable-x64.zip -Algorithm SHA256 |
-            ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } |
-            Set-Content dist\SHA256SUMS.txt -Encoding utf8
-      - name: Upload checksums
+      - name: Upload release metadata
         uses: actions/upload-artifact@v4
         with:
-          name: VoidOne-checksums-${{ github.run_id }}
-          path: dist/SHA256SUMS.txt
+          name: VoidOne-release-metadata-${{ github.run_id }}
+          path: |
+            dist/SHA256SUMS.txt
+            dist/release-manifest.json
           if-no-files-found: error
           retention-days: 30
       - name: Build provenance attestation
@@ -270,17 +329,38 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          $status = if ($env:JOB_STATUS -eq 'success') { 'SUCCESS' } else { 'FAILED' }
-          "## VoidOne Windows Build: $status" >> $env:GITHUB_STEP_SUMMARY
-          "- Workflow: **${{ github.workflow }}**" >> $env:GITHUB_STEP_SUMMARY
-          "- Ref: **${{ github.ref_name }}**" >> $env:GITHUB_STEP_SUMMARY
-          "- Run: **${{ github.run_id }}**" >> $env:GITHUB_STEP_SUMMARY
-        env:
-          JOB_STATUS: ${{ job.status }}
+          "## VoidOne Release Engineering" >> $env:GITHUB_STEP_SUMMARY
+          "- Job status: **${{ job.status }}**" >> $env:GITHUB_STEP_SUMMARY
+          "- Version: **${{ steps.version.outputs.value }}**" >> $env:GITHUB_STEP_SUMMARY
+          "- Tests: **${{ steps.test-mode.outputs.value }}**" >> $env:GITHUB_STEP_SUMMARY
+          "- Provenance: **$([bool]('${{ github.event_name != 'pull_request' }}'))**" >> $env:GITHUB_STEP_SUMMARY
+          "- Artifacts: **EXE + MSI + Portable ZIP**" >> $env:GITHUB_STEP_SUMMARY
+
+  release-gate:
+    name: Release Readiness Gate
+    needs: [workflow-validation, static-analysis, build-package]
+    if: always() && (startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate release gates
+        shell: bash
+        run: |
+          echo '## Release Readiness' >> "$GITHUB_STEP_SUMMARY"
+          echo '| Gate | Result |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          echo '| Contract validation | **${{ needs.workflow-validation.result }}** |' >> "$GITHUB_STEP_SUMMARY"
+          echo '| Security/static analysis | **${{ needs.static-analysis.result }}** |' >> "$GITHUB_STEP_SUMMARY"
+          echo '| Windows build/package | **${{ needs.build-package.result }}** |' >> "$GITHUB_STEP_SUMMARY"
+          if [[ '${{ needs.workflow-validation.result }}' != 'success' || '${{ needs.static-analysis.result }}' != 'success' || '${{ needs.build-package.result }}' != 'success' ]]; then
+            echo 'Release gate blocked: one or more mandatory gates failed.'
+            exit 1
+          fi
+          echo 'Release gate: READY.'
 
   discord-notification:
     name: Discord CI Status
-    needs: [workflow-validation, static-analysis, build-package]
+    needs: [workflow-validation, static-analysis, build-package, release-gate]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -293,65 +373,91 @@ jobs:
           VALIDATION_RESULT: ${{ needs.workflow-validation.result }}
           STATIC_RESULT: ${{ needs.static-analysis.result }}
           BUILD_RESULT: ${{ needs.build-package.result }}
+          RELEASE_RESULT: ${{ needs.release-gate.result }}
+          TEST_POLICY: ${{ needs.build-package.outputs.tests }}
+          VERSION: ${{ needs.build-package.outputs.version }}
         run: |
           python - <<'PY'
           import json
           import os
+          import urllib.error
           import urllib.request
           from datetime import datetime, timezone
 
-          webhook = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
+          webhook = os.environ.get('DISCORD_WEBHOOK_URL', '').strip()
           if not webhook:
-              print("DISCORD_WEBHOOK_URL is not configured; skipping Discord notification.")
+              print('DISCORD_WEBHOOK_URL is not configured; skipping Discord notification.')
               raise SystemExit(0)
 
           results = {
-              "Contracts": os.environ.get("VALIDATION_RESULT", "unknown"),
-              "Static analysis": os.environ.get("STATIC_RESULT", "unknown"),
-              "Windows build/package": os.environ.get("BUILD_RESULT", "unknown"),
+              'Contracts': os.environ.get('VALIDATION_RESULT', 'unknown'),
+              'Security / static': os.environ.get('STATIC_RESULT', 'unknown'),
+              'Windows build/package': os.environ.get('BUILD_RESULT', 'unknown'),
+              'Release gate': os.environ.get('RELEASE_RESULT', 'not-applicable'),
           }
 
-          if all(value == "success" for value in results.values()):
-              status = "SUCCESS"
-              title = "🟢 VoidOne CI/CD — Build Successful"
+          values = list(results.values())
+          if all(v in ('success', 'skipped', 'not-applicable') for v in values) and 'failure' not in values:
+              status = 'SUCCESS'
+              title = '🟢 VoidOne CI/CD — Pipeline Healthy'
               color = 0x2ECC71
-          elif any(value == "cancelled" for value in results.values()):
-              status = "CANCELLED"
-              title = "🟡 VoidOne CI/CD — Build Cancelled"
+          elif 'cancelled' in values:
+              status = 'CANCELLED'
+              title = '🟡 VoidOne CI/CD — Pipeline Cancelled'
               color = 0xF1C40F
           else:
-              status = "FAILED"
-              title = "🔴 VoidOne CI/CD — Build Failed"
+              status = 'FAILED'
+              title = '🔴 VoidOne CI/CD — Pipeline Failed'
               color = 0xE74C3C
 
+          def fmt(value):
+              return f'`{value}`'
+
+          repo = os.environ.get('GITHUB_REPOSITORY', '')
+          server = os.environ.get('GITHUB_SERVER_URL', 'https://github.com')
+          run_url = f"{server}/{repo}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}"
+          ref = os.environ.get('GITHUB_REF_NAME', '')
+          sha = os.environ.get('GITHUB_SHA', '')[:7]
+          version = os.environ.get('VERSION', '') or 'n/a'
+          test_policy = os.environ.get('TEST_POLICY', '') or 'unknown'
+
           fields = [
-              {"name": name, "value": f"`{value}`", "inline": True}
+              {'name': name, 'value': fmt(value), 'inline': True}
               for name, value in results.items()
           ]
-          fields += [
-              {"name": "Branch / Tag", "value": f"`{os.environ.get('GITHUB_REF_NAME', '')}`", "inline": True},
-              {"name": "Commit", "value": f"`{os.environ.get('GITHUB_SHA', '')[:7]}`", "inline": True},
-              {"name": "Run", "value": f"[#{os.environ.get('GITHUB_RUN_NUMBER', '')}]({os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')})", "inline": True},
-          ]
+          fields.extend([
+              {'name': 'Version', 'value': fmt(version), 'inline': True},
+              {'name': 'Ref', 'value': fmt(ref), 'inline': True},
+              {'name': 'Commit', 'value': fmt(sha), 'inline': True},
+              {'name': 'Tests', 'value': fmt(test_policy), 'inline': True},
+              {'name': 'Run', 'value': f"[#{os.environ.get('GITHUB_RUN_NUMBER', '')}]({run_url})", 'inline': True},
+          ])
 
           payload = {
-              "username": "VoidOne CI",
-              "embeds": [{
-                  "title": title,
-                  "description": f"**{status}** — Windows Release Pipeline",
-                  "color": color,
-                  "fields": fields,
-                  "url": f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}",
-                  "timestamp": datetime.now(timezone.utc).isoformat(),
-                  "footer": {"text": "VoidOne • GitHub Actions"},
+              'username': 'VoidOne CI',
+              'allowed_mentions': {'parse': []},
+              'embeds': [{
+                  'title': title,
+                  'description': f'**{status}** — Enterprise Windows Release Pipeline',
+                  'color': color,
+                  'fields': fields,
+                  'url': run_url,
+                  'timestamp': datetime.now(timezone.utc).isoformat(),
+                  'footer': {'text': 'VoidOne • GitHub Actions • No telemetry'},
               }],
           }
 
           request = urllib.request.Request(
               webhook,
-              data=json.dumps(payload).encode("utf-8"),
-              headers={"Content-Type": "application/json", "User-Agent": "VoidOne-CI/1.0"},
-              method="POST",
+              data=json.dumps(payload).encode('utf-8'),
+              headers={'Content-Type': 'application/json', 'User-Agent': 'VoidOne-CI/1.0'},
+              method='POST',
           )
-          with urllib.request.urlopen(request, timeout=15) as response:
-              print(f"Discord webhook delivered: HTTP {response.status}")
+          try:
+              with urllib.request.urlopen(request, timeout=10) as response:
+                  if response.status >= 300:
+                      raise RuntimeError(f'Discord returned HTTP {response.status}')
+              print(f'Discord notification sent: {status}')
+          except (urllib.error.URLError, RuntimeError) as exc:
+              print(f'Discord notification failed but CI status will remain authoritative: {exc}')
+          PY
