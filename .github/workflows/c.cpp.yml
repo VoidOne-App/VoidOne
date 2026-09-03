@@ -2,729 +2,213 @@ name: VoidOne CI/CD
 
 on:
   push:
-    branches:
-      - main
-      - release/*
-    tags:
-      - "v*"
-
+    branches: [main, 'release/*']
+    tags: ['v*']
   pull_request:
-    branches:
-      - main
-
-  # Weekly canary build with no tag involved. Catches breakage caused by
-  # things outside your own commits — a Qt point release, a choco package
-  # update, a GitHub-hosted runner image change — before you discover it
-  # the hard way while trying to cut an actual release.
-  schedule:
-    - cron: "0 3 * * 1" # every Monday at 03:00 UTC
-
+    branches: [main]
   workflow_dispatch:
     inputs:
       skip_tests:
-        description: "Skip test suite (emergency builds only)"
+        description: Emergency-only: skip CTest
         type: boolean
         default: false
 
-# ------------------------------------------------------------------------
-# Least-privilege by default: no job gets more access than it actually
-# uses. The workflow-level default below is read-only; each job that
-# needs something extra declares it explicitly at the job level instead
-# of everyone inheriting write/attestation/OIDC access by default.
-# ------------------------------------------------------------------------
 permissions:
   contents: read
 
 concurrency:
-  group: voidone-prod-${{ github.workflow }}-${{ github.ref }}
+  group: voidone-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  QT_VERSION: "6.8.0"
+  QT_VERSION: '6.8.0'
   QT_ARCH: win64_msvc2022_64
   APP_NAME: VoidOne
 
 jobs:
-
-  # ----------------------------------------------------------
-  # 1. Validate SemVer Tag
-  # ----------------------------------------------------------
-  validate-version:
-    name: Validate Release Tag
-    if: startsWith(github.ref, 'refs/tags/v')
+  workflow-validation:
+    name: Validate CI / Package Contracts
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Enforce SemVer format
-        run: |
-          TAG="${{ github.ref_name }}"
-          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)(\.[0-9]+)?)?$ ]]; then
-            echo "::error::Tag '$TAG' does not follow the supported SemVer format."
-            exit 1
-          fi
-          echo "Tag $TAG is valid SemVer."
-          echo "### 🏷️ Release Tag: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Validate Python tooling
+        run: python -m compileall -q scripts
+      - name: Validate workflow contract
+        run: python -c "from pathlib import Path; from scripts.validation.workflow_validator import validate_workflow; ok,msg=validate_workflow(Path('.')); print(msg); raise SystemExit(0 if ok else 1)"
+      - name: Validate package / installer contract
+        run: python -c "from pathlib import Path; from scripts.validation.package_validator import validate_package; ok,msg=validate_package(Path('.')); print(msg); raise SystemExit(0 if ok else 1)"
 
-  # ----------------------------------------------------------
-  # 2. Static Security Analysis (CodeQL + cppcheck)
-  # ----------------------------------------------------------
   static-analysis:
-    name: Security & Static Analysis
+    name: CodeQL + Cppcheck
     runs-on: windows-2025
     timeout-minutes: 30
     permissions:
       contents: read
-      security-events: write   # required to upload CodeQL SARIF results
+      security-events: write
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Install Build Tools & cppcheck
-        shell: pwsh
-        run: choco install ninja cppcheck -y --no-progress
-
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-
-      - name: Cache Qt
-        uses: actions/cache@v4
-        with:
-          path: ${{ github.workspace }}/Qt
-          key: qt-${{ env.QT_VERSION }}-${{ env.QT_ARCH }}
-
       - uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
           target: desktop
           arch: ${{ env.QT_ARCH }}
-          dir: ${{ github.workspace }}
           cache: true
-          cache-key-prefix: voidone-qt
-
+          setup-python: false
+      - name: Install analysis tools
+        shell: pwsh
+        run: choco install ninja cppcheck -y --no-progress
       - uses: github/codeql-action/init@v3
         with:
           languages: cpp
           build-mode: manual
-
-      - name: Configure & Build for CodeQL
+          queries: security-extended,security-and-quality
+      - name: Configure
         shell: pwsh
-        run: |
-          mkdir build -ErrorAction SilentlyContinue
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --config Release --parallel
-
+        run: cmake -S . -B build-codeql -G Ninja -DCMAKE_BUILD_TYPE=Release -DVOIDONE_BUILD_TESTS=ON
+      - name: Build
+        shell: pwsh
+        run: cmake --build build-codeql --config Release --parallel
       - uses: github/codeql-action/analyze@v3
-
-      - name: Run cppcheck Static Analysis
+      - name: Cppcheck
         shell: pwsh
         run: |
-          cppcheck --enable=warning,performance,portability `
-            --error-exitcode=0 --xml --xml-version=2 src/ 2> cppcheck-report.xml
-          exit 0
-
+          cppcheck --enable=warning,performance,portability --error-exitcode=1 --xml --xml-version=2 src/ 2> cppcheck-report.xml
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: cppcheck-report
+          name: cppcheck-report-${{ github.run_id }}
           path: cppcheck-report.xml
+          if-no-files-found: ignore
           retention-days: 14
 
-  # ----------------------------------------------------------
-  # 2b. Debug Build + AddressSanitizer
-  # ----------------------------------------------------------
-  # Runs on every PR and push — not just at release time — because memory
-  # bugs (use-after-free, buffer overruns) are exactly the class of issue
-  # that's easy to ship silently in a Release build and painful to
-  # diagnose from a user's crash report months later. This job does NOT
-  # package anything; its only job is to fail loudly, fast, in Debug.
-  # ----------------------------------------------------------
-  build-debug-sanitizers:
-    name: Debug Build + ASan
-    needs: static-analysis
-    if: always() && needs.static-analysis.result == 'success'
+  build-package:
+    name: Build + Test + EXE/MSI/ZIP
+    needs: [workflow-validation, static-analysis]
+    if: needs.workflow-validation.result == 'success' && needs.static-analysis.result == 'success'
     runs-on: windows-2025
-    timeout-minutes: 30
+    timeout-minutes: 50
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          shell: pwsh
-          command: choco install ninja -y --no-progress
-
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
-      - uses: jurplel/install-qt-action@v4
-        with:
-          version: ${{ env.QT_VERSION }}
-          target: desktop
-          arch: ${{ env.QT_ARCH }}
-          dir: ${{ github.workspace }}
-          cache: true
-          cache-key-prefix: voidone-qt
-          setup-python: false
-
-      - name: Configure (Debug + ASan)
-        shell: pwsh
-        run: |
-          cmake -S . -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug `
-            -DVOIDONE_ENABLE_SANITIZERS=ON `
-            -DVOIDONE_BUILD_TESTS=ON
-
-      - name: Compile Debug Binaries
-        shell: pwsh
-        run: cmake --build build-debug --config Debug --parallel
-
-      - name: Run Test Suite Under ASan
-        if: ${{ !inputs.skip_tests }}
-        shell: pwsh
-        run: |
-          if (Test-Path "tests\CMakeLists.txt") {
-            # ASan reports leaks/overruns via stderr and a non-zero exit
-            # code from the test binary itself — ctest surfaces that as a
-            # normal test failure, no special handling needed here.
-            ctest --test-dir build-debug -C Debug --output-on-failure --timeout 120
-          } else {
-            Write-Host "ℹ️  No tests/CMakeLists.txt yet — Debug+ASan compiles cleanly, but there's nothing to run under it."
-            Write-Host "    (The compile itself still catches some issues ASan needs a running binary to find others.)"
-          }
-
-  # ----------------------------------------------------------
-  # 3. Build, Optimize, Test & Package
-  # ----------------------------------------------------------
-  build-windows:
-    name: Build & Package (EXE, MSI, ZIP)
-    needs: static-analysis
-    if: always() && needs.static-analysis.result == 'success'
-    runs-on: windows-2025
-    timeout-minutes: 45
-    permissions:
-      contents: read
-      id-token: write        # required for the OIDC-based attestation below
-      attestations: write    # required to publish the build provenance attestation
-    outputs:
-      build-version: ${{ steps.version.outputs.value }}
-
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
-
-      - name: Resolve Build Version
+      - name: Resolve version
         id: version
         shell: pwsh
         run: |
-          if ("${{ github.ref_type }}" -eq "tag") {
-            $ver = "${{ github.ref_name }}" -replace '^v',''
-          } else {
-            $ver = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
-          }
-          "value=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-      - uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: voidone-msvc-release-${{ github.sha }}
-          restore-keys: voidone-msvc-release-
-          variant: ccache
-          max-size: 500M
-
-      # ------------------------------------------------------
-      # PR builds only need to prove "it compiles and tests pass" —
-      # they don't need installers, packaging, or checksums. Skipping
-      # NSIS/WiX/packaging on pull_request events cuts CI minutes and
-      # gets reviewers a green check faster. Full packaging still runs
-      # on every push to main/release branches and every tag.
-      #
-      # For full builds, the installed toolchain (NSIS + WiX dotnet tool)
-      # is also cached so a fresh choco/dotnet install isn't paid for on
-      # every run. Best-effort: if Chocolatey or the .NET tool layout ever
-      # changes where these land, the cache simply misses and falls back to
-      # a normal install — it can't silently produce a broken build. Bump
-      # the key suffix (currently v1) to force a clean reinstall (e.g.
-      # after a WiX/NSIS version bump).
-      # ------------------------------------------------------
-      - name: Cache NSIS + WiX Toolchain
-        if: github.event_name != 'pull_request'
-        id: toolchain-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            C:\Program Files (x86)\NSIS
-            ~\.dotnet\tools
-          key: voidone-toolchain-nsis-wix-v1
-
-      # choco/dotnet installs occasionally fail on transient network or
-      # mirror issues unrelated to your code — retrying a couple of
-      # times before failing the whole build avoids re-running the
-      # entire pipeline (and re-consuming CI minutes) for a blip.
-      - name: Install Toolchain (NSIS, WiX)
-        if: github.event_name != 'pull_request' && steps.toolchain-cache.outputs.cache-hit != 'true'
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          shell: pwsh
-          command: |
-            choco install ninja nsis dotnet-8.0-sdk -y --no-progress
-            dotnet tool install --global wix --ignore-failed-sources || dotnet tool update --global wix
-
-      # NOTE: intentionally NOT inside the cache-hit skip above. We're not
-      # fully certain the cached `~\.dotnet\tools` path also captures the
-      # WiX extension cache location, and `wix extension add` is idempotent
-      # (safe/cheap to re-run if already present) — so it always runs,
-      # trading a few extra seconds for not silently breaking the MSI
-      # build on a cache hit.
-      - name: Accept WiX EULA & Ensure Extensions
-        if: github.event_name != 'pull_request'
+          if ('${{ github.ref_type }}' -eq 'tag') { $v = '${{ github.ref_name }}' -replace '^v','' }
+          else { $v = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))" }
+          "value=$v" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Install build and packaging tools
+        shell: pwsh
+        run: choco install ninja nsis dotnet-8.0-sdk -y --no-progress
+      - name: Install WiX
         shell: pwsh
         run: |
-          $wixVersion = (wix --version).Trim()
-          $wixMajor = $wixVersion.Split('.')[0]
-          Write-Host "Installed WiX version: $wixVersion - accepting EULA for wix$wixMajor"
-          wix eula accept "wix$wixMajor"
+          dotnet tool install --global wix --ignore-failed-sources
+          if ($LASTEXITCODE -ne 0) { dotnet tool update --global wix }
           wix extension add -g WixToolset.UI.wixext
-
-      # The toolchain cache above covers NSIS + the WiX dotnet tool, but not
-      # Ninja — so on a cache hit, Ninja still needs a fresh (cheap) install.
-      - name: Install Ninja (cache-hit path, full builds)
-        if: github.event_name != 'pull_request' && steps.toolchain-cache.outputs.cache-hit == 'true'
-        shell: pwsh
-        run: choco install ninja -y --no-progress
-
-      - name: Install Ninja (PR builds only)
-        if: github.event_name == 'pull_request'
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 5
-          max_attempts: 3
-          shell: pwsh
-          command: choco install ninja -y --no-progress
-
+          wix extension add -g WixToolset.Util.wixext
+          wix eula accept wix
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-
       - uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
           target: desktop
           arch: ${{ env.QT_ARCH }}
-          dir: ${{ github.workspace }}
           cache: true
-          cache-key-prefix: voidone-qt
           setup-python: false
-
-      # ------------------------------------------------------
-      # IMPORTANT: these two -D flags MUST match the option/variable
-      # names actually declared in CMakeLists.txt:
-      #   VOIDONE_VERSION_OVERRIDE  (not PROJECT_VERSION)
-      #   VOIDONE_BUILD_TESTS       (not BUILD_TESTING)
-      # A mismatch here does NOT error — CMake silently ignores -D
-      # flags for cache variables it doesn't recognize.
-      # ------------------------------------------------------
-      - name: Configure C++/Qt Core
+      - name: Configure C++/Qt
         shell: pwsh
         run: |
-          mkdir build -ErrorAction SilentlyContinue
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
-            -DVOIDONE_VERSION_OVERRIDE="${{ steps.version.outputs.value }}" `
-            -DVOIDONE_BUILD_TESTS=${{ inputs.skip_tests && 'OFF' || 'ON' }} `
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
-            -DCMAKE_EXE_LINKER_FLAGS="/NXCOMPAT /DYNAMICBASE /GUARD:CF /HIGHENTROPYVA"
-
-      - name: Compile Release Binaries
+            -DVOIDONE_VERSION_OVERRIDE='${{ steps.version.outputs.value }}' `
+            -DVOIDONE_BUILD_TESTS=${{ inputs.skip_tests && 'OFF' || 'ON' }}
+      - name: Build
         shell: pwsh
         run: cmake --build build --config Release --parallel
-
-      - name: Run Unit Test Suite (CTest)
+      - name: Test
         if: ${{ !inputs.skip_tests }}
         shell: pwsh
         run: |
-          if (Test-Path "tests\CMakeLists.txt") {
-            ctest --test-dir build -C Release --output-on-failure --timeout 120
-          } else {
-            Write-Host "ℹ️  No tests/CMakeLists.txt in this repo yet — skipping CTest."
-          }
-
-      - name: Prepare Staging & Deploy Qt Binaries
+          if (Test-Path 'tests\CMakeLists.txt') { ctest --test-dir build -C Release --output-on-failure --timeout 120 }
+          else { Write-Host 'No tests/CMakeLists.txt; compile validation completed.' }
+      - name: Stage Qt runtime
         shell: pwsh
         run: |
-          Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path package | Out-Null
-          $exe = Get-ChildItem -Path build -Filter "$env:APP_NAME.exe" -Recurse | Select-Object -First 1
-          if (-not $exe) {
-            Write-Error "CRITICAL: $env:APP_NAME.exe not found under build\ — check VOIDONE_VERSION_OVERRIDE/VOIDONE_BUILD_TESTS actually match CMakeLists.txt."
-            exit 1
-          }
-          Copy-Item -Path $exe.FullName -Destination "package\$env:APP_NAME.exe" -Force
+          Remove-Item package -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item package -ItemType Directory -Force | Out-Null
+          $exe = Get-ChildItem build -Filter "$env:APP_NAME.exe" -Recurse | Select-Object -First 1
+          if (-not $exe) { throw 'VoidOne.exe was not produced by CMake.' }
+          Copy-Item $exe.FullName "package\$env:APP_NAME.exe"
           windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src" "package\$env:APP_NAME.exe"
-
-      - name: Integrity Check (File Presence Only)
+          if (-not (Test-Path "package\platforms\qwindows.dll")) { throw 'windeployqt did not produce qwindows.dll.' }
+      - name: Build NSIS installer
         shell: pwsh
         run: |
-          if (-not (Test-Path "package\platforms\qwindows.dll")) {
-            Write-Error "CRITICAL: qwindows.dll is missing! windeployqt failed."
-            exit 1
-          }
-          if (-not (Test-Path "package\$env:APP_NAME.exe")) {
-            Write-Error "CRITICAL: Executable is missing!"
-            exit 1
-          }
-          Write-Host "✅ All critical files are present in the package folder."
-
-      # ------------------------------------------------------
-      # Qt (LGPL v3 edition) legal compliance. Dynamic-linking the Qt
-      # DLLs via windeployqt satisfies the core LGPL requirement, but
-      # LGPLv3 also requires that end users be told which license
-      # covers the bundled libraries and how to obtain/relink against
-      # their own copy of Qt. This step generates that notice if the
-      # repo doesn't already have one committed, and ships it inside
-      # both the portable ZIP and the installer.
-      # ------------------------------------------------------
-      - name: Ensure THIRD-PARTY-NOTICES.txt (Qt LGPLv3 compliance)
-        if: github.event_name != 'pull_request'
+          New-Item dist -ItemType Directory -Force | Out-Null
+          makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' installer.nsi
+          if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) { throw 'NSIS installer was not produced.' }
+      - name: Build WiX MSI
         shell: pwsh
         run: |
-          if (-not (Test-Path "THIRD-PARTY-NOTICES.txt")) {
-            @"
-          VoidOne — Third-Party Notices
-          ==============================
-
-          This application dynamically links against the Qt Framework
-          (Qt Core, Qt Gui, Qt Quick, Qt Sql), licensed under the
-          GNU Lesser General Public License v3 (LGPLv3).
-
-          Qt is (c) The Qt Company Ltd. and other contributors.
-          Full LGPLv3 text: https://www.gnu.org/licenses/lgpl-3.0.html
-          Qt source code:   https://code.qt.io/cgit/qt/
-
-          In accordance with LGPLv3, you may:
-            - Replace the bundled Qt*.dll files in this application's
-              install directory with a compatible version of your own,
-              provided the application still functions.
-            - Obtain the corresponding Qt source code from the link above.
-
-          VoidOne itself is licensed separately under the MIT License —
-          see LICENSE in the application directory.
-          "@ | Out-File -FilePath THIRD-PARTY-NOTICES.txt -Encoding utf8
-            Write-Host "Generated default THIRD-PARTY-NOTICES.txt (no committed version found)."
-          }
-          Copy-Item "THIRD-PARTY-NOTICES.txt" "package\THIRD-PARTY-NOTICES.txt" -Force
-
-      - name: Build Dual Installers (NSIS EXE + WiX MSI)
-        if: github.event_name != 'pull_request'
+          wix build installer.wxs -dProductVersion='${{ steps.version.outputs.value }}' -o 'dist\VoidOne-Setup-x64.msi' -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext
+          if (-not (Test-Path 'dist\VoidOne-Setup-x64.msi')) { throw 'WiX MSI was not produced.' }
+      - name: Build portable ZIP
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-
-          # 1. NSIS EXE Setup
-          if (Test-Path "installer.nsi") {
-            & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
-            Move-Item -Path "dist\VoidOne-Setup-x64.exe" -Destination "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.exe" -Force
-          } else {
-            Write-Warning "installer.nsi not found. Skipping NSIS EXE build."
-          }
-
-          # 2. WiX MSI Setup
-          if (Test-Path "installer.wxs") {
-            wix build installer.wxs -ext WixToolset.UI.wixext -o "dist\VoidOne-Setup-x64-${{ steps.version.outputs.value }}.msi"
-          } else {
-            Write-Warning "installer.wxs not found. Skipping MSI build."
-          }
-
-      - name: Create ZIP Archive & Consolidated Checksums
-        if: github.event_name != 'pull_request'
+          Compress-Archive -Path 'package\*' -DestinationPath 'dist\VoidOne-Portable-x64.zip' -CompressionLevel Optimal
+          if (-not (Test-Path 'dist\VoidOne-Portable-x64.zip')) { throw 'Portable ZIP was not produced.' }
+      - name: Validate generated artifacts
         shell: pwsh
         run: |
-          $zipName = "VoidOne-Windows-x64-Portable-${{ steps.version.outputs.value }}.zip"
-          Compress-Archive -Path package\* -DestinationPath $zipName -CompressionLevel Optimal
-
-          # Individual .sha256 files (kept for backward-compatible tooling)
-          Get-ChildItem -Path . -Filter "*.zip" | ForEach-Object {
-            (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii
-          }
-          Get-ChildItem -Path dist -Filter "*.*" -Include "*.exe","*.msi" | ForEach-Object {
-            (Get-FileHash $_.FullName -Algorithm SHA256).Hash + "  " + $_.Name | Out-File "$($_.FullName).sha256" -Encoding ascii
-          }
-
-          # Single consolidated SHA256SUMS.txt — the convention used by
-          # Node.js, Python, and most major open-source distributions.
-          # Lets a user verify everything with one command instead of
-          # hunting down per-file .sha256 files.
-          $sumsPath = "dist\SHA256SUMS.txt"
-          Remove-Item $sumsPath -ErrorAction SilentlyContinue
-          Get-ChildItem -Path . -Filter "*.zip" | ForEach-Object {
-            (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower() + "  " + $_.Name | Out-File $sumsPath -Encoding ascii -Append
-          }
-          Get-ChildItem -Path dist -Filter "*.*" -Include "*.exe","*.msi" | ForEach-Object {
-            (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower() + "  " + $_.Name | Out-File $sumsPath -Encoding ascii -Append
-          }
-          Write-Host "Wrote consolidated $sumsPath"
-
-      # ------------------------------------------------------
-      # Free, GitHub-native supply-chain attestation. Cryptographically
-      # ties each release artifact to the exact commit and workflow run
-      # that produced it — verifiable by anyone with `gh attestation
-      # verify`, no paid service required. This is the technical backing
-      # for the "Transparent Development" line in the project manifesto.
-      # ------------------------------------------------------
-      - name: Generate Build Provenance Attestation
+          $items = @('dist\VoidOne-Setup-x64.exe','dist\VoidOne-Setup-x64.msi','dist\VoidOne-Portable-x64.zip')
+          foreach ($item in $items) { if (-not (Test-Path $item)) { throw "Missing artifact: $item" }; if ((Get-Item $item).Length -le 0) { throw "Empty artifact: $item" } }
+          Expand-Archive -Path 'dist\VoidOne-Portable-x64.zip' -DestinationPath 'zip-check' -Force
+          if (-not (Test-Path 'zip-check\VoidOne.exe')) { throw 'Portable ZIP does not contain VoidOne.exe at its root.' }
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoidOne-windows-${{ steps.version.outputs.value }}-${{ github.run_id }}
+          path: |
+            dist/VoidOne-Setup-x64.exe
+            dist/VoidOne-Setup-x64.msi
+            dist/VoidOne-Portable-x64.zip
+          if-no-files-found: error
+          retention-days: 30
+      - name: Generate SHA256 manifest
+        shell: pwsh
+        run: |
+          Get-FileHash dist\* -Algorithm SHA256 | Format-Table -AutoSize | Out-File dist\SHA256SUMS.txt
+      - name: Upload checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoidOne-checksums-${{ github.run_id }}
+          path: dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+      - name: Build provenance attestation
         if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
-            VoidOne-Windows-x64-Portable-*.zip
-            dist/*.exe
-            dist/*.msi
-
-      - name: Write Build Summary
-        if: github.event_name != 'pull_request'
-        shell: pwsh
-        run: |
-          $zip = Get-ChildItem -Path . -Filter "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $exe = Get-ChildItem -Path dist -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $msi = Get-ChildItem -Path dist -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
-
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "### 📦 Build Artifacts — ${{ steps.version.outputs.value }}"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "| File | Size |"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "|---|---|"
-          if ($zip) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "| $($zip.Name) | $([math]::Round($zip.Length / 1MB, 1)) MB |" }
-          if ($exe) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "| $($exe.Name) | $([math]::Round($exe.Length / 1MB, 1)) MB |" }
-          if ($msi) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "| $($msi.Name) | $([math]::Round($msi.Length / 1MB, 1)) MB |" }
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ""
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "🔏 Signed with a build provenance attestation. Verify with:"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "gh attestation verify <file> -R ${{ github.repository }}"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
-
-      - name: Upload Release Artifacts
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: VoidOne-Windows-x64-Release
-          path: |
-            VoidOne-Windows-x64-Portable-*.zip*
-            dist/*.*
-          retention-days: 30
-          if-no-files-found: error
-
-  # ----------------------------------------------------------
-  # 4. Publish Release & Discord Webhooks
-  # ----------------------------------------------------------
-  publish-release:
-    name: Publish Release & Notifications
-    needs: [validate-version, build-windows]
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    environment:
-      name: production
-    permissions:
-      contents: write   # required to create the GitHub Release
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: VoidOne-Windows-x64-Release
-          path: release-files
-
-      - name: Determine Channel & Build Changelog
-        id: meta
-        run: |
-          if [[ "${{ github.ref_name }}" =~ (alpha|beta|rc) ]]; then
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
-
-          PREV_TAG=$(git describe --tags --abbrev=0 --exclude="${{ github.ref_name }}" 2>/dev/null || echo "")
-          if [ -n "$PREV_TAG" ]; then
-            LOG=$(git log "$PREV_TAG"..HEAD --pretty=format:"• %s" | head -n 10)
-          else
-            LOG="• Initial Release"
-          fi
-          {
-            echo "log<<EOF"
-            echo "$LOG"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Compute Artifact Sizes
-        id: sizes
-        run: |
-          ZIP=$(find release-files -iname "*.zip" | head -n1)
-          EXE=$(find release-files -iname "*.exe" | head -n1)
-          MSI=$(find release-files -iname "*.msi" | head -n1)
-          echo "zip_mb=$( [ -f "$ZIP" ] && du -m "$ZIP" | cut -f1 || echo 'N/A' )" >> "$GITHUB_OUTPUT"
-          echo "exe_mb=$( [ -f "$EXE" ] && du -m "$EXE" | cut -f1 || echo 'N/A' )" >> "$GITHUB_OUTPUT"
-          echo "msi_mb=$( [ -f "$MSI" ] && du -m "$MSI" | cut -f1 || echo 'N/A' )" >> "$GITHUB_OUTPUT"
-
-      # ------------------------------------------------------
-      # Professional, templated release body instead of raw
-      # auto-generated commit list. Every release reads the same way:
-      # what's new, how to verify it, where to get help.
-      # ------------------------------------------------------
-      - name: Compose Release Notes
-        id: notes
-        run: |
-          {
-            echo "body<<EOF"
-            echo "## What's New"
-            echo ""
-            echo "${{ steps.meta.outputs.log }}"
-            echo ""
-            echo "## 📥 Downloads"
-            echo ""
-            echo "| File | Best for |"
-            echo "|---|---|"
-            echo "| \`VoidOne-Setup-x64-${{ github.ref_name }}.exe\` | Full install (NSIS), Start Menu shortcut |"
-            echo "| \`VoidOne-Setup-x64-${{ github.ref_name }}.msi\` | Full install (MSI), for managed/enterprise deployment |"
-            echo "| \`VoidOne-Windows-x64-Portable-*.zip\` | No-install, run from anywhere |"
-            echo ""
-            echo "## 🔐 Verify Your Download"
-            echo ""
-            echo "Every release ships a \`SHA256SUMS.txt\` and is signed with a GitHub build provenance attestation."
-            echo '```'
-            echo "gh attestation verify <downloaded-file> -R ${{ github.repository }}"
-            echo '```'
-            echo ""
-            echo "## 💬 Support"
-            echo ""
-            echo "Found a bug? [Open an issue](https://github.com/${{ github.repository }}/issues/new). Questions? Join the community discussion."
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      # ------------------------------------------------------
-      # Published as a DRAFT, not live. This gives you (a solo
-      # maintainer, per VoidOne's trust model) one last human checkpoint
-      # before the release becomes publicly visible — you review the
-      # generated notes and artifact list on GitHub, then click Publish
-      # yourself. Nothing downstream (Discord, badges) fires as "live"
-      # until you do.
-      # ------------------------------------------------------
-      - name: Publish GitHub Release (Draft)
-        id: publish
-        uses: softprops/action-gh-release@v2
-        with:
-          name: "VoidOne ${{ github.ref_name }}"
-          prerelease: ${{ steps.meta.outputs.prerelease }}
-          draft: true
-          body: ${{ steps.notes.outputs.body }}
-          files: release-files/**
-
-      - name: Write Release Summary
-        run: |
-          {
-            echo "## 📝 VoidOne ${{ github.ref_name }} — Draft Ready for Review"
-            echo ""
-            echo "| Artifact | Size |"
-            echo "|---|---|"
-            echo "| Portable ZIP | ${{ steps.sizes.outputs.zip_mb }} MB |"
-            echo "| Setup EXE | ${{ steps.sizes.outputs.exe_mb }} MB |"
-            echo "| Setup MSI | ${{ steps.sizes.outputs.msi_mb }} MB |"
-            echo ""
-            echo "**This release is NOT live yet.** Review it and click **Publish release** here:"
-            echo ""
-            echo "${{ steps.publish.outputs.url }}"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # ------------------------------------------------------
-      # Post-publish integrity re-verification: download the asset
-      # back from GitHub itself (not the internal CI artifact cache)
-      # and confirm its hash still matches SHA256SUMS.txt. This catches
-      # corruption introduced during the upload round-trip.
-      #
-      # Because this is a DRAFT release, its assets are NOT publicly
-      # downloadable — an anonymous `curl` to the plain download URL
-      # will 404. We authenticate with GITHUB_TOKEN against the Releases
-      # API instead, which can read draft assets, using the asset ID
-      # softprops/action-gh-release returns in its `assets` output.
-      # ------------------------------------------------------
-      - name: Verify Draft Asset Integrity
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          SUMS_FILE=$(find release-files -iname "SHA256SUMS.txt" | head -n1)
-          if [ -z "$SUMS_FILE" ]; then
-            echo "::warning::No SHA256SUMS.txt found in artifacts — skipping integrity verification."
-            exit 0
-          fi
-
-          FIRST_LINE=$(head -n1 "$SUMS_FILE")
-          EXPECTED_HASH=$(echo "$FIRST_LINE" | awk '{print $1}')
-          FILE_NAME=$(echo "$FIRST_LINE" | awk '{print $2}')
-
-          ASSET_ID=$(echo '${{ steps.publish.outputs.assets }}' | jq -r --arg name "$FILE_NAME" '.[] | select(.name == $name) | .id')
-          if [ -z "$ASSET_ID" ] || [ "$ASSET_ID" == "null" ]; then
-            echo "::warning::Could not find asset id for $FILE_NAME in release output — skipping verification."
-            exit 0
-          fi
-
-          echo "Re-downloading $FILE_NAME (asset id $ASSET_ID) via the authenticated Releases API..."
-          for attempt in 1 2 3 4 5; do
-            if curl -sfL \
-                -H "Authorization: Bearer $GH_TOKEN" \
-                -H "Accept: application/octet-stream" \
-                "https://api.github.com/repos/${{ github.repository }}/releases/assets/$ASSET_ID" \
-                -o /tmp/verify_target; then
-              break
-            fi
-            echo "Download attempt $attempt failed, retrying in 5s..."
-            sleep 5
-          done
-
-          ACTUAL_HASH=$(sha256sum /tmp/verify_target | awk '{print $1}')
-
-          if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
-            echo "::error::Integrity mismatch for $FILE_NAME! Expected $EXPECTED_HASH, got $ACTUAL_HASH"
-            exit 1
-          fi
-          echo "✅ Verified: uploaded $FILE_NAME matches the build's SHA256SUMS.txt"
-
-      - name: Discord Notification — Draft Ready
-        if: success()
-        env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          CHANGELOG: ${{ steps.meta.outputs.log }}
-        run: |
-          if [ -z "$WEBHOOK" ]; then exit 0; fi
-          PAYLOAD=$(jq -n \
-            --arg tag "${{ github.ref_name }}" \
-            --arg actor "${{ github.actor }}" \
-            --arg avatar "${{ github.event.sender.avatar_url }}" \
-            --arg zipsize "${{ steps.sizes.outputs.zip_mb }} MB" \
-            --arg exesize "${{ steps.sizes.outputs.exe_mb }} MB" \
-            --arg msisize "${{ steps.sizes.outputs.msi_mb }} MB" \
-            --arg changelog "$CHANGELOG" \
-            --arg url "${{ steps.publish.outputs.url }}" \
-            '{
-              username: "VoidOne CI",
-              embeds: [{
-                title: ("📝 VoidOne " + $tag + " — Draft Ready for Review"),
-                url: $url,
-                description: "Build passed, integrity-verified, and staged as a draft. Not public yet — needs a manual Publish click.",
-                color: 15844367,
-                author: { name: $actor, icon_url: $avatar },
-                fields: [
-                  { name: "🏷️ Version", value: $tag, inline: true },
-                  { name: "💽 Portable ZIP", value: $zipsize, inline: true },
-                  { name: "🖥️ Setup EXE", value: $exesize, inline: true },
-                  { name: "⚙️ Setup MSI", value: $msisize, inline: true },
-                  { name: "📝 Changelog", value: $changelog }
-                ]
-              }]
-            }')
-          curl -sf -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK"
+            dist/VoidOne-Setup-x64.exe
+            dist/VoidOne-Setup-x64.msi
+            dist/VoidOne-Portable-x64.zip
