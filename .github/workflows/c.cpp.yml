@@ -40,7 +40,6 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.13'
-          cache: pip
       - name: Validate Python tooling
         run: python -m compileall -q scripts
       - name: Validate workflow contract
@@ -170,11 +169,13 @@ jobs:
       - name: Install WiX
         shell: pwsh
         run: |
-          dotnet tool install --global wix --ignore-failed-sources
-          if ($LASTEXITCODE -ne 0) { dotnet tool update --global wix }
-          wix extension add -g WixToolset.UI.wixext
-          wix extension add -g WixToolset.Util.wixext
-          wix eula accept wix
+          dotnet tool install --global wix --version 7.0.0 --ignore-failed-sources
+          if ($LASTEXITCODE -ne 0) { dotnet tool update --global wix --version 7.0.0 }
+          $env:PATH = "$env:USERPROFILE\.dotnet\tools;$env:PATH"
+          "${env:USERPROFILE}\.dotnet\tools" | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+          wix extension add -g WixToolset.UI.wixext/7.0.0
+          wix extension add -g WixToolset.Util.wixext/7.0.0
+          wix eula accept wix7
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -240,7 +241,7 @@ jobs:
       - name: Build WiX MSI
         shell: pwsh
         run: |
-          wix build installer.wxs -dProductVersion='${{ steps.version.outputs.value }}' -o 'dist\VoidOne-Setup-x64.msi' -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext
+          wix build installer.wxs -dProductVersion='${{ steps.version.outputs.value }}' -o 'dist\VoidOne-Setup-x64.msi' -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -acceptEula wix7
           if (-not (Test-Path 'dist\VoidOne-Setup-x64.msi')) { throw 'WiX MSI was not produced.' }
       - name: Build portable ZIP
         shell: pwsh
@@ -258,7 +259,6 @@ jobs:
           Expand-Archive -Path 'dist\VoidOne-Portable-x64.zip' -DestinationPath 'zip-check' -Force
           if (-not (Test-Path 'zip-check\VoidOne.exe')) { throw 'Portable ZIP does not contain VoidOne.exe at its root.' }
           if (-not (Test-Path 'package\platforms\qwindows.dll')) { throw 'Portable package is missing Qt Windows platform plugin.' }
-          $rootFiles = Get-ChildItem package -File | Select-Object -ExpandProperty Name
           "## Artifact Verification" >> $env:GITHUB_STEP_SUMMARY
           foreach ($item in Get-Item dist\*) {
             "- **$($item.Name)** — $([math]::Round($item.Length / 1MB, 2)) MB" >> $env:GITHUB_STEP_SUMMARY
