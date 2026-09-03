@@ -4,43 +4,40 @@ from pathlib import Path
 import zipfile
 import xml.etree.ElementTree as ET
 
-PACKAGE_ROOTS = ("package", "dist", "build", "packages")
-ARTIFACT_EXTENSIONS = {".exe", ".msi", ".zip"}
-
-
-def _artifacts(repo: Path):
-    for name in PACKAGE_ROOTS:
-        root = repo / name
-        if root.is_dir():
-            yield from (p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in ARTIFACT_EXTENSIONS)
-
 
 def validate_package(repo: Path) -> tuple[bool, str]:
-    wix = repo / "installer.wxs"
-    if wix.is_file():
-        try:
-            root = ET.parse(wix).getroot()
-        except ET.ParseError as exc:
-            return False, f"Invalid WiX XML: {exc}"
-        if not root.tag.endswith("Wix"):
-            return False, "installer.wxs has an invalid root element."
-
-    artifacts = list(_artifacts(repo))
-    if not artifacts:
-        return True, "No local package artifacts; authoritative Windows CI is required."
-
-    for item in artifacts:
-        if item.stat().st_size == 0:
-            return False, f"Empty package: {item}"
-        if item.suffix.lower() == ".zip":
+    installer_sources = list(repo.rglob("*.nsi")) + list(repo.rglob("*.nsh")) + list(repo.rglob("*.wxs")) + list(repo.rglob("*.wxi")) + list(repo.rglob("*.wixproj"))
+    for p in installer_sources:
+        text = p.read_text(encoding="utf-8", errors="replace")
+        if p.suffix.lower() in {".wxs", ".wxi"}:
             try:
-                with zipfile.ZipFile(item) as archive:
-                    names = archive.namelist()
+                ET.parse(p)
+            except ET.ParseError as exc:
+                return False, f"Invalid WiX XML: {p.relative_to(repo)}: {exc}"
+        if "package\\*" in text.lower() and not (repo / ".github" / "workflows" / "c.cpp.yml").is_file():
+            return False, f"Installer expects CI staging but authoritative workflow is missing: {p.relative_to(repo)}"
+    artifacts = []
+    for root_name in ("package", "dist", "packages", "artifacts"):
+        root = repo / root_name
+        if root.is_dir():
+            artifacts.extend(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in {".exe", ".msi", ".zip"})
+    for p in artifacts:
+        if p.stat().st_size <= 0:
+            return False, f"Empty package artifact: {p.relative_to(repo)}"
+        if p.suffix.lower() == ".zip":
+            try:
+                with zipfile.ZipFile(p) as z:
+                    names = z.namelist()
                     if not names:
-                        return False, f"Empty ZIP: {item}"
-                    if any(name.startswith(("/", "\\")) or ".." in Path(name).parts for name in names):
-                        return False, f"Unsafe ZIP entry in {item}"
+                        return False, f"Empty ZIP: {p.relative_to(repo)}"
+                    if any(n.startswith(("/", "\\")) or ".." in Path(n).parts for n in names):
+                        return False, f"Unsafe ZIP entry in {p.relative_to(repo)}"
             except zipfile.BadZipFile:
-                return False, f"Invalid ZIP: {item}"
-
-    return True, f"Validated {len(artifacts)} package artifact(s)."
+                return False, f"Invalid ZIP: {p.relative_to(repo)}"
+    workflow = repo / ".github" / "workflows" / "c.cpp.yml"
+    if workflow.is_file():
+        text = workflow.read_text(encoding="utf-8", errors="replace")
+        for marker in ("windeployqt", "actions/upload-artifact@v4"):
+            if marker not in text:
+                return False, f"Packaging contract missing: {marker}"
+    return True, f"Package contract passed: {len(installer_sources)} installer source(s), {len(artifacts)} local artifact(s)."
