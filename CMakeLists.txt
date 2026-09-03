@@ -90,7 +90,10 @@ if(WIN32)
     set(APP_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/app-icon.ico")
     set(VOIDONE_RC_PATH "${CMAKE_CURRENT_BINARY_DIR}/voidone.rc")
     if(EXISTS "${APP_ICON_PATH}")
-        file(WRITE "${VOIDONE_RC_PATH}" "#include <winver.h>\nIDI_ICON1 ICON DISCARDABLE \"${APP_ICON_PATH}\"\nVS_VERSION_INFO VERSIONINFO\n FILEVERSION ${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0\n PRODUCTVERSION ${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0\n FILEFLAGSMASK 0x3fL\n FILEFLAGS 0x0L\n FILEOS 0x40004L\n FILETYPE 0x1L\n FILESUBTYPE 0x0L\nBEGIN\n BLOCK \"StringFileInfo\"\n BEGIN\n  BLOCK \"040904b0\"\n  BEGIN\n   VALUE \"CompanyName\", \"VoidOne_app\"\n   VALUE \"FileDescription\", \"${PROJECT_DESCRIPTION}\"\n   VALUE \"FileVersion\", \"${PROJECT_VERSION}\"\n   VALUE \"InternalName\", \"VoidOne\"\n   VALUE \"OriginalFilename\", \"VoidOne.exe\"\n   VALUE \"ProductName\", \"VoidOne\"\n   VALUE \"ProductVersion\", \"${PROJECT_VERSION}\"\n  END\n END\n BLOCK \"VarFileInfo\"\n BEGIN\n  VALUE \"Translation\", 0x409, 1200\n END\nEND\n")
+        # VERSIONINFO FILEVERSION/PRODUCTVERSION require four numeric WORDs.
+        # Keep prerelease/build metadata out of the Win32 numeric resource version.
+        set(VOIDONE_RC_VERSION "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0")
+        file(WRITE "${VOIDONE_RC_PATH}" "#include <winver.h>\nIDI_ICON1 ICON DISCARDABLE \"${APP_ICON_PATH}\"\nVS_VERSION_INFO VERSIONINFO\n FILEVERSION ${VOIDONE_RC_VERSION}\n PRODUCTVERSION ${VOIDONE_RC_VERSION}\n FILEFLAGSMASK 0x3fL\n FILEFLAGS 0x0L\n FILEOS 0x40004L\n FILETYPE 0x1L\n FILESUBTYPE 0x0L\nBEGIN\n BLOCK \"StringFileInfo\"\n BEGIN\n  BLOCK \"040904b0\"\n  BEGIN\n   VALUE \"CompanyName\", \"VoidOne_app\"\n   VALUE \"FileDescription\", \"${PROJECT_DESCRIPTION}\"\n   VALUE \"FileVersion\", \"${PROJECT_VERSION}\"\n   VALUE \"InternalName\", \"VoidOne\"\n   VALUE \"OriginalFilename\", \"VoidOne.exe\"\n   VALUE \"ProductName\", \"VoidOne\"\n   VALUE \"ProductVersion\", \"${PROJECT_VERSION}\"\n  END\n END\n BLOCK \"VarFileInfo\"\n BEGIN\n  VALUE \"Translation\", 0x409, 1200\n END\nEND\n")
         list(APPEND VOIDONE_EXE_EXTRA_SOURCES "${VOIDONE_RC_PATH}")
     endif()
 endif()

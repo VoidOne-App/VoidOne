@@ -15,8 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  QT_VERSION: "6.8.*"
+  QT_VERSION: "6.8.3"
   QT_ARCH: win64_msvc2022_64
+  WIX_VERSION: "7.0.0"
 
 jobs:
   debug-asan-tests:
@@ -25,7 +26,7 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
           persist-credentials: false
@@ -54,11 +55,11 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           cmake -S . -B build-asan -G Ninja `
-            -DCMAKE_BUILD_TYPE=Debug `
-            -DVOIDONE_ENABLE_SANITIZERS=ON `
-            -DVOIDONE_BUILD_TESTS=ON `
-            -DVOIDONE_GENERATE_INSTALLER=OFF `
-            -DVOIDONE_ENABLE_CODE_SIGNING=OFF
+            "-DCMAKE_BUILD_TYPE=Debug" `
+            "-DVOIDONE_ENABLE_SANITIZERS=ON" `
+            "-DVOIDONE_BUILD_TESTS=ON" `
+            "-DVOIDONE_GENERATE_INSTALLER=OFF" `
+            "-DVOIDONE_ENABLE_CODE_SIGNING=OFF"
 
       - name: Build ASan targets
         shell: pwsh
@@ -74,7 +75,7 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
           persist-credentials: false
@@ -103,11 +104,11 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           cmake -S . -B build-release -G Ninja `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DVOIDONE_VERSION_OVERRIDE=0.0.1 `
-            -DVOIDONE_BUILD_TESTS=ON `
-            -DVOIDONE_GENERATE_INSTALLER=OFF `
-            -DVOIDONE_ENABLE_CODE_SIGNING=OFF
+            "-DCMAKE_BUILD_TYPE=Release" `
+            "-DVOIDONE_VERSION_OVERRIDE=0.0.1" `
+            "-DVOIDONE_BUILD_TESTS=ON" `
+            "-DVOIDONE_GENERATE_INSTALLER=OFF" `
+            "-DVOIDONE_ENABLE_CODE_SIGNING=OFF"
 
       - name: Build Release
         shell: pwsh
@@ -132,18 +133,26 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
 
       - name: Install NSIS and WiX
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           choco install nsis dotnet-8.0-sdk -y --no-progress
-          dotnet tool install --global wix --ignore-failed-sources || dotnet tool update --global wix
-          $wixMajor = ((wix --version).Trim()).Split('.')[0]
-          wix eula accept "wix$wixMajor"
-          wix extension add -g WixToolset.UI.wixext
+          dotnet tool install --global wix --version $env:WIX_VERSION --ignore-failed-sources
+          if ($LASTEXITCODE -ne 0) {
+            dotnet tool update --global wix --version $env:WIX_VERSION --ignore-failed-sources
+          }
+          $wixTools = Join-Path $env:USERPROFILE '.dotnet\tools'
+          $wixTools | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $env:PATH = "$wixTools;$env:PATH"
+          wix --version
+          wix eula accept wix7
+          wix extension add -g "WixToolset.UI.wixext/$env:WIX_VERSION"
+          wix extension add -g "WixToolset.Util.wixext/$env:WIX_VERSION"
 
       - name: Validate installer sources
         shell: pwsh
@@ -153,7 +162,7 @@ jobs:
           if (-not (Test-Path installer.wxs)) { throw "installer.wxs missing" }
           makensis /V2 /DVERSION=0.0.1 installer.nsi
           if (-not (Test-Path "dist\VoidOne-Setup-0.0.1-x64.exe")) { throw "NSIS did not produce an installer." }
-          wix build installer.wxs -dProductVersion=0.0.1 -ext WixToolset.UI.wixext -o dist\VoidOne-0.0.1-x64.msi
+          wix build installer.wxs '-dProductVersion=0.0.1' '-ext' WixToolset.UI.wixext '-ext' WixToolset.Util.wixext '-o' 'dist\VoidOne-0.0.1-x64.msi' '-acceptEula' wix7
           if (-not (Test-Path "dist\VoidOne-0.0.1-x64.msi")) { throw "WiX did not produce an MSI." }
 
       - name: Validate installer payload paths

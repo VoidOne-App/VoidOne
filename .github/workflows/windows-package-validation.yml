@@ -26,6 +26,7 @@ env:
   QT_VERSION: '6.8.3'
   QT_ARCH: win64_msvc2022_64
   APP_NAME: VoidOne
+  WIX_VERSION: '7.0.0'
 
 jobs:
   package-validation:
@@ -35,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
           fetch-depth: 0
@@ -59,25 +60,37 @@ jobs:
       - name: Install packaging toolchain
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           choco install ninja nsis dotnet-8.0-sdk -y --no-progress
-          dotnet tool install --global wix
-          "${HOME}\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          wix extension add -g WixToolset.UI.wixext
-          wix extension add -g WixToolset.Util.wixext
+          dotnet tool install --global wix --version $env:WIX_VERSION --ignore-failed-sources
+          if ($LASTEXITCODE -ne 0) {
+            dotnet tool update --global wix --version $env:WIX_VERSION --ignore-failed-sources
+          }
+          $wixTools = Join-Path $env:USERPROFILE '.dotnet\tools'
+          $wixTools | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $env:PATH = "$wixTools;$env:PATH"
+          wix --version
+          wix extension add -g "WixToolset.UI.wixext/$env:WIX_VERSION"
+          wix extension add -g "WixToolset.Util.wixext/$env:WIX_VERSION"
+          wix eula accept wix7
+          wix eula show
 
       - name: Configure
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+          $version = "0.0.0-pr.${{ github.event.pull_request.number || github.run_number }}"
           cmake -S . -B build -G Ninja `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DVOIDONE_VERSION_OVERRIDE="0.0.0-pr.${{ github.event.pull_request.number || github.run_number }}" `
-            -DVOIDONE_BUILD_TESTS=ON `
-            -DVOIDONE_ENABLE_CODE_SIGNING=OFF `
-            -DVOIDONE_GENERATE_INSTALLER=OFF
+            "-DCMAKE_BUILD_TYPE=Release" `
+            "-DVOIDONE_VERSION_OVERRIDE=$version" `
+            '-DVOIDONE_BUILD_TESTS=ON' `
+            '-DVOIDONE_ENABLE_CODE_SIGNING=OFF' `
+            '-DVOIDONE_GENERATE_INSTALLER=OFF'
 
       - name: Build and test
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           cmake --build build --config Release --parallel
           if (Test-Path 'tests\CMakeLists.txt') {
             ctest --test-dir build -C Release --output-on-failure --timeout 120
@@ -86,9 +99,10 @@ jobs:
       - name: Stage deployable payload
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           Remove-Item package -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory package | Out-Null
-          $exe = Get-ChildItem build -Filter 'VoidOne.exe' -Recurse | Select-Object -First 1
+          $exe = Get-ChildItem build -Filter 'VoidOne.exe' -Recurse | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } | Select-Object -First 1
           if (-not $exe) { throw 'VoidOne.exe was not produced' }
           Copy-Item $exe.FullName 'package\VoidOne.exe' -Force
           windeployqt --release --compiler-runtime --no-translations `
@@ -110,19 +124,22 @@ jobs:
       - name: Build NSIS installer
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force dist | Out-Null
-          & 'C:\Program Files (x86)\NSIS\makensis.exe' /DVERSION=0.0.0-pr installer.nsi
+          makensis /V2 /DVERSION=0.0.0-pr installer.nsi
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) { throw 'NSIS installer was not produced' }
 
       - name: Build WiX MSI
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           wix build installer.wxs `
-            -d ProductVersion=0.0.0.0 `
-            -ext WixToolset.UI.wixext `
-            -ext WixToolset.Util.wixext `
-            -o 'dist\VoidOne-Setup-x64.msi'
+            '-dProductVersion=0.0.0.0' `
+            '-ext' 'WixToolset.UI.wixext' `
+            '-ext' 'WixToolset.Util.wixext' `
+            '-o' 'dist\VoidOne-Setup-x64.msi' `
+            '-acceptEula' 'wix7'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist\VoidOne-Setup-x64.msi')) { throw 'WiX MSI was not produced' }
 
