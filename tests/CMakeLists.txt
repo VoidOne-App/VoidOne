@@ -13,6 +13,11 @@ voidone_configure_test(voidone_database_tests)
 add_test(NAME VoidOne.DatabaseTests COMMAND voidone_database_tests)
 set_tests_properties(VoidOne.DatabaseTests PROPERTIES TIMEOUT 120)
 
+add_executable(voidone_database_lifecycle_tests test_database_lifecycle.cpp)
+voidone_configure_test(voidone_database_lifecycle_tests)
+add_test(NAME VoidOne.DatabaseLifecycleTests COMMAND voidone_database_lifecycle_tests)
+set_tests_properties(VoidOne.DatabaseLifecycleTests PROPERTIES TIMEOUT 120)
+
 add_executable(voidone_save_backup_tests test_save_backup_manager.cpp)
 voidone_configure_test(voidone_save_backup_tests)
 add_test(NAME VoidOne.SaveBackupTests COMMAND voidone_save_backup_tests)

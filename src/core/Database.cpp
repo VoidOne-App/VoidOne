@@ -4,6 +4,7 @@
 ****************************************************************************/
 
 #include "Database.h"
+
 #include <QDir>
 #include <QDebug>
 #include <QSqlError>
@@ -13,35 +14,53 @@
 namespace {
 constexpr auto kConnectionName = "voidone-main";
 constexpr auto kDatabaseFileName = "voidone.db";
+
+bool hasOpenDatabase()
+{
+    if (!QSqlDatabase::contains(kConnectionName))
+        return false;
+
+    const QSqlDatabase db = QSqlDatabase::database(kConnectionName, false);
+    return db.isValid() && db.isOpen();
 }
 
-bool Database::initialize()
+QSqlDatabase database()
 {
-    if (QSqlDatabase::contains(kConnectionName)) {
-        const QSqlDatabase existing = QSqlDatabase::database(kConnectionName);
-        if (existing.isOpen())
-            return true;
+    return QSqlDatabase::database(kConnectionName, false);
+}
+
+void discardConnection()
+{
+    if (!QSqlDatabase::contains(kConnectionName))
+        return;
+
+    {
+        QSqlDatabase db = QSqlDatabase::database(kConnectionName, false);
+        if (db.isValid())
+            db.close();
     }
 
-    QSqlDatabase db = QSqlDatabase::contains(kConnectionName)
-        ? QSqlDatabase::database(kConnectionName)
-        : QSqlDatabase::addDatabase("QSQLITE", kConnectionName);
+    QSqlDatabase::removeDatabase(kConnectionName);
+}
 
-    const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    if (appDataDir.isEmpty() || !QDir().mkpath(appDataDir)) {
-        qCritical() << "[Database] Could not create application data directory.";
-        return false;
-    }
-
-    db.setDatabaseName(QDir(appDataDir).filePath(kDatabaseFileName));
-    if (!db.open()) {
-        qCritical() << "[Database] SQLite open failed:" << db.lastError().text();
-        return false;
-    }
-
+bool prepareSchema(const QSqlDatabase &db)
+{
     QSqlQuery pragma(db);
-    if (!pragma.exec("PRAGMA foreign_keys = ON"))
+    if (!pragma.exec("PRAGMA foreign_keys = ON")) {
         qWarning() << "[Database] Could not enable foreign keys:" << pragma.lastError().text();
+        return false;
+    }
+
+    QSqlQuery journal(db);
+    if (!journal.exec("PRAGMA journal_mode = WAL")) {
+        qWarning() << "[Database] Could not enable WAL mode:" << journal.lastError().text();
+        // WAL is an optimization, not a correctness requirement.
+    }
+
+    QSqlQuery busyTimeout(db);
+    if (!busyTimeout.exec("PRAGMA busy_timeout = 5000")) {
+        qWarning() << "[Database] Could not set SQLite busy timeout:" << busyTimeout.lastError().text();
+    }
 
     QSqlQuery schema(db);
     if (!schema.exec(
@@ -56,8 +75,54 @@ bool Database::initialize()
         return false;
     }
 
+    return true;
+}
+}
+
+bool Database::initialize()
+{
+    if (!QSqlDatabase::isDriverAvailable(QStringLiteral("QSQLITE"))) {
+        qCritical() << "[Database] QSQLITE driver is unavailable. Available drivers:"
+                    << QSqlDatabase::drivers();
+        return false;
+    }
+
+    if (hasOpenDatabase())
+        return true;
+
+    discardConnection();
+
+    const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (appDataDir.isEmpty() || !QDir().mkpath(appDataDir)) {
+        qCritical() << "[Database] Could not create application data directory.";
+        return false;
+    }
+
+    QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), kConnectionName);
+    db.setDatabaseName(QDir(appDataDir).filePath(kDatabaseFileName));
+
+    if (!db.open()) {
+        qCritical() << "[Database] SQLite open failed:" << db.lastError().text();
+        db.close();
+        db = QSqlDatabase();
+        discardConnection();
+        return false;
+    }
+
+    if (!prepareSchema(db)) {
+        db.close();
+        db = QSqlDatabase();
+        discardConnection();
+        return false;
+    }
+
     qInfo() << "[Database] SQLite initialized:" << db.databaseName();
     return true;
+}
+
+void Database::shutdown()
+{
+    discardConnection();
 }
 
 bool Database::addGame(const GameRecord &game)
@@ -67,7 +132,12 @@ bool Database::addGame(const GameRecord &game)
         return false;
     }
 
-    QSqlDatabase db = QSqlDatabase::database(kConnectionName, false);
+    if (game.exePath.trimmed().isEmpty()) {
+        qWarning() << "[Database] Refusing to insert a game without an executable path.";
+        return false;
+    }
+
+    const QSqlDatabase db = database();
     if (!db.isValid() || !db.isOpen()) {
         qWarning() << "[Database] Insert requested before initialization.";
         return false;
@@ -79,10 +149,10 @@ bool Database::addGame(const GameRecord &game)
         "VALUES (:name, :exe_path, :icon_path, :platform) "
         "ON CONFLICT(exe_path) DO UPDATE SET "
         "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform");
-    query.bindValue(":name", game.name);
-    query.bindValue(":exe_path", game.exePath);
-    query.bindValue(":icon_path", game.iconPath);
-    query.bindValue(":platform", game.platform.isEmpty() ? QStringLiteral("Custom") : game.platform);
+    query.bindValue(":name", game.name.trimmed());
+    query.bindValue(":exe_path", game.exePath.trimmed());
+    query.bindValue(":icon_path", game.iconPath.trimmed());
+    query.bindValue(":platform", game.platform.trimmed().isEmpty() ? QStringLiteral("Custom") : game.platform.trimmed());
 
     if (!query.exec()) {
         qWarning() << "[Database] Insert/update failed:" << query.lastError().text();
@@ -96,7 +166,7 @@ bool Database::addGamesBatch(const QVector<GameRecord> &games)
     if (games.isEmpty())
         return true;
 
-    QSqlDatabase db = QSqlDatabase::database(kConnectionName, false);
+    const QSqlDatabase db = database();
     if (!db.isValid() || !db.isOpen()) {
         qWarning() << "[Database] Batch insert requested before initialization.";
         return false;
@@ -115,15 +185,16 @@ bool Database::addGamesBatch(const QVector<GameRecord> &games)
         "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform");
 
     for (const auto &game : games) {
-        if (game.name.trimmed().isEmpty()) {
-            qWarning() << "[Database] Batch contains an empty game name; rolling back.";
+        if (game.name.trimmed().isEmpty() || game.exePath.trimmed().isEmpty()) {
+            qWarning() << "[Database] Batch contains an invalid game; rolling back.";
             db.rollback();
             return false;
         }
-        query.bindValue(":name", game.name);
-        query.bindValue(":exe_path", game.exePath);
-        query.bindValue(":icon_path", game.iconPath);
-        query.bindValue(":platform", game.platform.isEmpty() ? QStringLiteral("Custom") : game.platform);
+
+        query.bindValue(":name", game.name.trimmed());
+        query.bindValue(":exe_path", game.exePath.trimmed());
+        query.bindValue(":icon_path", game.iconPath.trimmed());
+        query.bindValue(":platform", game.platform.trimmed().isEmpty() ? QStringLiteral("Custom") : game.platform.trimmed());
         if (!query.exec()) {
             qWarning() << "[Database] Batch insert/update failed:" << query.lastError().text();
             db.rollback();
@@ -142,7 +213,7 @@ bool Database::addGamesBatch(const QVector<GameRecord> &games)
 QVector<GameRecord> Database::getAllGames()
 {
     QVector<GameRecord> games;
-    QSqlDatabase db = QSqlDatabase::database(kConnectionName, false);
+    const QSqlDatabase db = database();
     if (!db.isValid() || !db.isOpen()) {
         qWarning() << "[Database] Read requested before initialization.";
         return games;
@@ -168,10 +239,10 @@ QVector<GameRecord> Database::getAllGames()
 
 bool Database::removeGame(int id)
 {
-    if (id < 0)
+    if (id <= 0)
         return false;
 
-    QSqlDatabase db = QSqlDatabase::database(kConnectionName, false);
+    const QSqlDatabase db = database();
     if (!db.isValid() || !db.isOpen())
         return false;
 

@@ -1,5 +1,6 @@
 #include <QtTest>
 #include <QDateTime>
+#include <QStandardPaths>
 #include <algorithm>
 
 #include "Database.h"
@@ -8,10 +9,18 @@ class DatabaseTests final : public QObject {
     Q_OBJECT
 
 private slots:
+    void initTestCase();
     void initializeIsIdempotent();
     void crudAndUpsertPreserveIdentity();
     void batchInsertIsAtomic();
 };
+
+void DatabaseTests::initTestCase()
+{
+    // Keep CI/local test runs isolated from a developer's real VoidOne data.
+    QStandardPaths::setTestModeEnabled(true);
+    QVERIFY(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).size() > 0);
+}
 
 void DatabaseTests::initializeIsIdempotent()
 {

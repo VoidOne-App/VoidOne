@@ -78,31 +78,43 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           Remove-Item "${{ env.BUILD_DIR }}" -Recurse -Force -ErrorAction SilentlyContinue
-          cmake -S . -B "${{ env.BUILD_DIR }}" -G Ninja `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DVOIDONE_VERSION_OVERRIDE=0.0.1 `
-            -DVOIDONE_BUILD_TESTS=ON `
-            -DVOIDONE_GENERATE_INSTALLER=OFF
+          $cmakeArgs = @(
+            '-S', '.',
+            '-B', "${{ env.BUILD_DIR }}",
+            '-G', 'Ninja',
+            '-DCMAKE_BUILD_TYPE=Release',
+            '-DVOIDONE_VERSION_OVERRIDE:STRING=0.0.1',
+            '-DVOIDONE_BUILD_TESTS=ON',
+            '-DVOIDONE_GENERATE_INSTALLER=OFF'
+          )
+          & cmake @cmakeArgs
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure failed with exit code $LASTEXITCODE." }
 
       - name: Build — CodeQL traced
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          cmake --build "${{ env.BUILD_DIR }}" --config Release --parallel
+          & cmake --build "${{ env.BUILD_DIR }}" --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { throw "CodeQL traced build failed with exit code $LASTEXITCODE." }
 
       - name: Run tests
         shell: pwsh
-        run: ctest --test-dir "${{ env.BUILD_DIR }}" -C Release --output-on-failure --timeout 120
+        run: |
+          $ErrorActionPreference = "Stop"
+          & ctest --test-dir "${{ env.BUILD_DIR }}" -C Release --output-on-failure --timeout 120
+          if ($LASTEXITCODE -ne 0) { throw "CTest failed with exit code $LASTEXITCODE." }
 
       - name: Verify native artifacts
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           $artifacts = Get-ChildItem "${{ env.BUILD_DIR }}" -Recurse -File |
             Where-Object { $_.Extension -in @('.exe', '.dll', '.lib') }
           if (-not $artifacts) { throw "No native artifacts were produced." }
           $artifacts | ForEach-Object { Write-Host "FOUND: $($_.FullName)" }
 
       - name: Analyze and upload SARIF
+        if: always()
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:c-cpp"

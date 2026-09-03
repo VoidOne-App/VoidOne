@@ -4,34 +4,82 @@
 #include <QDebug>
 #include <QFile>
 #include <QFileInfo>
+#include <QDir>
 #include <algorithm>
 
 namespace {
+QString normalizedPath(const QString &input)
+{
+    if (input.trimmed().isEmpty())
+        return {};
+
+    QFileInfo info(input);
+    QString absolute = info.absoluteFilePath();
+    if (absolute.isEmpty())
+        return {};
+
+    // canonicalFilePath() is empty for a non-existent path. Resolve the
+    // nearest existing ancestor and append the missing suffix instead.
+    const QString canonical = info.canonicalFilePath();
+    if (!canonical.isEmpty())
+        return QDir::cleanPath(canonical);
+
+    QStringList missing;
+    QFileInfo current(info);
+    while (!current.exists()) {
+        const QString name = current.fileName();
+        if (!name.isEmpty())
+            missing.prepend(name);
+        const QString parent = current.absolutePath();
+        if (parent == current.absoluteFilePath())
+            break;
+        current = QFileInfo(parent);
+    }
+
+    QString base = current.canonicalFilePath();
+    if (base.isEmpty())
+        base = current.absoluteFilePath();
+
+    QDir result(base);
+    for (const QString &part : missing)
+        result = QDir(result.filePath(part));
+    return QDir::cleanPath(result.absolutePath());
+}
+
 bool pathsOverlap(const QString &firstPath, const QString &secondPath)
 {
-    const QString first = QDir::cleanPath(QFileInfo(firstPath).absoluteFilePath());
-    const QString second = QDir::cleanPath(QFileInfo(secondPath).absoluteFilePath());
-
+    const QString first = normalizedPath(firstPath);
+    const QString second = normalizedPath(secondPath);
     if (first.isEmpty() || second.isEmpty())
         return false;
 
-    const Qt::CaseSensitivity sensitivity =
 #ifdef Q_OS_WIN
-        Qt::CaseInsensitive;
+    const Qt::CaseSensitivity sensitivity = Qt::CaseInsensitive;
 #else
-        Qt::CaseSensitive;
+    const Qt::CaseSensitivity sensitivity = Qt::CaseSensitive;
 #endif
 
-    auto isSameOrChild = [sensitivity](const QString &path, const QString &parent) {
-        if (path.compare(parent, sensitivity) == 0)
-            return true;
-        const QString prefix = parent.endsWith(QDir::separator())
-            ? parent
-            : parent + QDir::separator();
-        return path.startsWith(prefix, sensitivity);
+    auto components = [](const QString &path) {
+        QString normalized = QDir::fromNativeSeparators(QDir::cleanPath(path));
+        while (normalized.endsWith('/'))
+            normalized.chop(1);
+        return normalized.split('/', Qt::SkipEmptyParts);
     };
 
-    return isSameOrChild(first, second) || isSameOrChild(second, first);
+    const QStringList firstParts = components(first);
+    const QStringList secondParts = components(second);
+
+    auto isSameOrChild = [sensitivity](const QStringList &path, const QStringList &parent) {
+        if (path.size() < parent.size())
+            return false;
+        for (qsizetype i = 0; i < parent.size(); ++i) {
+            if (path.at(i).compare(parent.at(i), sensitivity) != 0)
+                return false;
+        }
+        return true;
+    };
+
+    return isSameOrChild(firstParts, secondParts) || isSameOrChild(secondParts, firstParts);
 }
 }
 
