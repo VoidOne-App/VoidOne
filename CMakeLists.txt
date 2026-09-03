@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 set(VOIDONE_VERSION_OVERRIDE "0.0.1" CACHE STRING "Override application version (normally supplied by CI/tag)")
 set(VOIDONE_VERSION_INPUT "${VOIDONE_VERSION_OVERRIDE}")
-string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" VOIDONE_VERSION_BASE "${VOIDONE_VERSION_INPUT}")
+string(REGEX MATCH "^[0-9]+\.[0-9]+\.[0-9]+" VOIDONE_VERSION_BASE "${VOIDONE_VERSION_INPUT}")
 if(NOT VOIDONE_VERSION_BASE)
     message(WARNING "Invalid VOIDONE_VERSION_OVERRIDE='${VOIDONE_VERSION_INPUT}'; falling back to 0.0.1")
     set(VOIDONE_VERSION_BASE "0.0.1")
@@ -126,17 +126,6 @@ endif()
 
 if(WIN32)
     set_target_properties(VoidOne PROPERTIES WIN32_EXECUTABLE TRUE)
-    find_program(WINDEPLOYQT_EXECUTABLE windeployqt)
-    if(WINDEPLOYQT_EXECUTABLE)
-        add_custom_command(TARGET VoidOne POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E env PATH="$<TARGET_FILE_DIR:Qt6::Core>"
-                    "${WINDEPLOYQT_EXECUTABLE}"
-                    --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/src/ui/qml"
-                    --no-translations --no-compiler-runtime
-                    "$<TARGET_FILE:VoidOne>"
-            COMMENT "Deploying Qt/QML runtime dependencies"
-            VERBATIM)
-    endif()
 endif()
 
 if(WIN32 AND VOIDONE_ENABLE_CODE_SIGNING)
