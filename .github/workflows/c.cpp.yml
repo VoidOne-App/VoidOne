@@ -170,9 +170,7 @@ jobs:
           } else {
             $v = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
           }
-          if ($v -notmatch '^\d+\.\d+\.\d+') {
-            throw "Resolved version is not semver-compatible: $v"
-          }
+          if ($v -notmatch '^\d+\.\d+\.\d+') { throw "Resolved version is not semver-compatible: $v" }
           $base = ([regex]::Match($v, '^\d+\.\d+\.\d+')).Value
           "value=$v" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "base=$base" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
@@ -303,6 +301,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           Compress-Archive -Path 'package\*' -DestinationPath 'dist\VoidOne-Portable-x64.zip' -CompressionLevel Optimal
+          if ($LASTEXITCODE -ne 0) { throw 'Portable ZIP creation failed.' }
           if (-not (Test-Path 'dist\VoidOne-Portable-x64.zip')) { throw 'Portable ZIP was not produced.' }
       - name: Validate generated artifacts
         shell: pwsh
@@ -328,7 +327,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $files = @('dist\VoidOne-Setup-x64.exe','dist\VoidOne-Setup-x64.msi','dist\VoidOne-Portable-x64.zip')
-          $lines = foreach ($file in $files {
+          $lines = foreach ($file in $files) {
             $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $([IO.Path]::GetFileName($file))"
           }
