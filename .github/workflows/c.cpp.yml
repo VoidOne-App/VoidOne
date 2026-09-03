@@ -96,17 +96,34 @@ jobs:
           queries: security-extended,security-and-quality
       - name: Configure analysis build
         shell: pwsh
-        run: cmake -S . -B build-codeql -G Ninja -DCMAKE_BUILD_TYPE=Release -DVOIDONE_BUILD_TESTS=ON
+        run: |
+          $ErrorActionPreference = "Stop"
+          $args = @(
+            '-S', '.',
+            '-B', 'build-codeql',
+            '-G', 'Ninja',
+            '-DCMAKE_BUILD_TYPE=Release',
+            '-DVOIDONE_VERSION_OVERRIDE:STRING=0.0.1',
+            '-DVOIDONE_BUILD_TESTS=ON',
+            '-DVOIDONE_GENERATE_INSTALLER=OFF'
+          )
+          & cmake @args
+          if ($LASTEXITCODE -ne 0) { throw "Analysis configure failed with exit code $LASTEXITCODE." }
       - name: Build analysis target
         shell: pwsh
-        run: cmake --build build-codeql --config Release --parallel
+        run: |
+          $ErrorActionPreference = "Stop"
+          & cmake --build build-codeql --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { throw "Analysis build failed with exit code $LASTEXITCODE." }
       - name: Analyze with CodeQL
+        if: always()
         uses: github/codeql-action/analyze@v4
         with:
           category: /language:cpp
       - name: Run Cppcheck
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           cppcheck --enable=warning,performance,portability --error-exitcode=1 --xml --xml-version=2 src/ 2> cppcheck-report.xml
       - name: Upload static-analysis report
         if: always()
@@ -121,8 +138,8 @@ jobs:
         shell: pwsh
         run: |
           "## Security & Static Analysis" >> $env:GITHUB_STEP_SUMMARY
-          "- CodeQL: **completed**" >> $env:GITHUB_STEP_SUMMARY
-          "- Cppcheck: **$('${{ job.status }}')**" >> $env:GITHUB_STEP_SUMMARY
+          "- CodeQL: **${{ job.status }}**" >> $env:GITHUB_STEP_SUMMARY
+          "- Cppcheck: **completed**" >> $env:GITHUB_STEP_SUMMARY
 
   build-package:
     name: Windows Build + Test + Release Artifacts
@@ -192,22 +209,32 @@ jobs:
         shell: pwsh
         run: |
           $tests = if ('${{ inputs.skip_tests }}' -eq 'true') { 'OFF' } else { 'ON' }
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
-            -DVOIDONE_VERSION_OVERRIDE='${{ steps.version.outputs.value }}' `
-            -DVOIDONE_BUILD_TESTS=$tests
+          $args = @(
+            '-S', '.',
+            '-B', 'build',
+            '-G', 'Ninja',
+            '-DCMAKE_BUILD_TYPE=Release',
+            '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}',
+            "-DVOIDONE_BUILD_TESTS=$tests"
+          )
+          & cmake @args
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure failed with exit code $LASTEXITCODE." }
       - name: Build
         shell: pwsh
         run: |
-          cmake --build build --config Release --parallel
+          $ErrorActionPreference = "Stop"
+          & cmake --build build --config Release --parallel
           if ($LASTEXITCODE -ne 0) { throw 'VoidOne C++ build failed.' }
       - name: Test
         if: ${{ inputs.skip_tests != true }}
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           if (Test-Path 'tests\CMakeLists.txt') {
-            ctest --test-dir build -C Release --output-on-failure --timeout 120 --output-junit test-results.xml
+            & ctest --test-dir build -C Release --output-on-failure --timeout 120 --output-junit test-results.xml
+            if ($LASTEXITCODE -ne 0) { throw 'VoidOne CTest suite failed.' }
           } else {
-            Write-Host 'No tests/CMakeLists.txt; compile validation completed.'
+            throw 'tests/CMakeLists.txt is missing; refusing to claim test validation.'
           }
       - name: Upload test results
         if: always() && hashFiles('build/test-results.xml') != ''
@@ -220,6 +247,7 @@ jobs:
       - name: Stage Qt runtime
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           Remove-Item package -Recurse -Force -ErrorAction SilentlyContinue
           New-Item package -ItemType Directory -Force | Out-Null
           $exe = Get-ChildItem build -Filter "$env:APP_NAME.exe" -Recurse | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } | Select-Object -First 1
@@ -227,30 +255,37 @@ jobs:
           Copy-Item $exe.FullName "package\$env:APP_NAME.exe"
           $qmlDir = Join-Path $env:GITHUB_WORKSPACE 'src\ui\qml'
           if (Test-Path $qmlDir) {
-            windeployqt --release --compiler-runtime --no-translations --qmldir $qmlDir "package\$env:APP_NAME.exe"
+            & windeployqt --release --compiler-runtime --no-translations --qmldir $qmlDir "package\$env:APP_NAME.exe"
           } else {
-            windeployqt --release --compiler-runtime --no-translations "package\$env:APP_NAME.exe"
+            & windeployqt --release --compiler-runtime --no-translations "package\$env:APP_NAME.exe"
           }
+          if ($LASTEXITCODE -ne 0) { throw 'windeployqt failed.' }
           if (-not (Test-Path 'package\platforms\qwindows.dll')) { throw 'windeployqt did not produce qwindows.dll.' }
       - name: Build NSIS installer
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           New-Item dist -ItemType Directory -Force | Out-Null
-          makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' installer.nsi
+          & makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' installer.nsi
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS compilation failed.' }
           if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) { throw 'NSIS installer was not produced.' }
       - name: Build WiX MSI
         shell: pwsh
         run: |
-          wix build installer.wxs -dProductVersion='${{ steps.version.outputs.value }}' -o 'dist\VoidOne-Setup-x64.msi' -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -acceptEula wix7
+          $ErrorActionPreference = "Stop"
+          & wix build installer.wxs -dProductVersion='${{ steps.version.outputs.value }}' -o 'dist\VoidOne-Setup-x64.msi' -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -acceptEula wix7
+          if ($LASTEXITCODE -ne 0) { throw 'WiX MSI build failed.' }
           if (-not (Test-Path 'dist\VoidOne-Setup-x64.msi')) { throw 'WiX MSI was not produced.' }
       - name: Build portable ZIP
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           Compress-Archive -Path 'package\*' -DestinationPath 'dist\VoidOne-Portable-x64.zip' -CompressionLevel Optimal
           if (-not (Test-Path 'dist\VoidOne-Portable-x64.zip')) { throw 'Portable ZIP was not produced.' }
       - name: Validate generated artifacts
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           $items = @('dist\VoidOne-Setup-x64.exe','dist\VoidOne-Setup-x64.msi','dist\VoidOne-Portable-x64.zip')
           foreach ($item in $items) {
             if (-not (Test-Path $item)) { throw "Missing artifact: $item" }
@@ -268,98 +303,72 @@ jobs:
       - name: Generate deterministic SHA256 manifest
         shell: pwsh
         run: |
-          $files = @(
-            'dist\VoidOne-Setup-x64.exe',
-            'dist\VoidOne-Setup-x64.msi',
-            'dist\VoidOne-Portable-x64.zip'
-          )
+          $ErrorActionPreference = "Stop"
+          $files = @('dist\VoidOne-Setup-x64.exe','dist\VoidOne-Setup-x64.msi','dist\VoidOne-Portable-x64.zip')
           $lines = foreach ($file in $files) {
             $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $([IO.Path]::GetFileName($file))"
           }
           $lines | Sort-Object | Set-Content dist\SHA256SUMS.txt -Encoding utf8
-          Get-Content dist\SHA256SUMS.txt
-      - name: Generate CI release manifest
+      - name: Generate release manifest
         shell: pwsh
         run: |
           $manifest = [ordered]@{
-            product = $env:APP_NAME
+            application = $env:APP_NAME
             version = '${{ steps.version.outputs.value }}'
             commit = '${{ github.sha }}'
-            ref = '${{ github.ref_name }}'
-            qt = $env:QT_VERSION
             runner = '${{ runner.os }}-${{ runner.arch }}'
-            test_policy = '${{ steps.test-mode.outputs.value }}'
+            qt = '${{ env.QT_VERSION }}'
             artifacts = @(
               'VoidOne-Setup-x64.exe',
               'VoidOne-Setup-x64.msi',
-              'VoidOne-Portable-x64.zip'
+              'VoidOne-Portable-x64.zip',
+              'SHA256SUMS.txt'
             )
-            generated_utc = [DateTimeOffset]::UtcNow.ToString('O')
           }
-          $manifest | ConvertTo-Json -Depth 5 | Set-Content dist\release-manifest.json -Encoding utf8
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content dist\release-manifest.json -Encoding utf8
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: VoidOne-windows-${{ steps.version.outputs.value }}-${{ github.run_id }}
-          path: |
-            dist/VoidOne-Setup-x64.exe
-            dist/VoidOne-Setup-x64.msi
-            dist/VoidOne-Portable-x64.zip
+          name: VoidOne-release-${{ steps.version.outputs.value }}-${{ github.run_id }}
+          path: dist/*
           if-no-files-found: error
           retention-days: 30
-      - name: Upload release metadata
-        uses: actions/upload-artifact@v4
-        with:
-          name: VoidOne-release-metadata-${{ github.run_id }}
-          path: |
-            dist/SHA256SUMS.txt
-            dist/release-manifest.json
-          if-no-files-found: error
-          retention-days: 30
-      - name: Build provenance attestation
-        if: github.event_name != 'pull_request'
+      - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: |
-            dist/VoidOne-Setup-x64.exe
-            dist/VoidOne-Setup-x64.msi
-            dist/VoidOne-Portable-x64.zip
-      - name: Final build summary
+          subject-path: 'dist/*'
+      - name: Release summary
         if: always()
         shell: pwsh
         run: |
-          "## VoidOne Release Engineering" >> $env:GITHUB_STEP_SUMMARY
-          "- Job status: **${{ job.status }}**" >> $env:GITHUB_STEP_SUMMARY
+          "## Build / Release Gate" >> $env:GITHUB_STEP_SUMMARY
           "- Version: **${{ steps.version.outputs.value }}**" >> $env:GITHUB_STEP_SUMMARY
-          "- Tests: **${{ steps.test-mode.outputs.value }}**" >> $env:GITHUB_STEP_SUMMARY
-          "- Provenance: **$([bool]('${{ github.event_name != 'pull_request' }}'))**" >> $env:GITHUB_STEP_SUMMARY
-          "- Artifacts: **EXE + MSI + Portable ZIP**" >> $env:GITHUB_STEP_SUMMARY
+          "- Test policy: **${{ steps.test-mode.outputs.value }}**" >> $env:GITHUB_STEP_SUMMARY
+          "- Packaging: **${{ job.status }}**" >> $env:GITHUB_STEP_SUMMARY
 
   release-gate:
-    name: Release Readiness Gate
+    name: Release Gate
     needs: [workflow-validation, static-analysis, build-package]
-    if: always() && (startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/release/'))
+    if: always()
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Evaluate release gates
+      - name: Evaluate gates
         shell: bash
         run: |
-          echo '## Release Readiness' >> "$GITHUB_STEP_SUMMARY"
-          echo '| Gate | Result |' >> "$GITHUB_STEP_SUMMARY"
-          echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
-          echo '| Contract validation | **${{ needs.workflow-validation.result }}** |' >> "$GITHUB_STEP_SUMMARY"
-          echo '| Security/static analysis | **${{ needs.static-analysis.result }}** |' >> "$GITHUB_STEP_SUMMARY"
-          echo '| Windows build/package | **${{ needs.build-package.result }}** |' >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          echo "Contract=${{ needs.workflow-validation.result }}"
+          echo "Static=${{ needs.static-analysis.result }}"
+          echo "Build=${{ needs.build-package.result }}"
           if [[ '${{ needs.workflow-validation.result }}' != 'success' || '${{ needs.static-analysis.result }}' != 'success' || '${{ needs.build-package.result }}' != 'success' ]]; then
-            echo 'Release gate blocked: one or more mandatory gates failed.'
+            echo 'Release gate FAILED.'
             exit 1
           fi
-          echo 'Release gate: READY.'
+          echo 'Release gate PASSED.'
 
   discord-notification:
-    name: Discord CI Status
+    name: Discord Observability
     needs: [workflow-validation, static-analysis, build-package, release-gate]
     if: always()
     runs-on: ubuntu-24.04
@@ -367,97 +376,22 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Publish CI result to Discord
+      - name: Publish Discord notification when configured
+        shell: bash
         env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          VALIDATION_RESULT: ${{ needs.workflow-validation.result }}
-          STATIC_RESULT: ${{ needs.static-analysis.result }}
-          BUILD_RESULT: ${{ needs.build-package.result }}
-          RELEASE_RESULT: ${{ needs.release-gate.result }}
-          TEST_POLICY: ${{ needs.build-package.outputs.tests }}
-          VERSION: ${{ needs.build-package.outputs.version }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          python - <<'PY'
-          import json
-          import os
-          import urllib.error
-          import urllib.request
-          from datetime import datetime, timezone
-
-          webhook = os.environ.get('DISCORD_WEBHOOK_URL', '').strip()
-          if not webhook:
-              print('DISCORD_WEBHOOK_URL is not configured; skipping Discord notification.')
-              raise SystemExit(0)
-
-          results = {
-              'Contracts': os.environ.get('VALIDATION_RESULT', 'unknown'),
-              'Security / static': os.environ.get('STATIC_RESULT', 'unknown'),
-              'Windows build/package': os.environ.get('BUILD_RESULT', 'unknown'),
-              'Release gate': os.environ.get('RELEASE_RESULT', 'not-applicable'),
-          }
-
-          values = list(results.values())
-          if all(v in ('success', 'skipped', 'not-applicable') for v in values) and 'failure' not in values:
-              status = 'SUCCESS'
-              title = '🟢 VoidOne CI/CD — Pipeline Healthy'
-              color = 0x2ECC71
-          elif 'cancelled' in values:
-              status = 'CANCELLED'
-              title = '🟡 VoidOne CI/CD — Pipeline Cancelled'
-              color = 0xF1C40F
-          else:
-              status = 'FAILED'
-              title = '🔴 VoidOne CI/CD — Pipeline Failed'
-              color = 0xE74C3C
-
-          def fmt(value):
-              return f'`{value}`'
-
-          repo = os.environ.get('GITHUB_REPOSITORY', '')
-          server = os.environ.get('GITHUB_SERVER_URL', 'https://github.com')
-          run_url = f"{server}/{repo}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}"
-          ref = os.environ.get('GITHUB_REF_NAME', '')
-          sha = os.environ.get('GITHUB_SHA', '')[:7]
-          version = os.environ.get('VERSION', '') or 'n/a'
-          test_policy = os.environ.get('TEST_POLICY', '') or 'unknown'
-
-          fields = [
-              {'name': name, 'value': fmt(value), 'inline': True}
-              for name, value in results.items()
-          ]
-          fields.extend([
-              {'name': 'Version', 'value': fmt(version), 'inline': True},
-              {'name': 'Ref', 'value': fmt(ref), 'inline': True},
-              {'name': 'Commit', 'value': fmt(sha), 'inline': True},
-              {'name': 'Tests', 'value': fmt(test_policy), 'inline': True},
-              {'name': 'Run', 'value': f"[#{os.environ.get('GITHUB_RUN_NUMBER', '')}]({run_url})", 'inline': True},
-          ])
-
-          payload = {
-              'username': 'VoidOne CI',
-              'allowed_mentions': {'parse': []},
-              'embeds': [{
-                  'title': title,
-                  'description': f'**{status}** — Enterprise Windows Release Pipeline',
-                  'color': color,
-                  'fields': fields,
-                  'url': run_url,
-                  'timestamp': datetime.now(timezone.utc).isoformat(),
-                  'footer': {'text': 'VoidOne • GitHub Actions • No telemetry'},
-              }],
-          }
-
-          request = urllib.request.Request(
-              webhook,
-              data=json.dumps(payload).encode('utf-8'),
-              headers={'Content-Type': 'application/json', 'User-Agent': 'VoidOne-CI/1.0'},
-              method='POST',
-          )
-          try:
-              with urllib.request.urlopen(request, timeout=10) as response:
-                  if response.status >= 300:
-                      raise RuntimeError(f'Discord returned HTTP {response.status}')
-              print(f'Discord notification sent: {status}')
-          except (urllib.error.URLError, RuntimeError) as exc:
-              print(f'Discord notification failed but CI status will remain authoritative: {exc}')
+          set -euo pipefail
+          status='success'
+          if [[ '${{ needs.release-gate.result }}' != 'success' ]]; then status='failure'; fi
+          echo "VoidOne CI/CD: $status"
+          if [[ -z "$DISCORD_WEBHOOK" ]]; then
+            echo 'DISCORD_WEBHOOK_URL is not configured; notification skipped.'
+            exit 0
+          fi
+          payload=$(python - <<'PY'
+          import json, os
+          print(json.dumps({"content": f"VoidOne CI/CD: {os.environ.get('GITHUB_WORKFLOW', 'workflow')} -> {os.environ.get('GITHUB_SHA', '')}"}))
           PY
+          )
+          curl --fail-with-body --silent --show-error -H 'Content-Type: application/json' -d "$payload" "$DISCORD_WEBHOOK"
