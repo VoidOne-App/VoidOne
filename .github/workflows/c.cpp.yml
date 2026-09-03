@@ -98,7 +98,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $args = @(
+          $cmakeArgs = @(
             '-S', '.',
             '-B', 'build-codeql',
             '-G', 'Ninja',
@@ -107,7 +107,7 @@ jobs:
             '-DVOIDONE_BUILD_TESTS=ON',
             '-DVOIDONE_GENERATE_INSTALLER=OFF'
           )
-          & cmake @args
+          & cmake @cmakeArgs
           if ($LASTEXITCODE -ne 0) { throw "Analysis configure failed with exit code $LASTEXITCODE." }
       - name: Build analysis target
         shell: pwsh
@@ -164,11 +164,21 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          if ('${{ github.ref_type }}' -eq 'tag') { $v = '${{ github.ref_name }}' -replace '^v','' }
-          else { $v = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))" }
+          $ErrorActionPreference = "Stop"
+          if ('${{ github.ref_type }}' -eq 'tag') {
+            $v = '${{ github.ref_name }}' -replace '^v',''
+          } else {
+            $v = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
+          }
+          if ($v -notmatch '^\d+\.\d+\.\d+') {
+            throw "Resolved version is not semver-compatible: $v"
+          }
+          $base = ([regex]::Match($v, '^\d+\.\d+\.\d+')).Value
           "value=$v" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "base=$base" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "## Build Identity" >> $env:GITHUB_STEP_SUMMARY
           "- Version: **$v**" >> $env:GITHUB_STEP_SUMMARY
+          "- Installer numeric version: **$base**" >> $env:GITHUB_STEP_SUMMARY
           "- Ref: **${{ github.ref_name }}**" >> $env:GITHUB_STEP_SUMMARY
           "- Commit: `${{ github.sha }}`" >> $env:GITHUB_STEP_SUMMARY
           "- Runner: `${{ runner.os }} / ${{ runner.arch }}`" >> $env:GITHUB_STEP_SUMMARY
@@ -186,12 +196,16 @@ jobs:
       - name: Install WiX
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           dotnet tool install --global wix --version 7.0.0 --ignore-failed-sources
-          if ($LASTEXITCODE -ne 0) { dotnet tool update --global wix --version 7.0.0 }
+          if ($LASTEXITCODE -ne 0) { dotnet tool update --global wix --version 7.0.0 --ignore-failed-sources }
+          if ($LASTEXITCODE -ne 0) { throw 'WiX tool installation failed.' }
           $env:PATH = "$env:USERPROFILE\.dotnet\tools;$env:PATH"
           "${env:USERPROFILE}\.dotnet\tools" | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
           wix extension add -g WixToolset.UI.wixext/7.0.0
+          if ($LASTEXITCODE -ne 0) { throw 'WiX UI extension installation failed.' }
           wix extension add -g WixToolset.Util.wixext/7.0.0
+          if ($LASTEXITCODE -ne 0) { throw 'WiX Util extension installation failed.' }
           wix eula accept wix7
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -208,16 +222,18 @@ jobs:
       - name: Configure C++/Qt
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
           $tests = if ('${{ inputs.skip_tests }}' -eq 'true') { 'OFF' } else { 'ON' }
-          $args = @(
+          $cmakeArgs = @(
             '-S', '.',
             '-B', 'build',
             '-G', 'Ninja',
             '-DCMAKE_BUILD_TYPE=Release',
             '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}',
-            "-DVOIDONE_BUILD_TESTS=$tests"
+            "-DVOIDONE_BUILD_TESTS=$tests",
+            '-DVOIDONE_GENERATE_INSTALLER=OFF'
           )
-          & cmake @args
+          & cmake @cmakeArgs
           if ($LASTEXITCODE -ne 0) { throw "CMake configure failed with exit code $LASTEXITCODE." }
       - name: Build
         shell: pwsh
@@ -230,12 +246,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          if (Test-Path 'tests\CMakeLists.txt') {
-            & ctest --test-dir build -C Release --output-on-failure --timeout 120 --output-junit test-results.xml
-            if ($LASTEXITCODE -ne 0) { throw 'VoidOne CTest suite failed.' }
-          } else {
-            throw 'tests/CMakeLists.txt is missing; refusing to claim test validation.'
-          }
+          if (-not (Test-Path 'tests\CMakeLists.txt')) { throw 'tests/CMakeLists.txt is missing; refusing to claim test validation.' }
+          & ctest --test-dir build -C Release --output-on-failure --timeout 120 --output-junit test-results.xml
+          if ($LASTEXITCODE -ne 0) { throw 'VoidOne CTest suite failed.' }
       - name: Upload test results
         if: always() && hashFiles('build/test-results.xml') != ''
         uses: actions/upload-artifact@v4
@@ -273,7 +286,16 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          & wix build installer.wxs -dProductVersion='${{ steps.version.outputs.value }}' -o 'dist\VoidOne-Setup-x64.msi' -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -acceptEula wix7
+          $wixArgs = @(
+            'build', 'installer.wxs',
+            '-dProductVersion=${{ steps.version.outputs.base }}',
+            '-dProductVersionDisplay=${{ steps.version.outputs.value }}',
+            '-o', 'dist\VoidOne-Setup-x64.msi',
+            '-ext', 'WixToolset.UI.wixext',
+            '-ext', 'WixToolset.Util.wixext',
+            '-acceptEula', 'wix7'
+          )
+          & wix @wixArgs
           if ($LASTEXITCODE -ne 0) { throw 'WiX MSI build failed.' }
           if (-not (Test-Path 'dist\VoidOne-Setup-x64.msi')) { throw 'WiX MSI was not produced.' }
       - name: Build portable ZIP
@@ -291,6 +313,7 @@ jobs:
             if (-not (Test-Path $item)) { throw "Missing artifact: $item" }
             if ((Get-Item $item).Length -le 0) { throw "Empty artifact: $item" }
           }
+          Remove-Item 'zip-check' -Recurse -Force -ErrorAction SilentlyContinue
           Expand-Archive -Path 'dist\VoidOne-Portable-x64.zip' -DestinationPath 'zip-check' -Force
           if (-not (Test-Path 'zip-check\VoidOne.exe')) { throw 'Portable ZIP does not contain VoidOne.exe at its root.' }
           if (-not (Test-Path 'package\platforms\qwindows.dll')) { throw 'Portable package is missing Qt Windows platform plugin.' }
@@ -305,20 +328,24 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $files = @('dist\VoidOne-Setup-x64.exe','dist\VoidOne-Setup-x64.msi','dist\VoidOne-Portable-x64.zip')
-          $lines = foreach ($file in $files) {
+          $lines = foreach ($file in $files {
             $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $([IO.Path]::GetFileName($file))"
           }
           $lines | Sort-Object | Set-Content dist\SHA256SUMS.txt -Encoding utf8
+          Get-Content dist\SHA256SUMS.txt
       - name: Generate release manifest
         shell: pwsh
         run: |
           $manifest = [ordered]@{
             application = $env:APP_NAME
             version = '${{ steps.version.outputs.value }}'
+            numeric_version = '${{ steps.version.outputs.base }}'
             commit = '${{ github.sha }}'
+            ref = '${{ github.ref_name }}'
             runner = '${{ runner.os }}-${{ runner.arch }}'
             qt = '${{ env.QT_VERSION }}'
+            test_policy = '${{ steps.test-mode.outputs.value }}'
             artifacts = @(
               'VoidOne-Setup-x64.exe',
               'VoidOne-Setup-x64.msi',
@@ -382,8 +409,7 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           set -euo pipefail
-          status='success'
-          if [[ '${{ needs.release-gate.result }}' != 'success' ]]; then status='failure'; fi
+          if [[ '${{ needs.release-gate.result }}' == 'success' ]]; then status='success'; else status='failure'; fi
           echo "VoidOne CI/CD: $status"
           if [[ -z "$DISCORD_WEBHOOK" ]]; then
             echo 'DISCORD_WEBHOOK_URL is not configured; notification skipped.'
@@ -391,7 +417,11 @@ jobs:
           fi
           payload=$(python - <<'PY'
           import json, os
-          print(json.dumps({"content": f"VoidOne CI/CD: {os.environ.get('GITHUB_WORKFLOW', 'workflow')} -> {os.environ.get('GITHUB_SHA', '')}"}))
+          print(json.dumps({
+              "content": "VoidOne CI/CD: " + os.environ.get("GITHUB_WORKFLOW", "workflow") + " -> " + os.environ.get("GITHUB_SHA", "")
+          }))
           PY
           )
-          curl --fail-with-body --silent --show-error -H 'Content-Type: application/json' -d "$payload" "$DISCORD_WEBHOOK"
+          curl --fail-with-body --silent --show-error \
+            -H 'Content-Type: application/json' \
+            -d "$payload" "$DISCORD_WEBHOOK"
