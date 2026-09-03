@@ -17,25 +17,36 @@ constexpr auto kDatabaseFileName = "voidone.db";
 
 bool Database::initialize()
 {
-    if (QSqlDatabase::contains(kConnectionName)) {
-        const QSqlDatabase existing = QSqlDatabase::database(kConnectionName);
-        if (existing.isOpen())
-            return true;
+    if (!QSqlDatabase::isDriverAvailable(QStringLiteral("QSQLITE"))) {
+        qCritical() << "[Database] QSQLITE driver is unavailable. Available drivers:"
+                    << QSqlDatabase::drivers();
+        return false;
     }
 
-    QSqlDatabase db = QSqlDatabase::contains(kConnectionName)
-        ? QSqlDatabase::database(kConnectionName)
-        : QSqlDatabase::addDatabase("QSQLITE", kConnectionName);
+    if (QSqlDatabase::contains(kConnectionName)) {
+        QSqlDatabase existing = QSqlDatabase::database(kConnectionName, false);
+        if (existing.isValid() && existing.isOpen())
+            return true;
+        existing.close();
+        existing = QSqlDatabase();
+        QSqlDatabase::removeDatabase(kConnectionName);
+    }
+
+    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", kConnectionName);
 
     const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (appDataDir.isEmpty() || !QDir().mkpath(appDataDir)) {
         qCritical() << "[Database] Could not create application data directory.";
+        QSqlDatabase::removeDatabase(kConnectionName);
         return false;
     }
 
     db.setDatabaseName(QDir(appDataDir).filePath(kDatabaseFileName));
     if (!db.open()) {
         qCritical() << "[Database] SQLite open failed:" << db.lastError().text();
+        db.close();
+        db = QSqlDatabase();
+        QSqlDatabase::removeDatabase(kConnectionName);
         return false;
     }
 
