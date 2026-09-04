@@ -94,14 +94,21 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $testBinaries = Get-ChildItem 'build\tests' -Filter 'voidone_*_tests.exe' -File
-          if (-not $testBinaries) { throw 'No test executables were produced.' }
+          $testBinaries = Get-ChildItem 'build' -Recurse -Filter 'voidone_*_tests.exe' -File |
+            Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' }
+          if (-not $testBinaries) {
+            Write-Host 'Built files matching voidone_*_tests.exe:'
+            Get-ChildItem 'build' -Recurse -Filter '*.exe' -File |
+              Select-Object -ExpandProperty FullName
+            throw 'No test executables were produced.'
+          }
           foreach ($test in $testBinaries) {
-            Write-Host "Deploying Qt runtime for $($test.Name)"
+            Write-Host "Deploying Qt runtime for $($test.FullName)"
             & windeployqt --release --no-translations --no-compiler-runtime $test.FullName
             if ($LASTEXITCODE -ne 0) { throw "windeployqt failed for $($test.Name): $LASTEXITCODE" }
           }
-          $sqlitePlugin = Get-ChildItem 'build\tests' -Recurse -Filter 'qsqlite.dll' -File | Select-Object -First 1
+          $sqlitePlugin = Get-ChildItem 'build' -Recurse -Filter 'qsqlite.dll' -File |
+            Select-Object -First 1
           if (-not $sqlitePlugin) { throw 'Qt QSQLITE plugin was not deployed for the database tests.' }
 
       - name: Test
@@ -117,7 +124,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Remove-Item package, dist -Recurse -Force -ErrorAction SilentlyContinue
           New-Item package, dist -ItemType Directory -Force | Out-Null
-          $exe = Get-ChildItem build -Filter 'VoidOne.exe' -Recurse |
+          $exe = Get-ChildItem build -Filter 'VoidOne.exe' -Recurse -File |
             Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } |
             Select-Object -First 1
           if (-not $exe) { throw 'VoidOne.exe was not produced.' }
