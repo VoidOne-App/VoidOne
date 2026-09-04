@@ -45,7 +45,7 @@ jobs:
           arch: ${{ env.QT_ARCH }}
           cache: true
           setup-python: false
-          aqtversion: 'git+https://github.com/miurahr/aqtinstall.git'
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git'
 
       - name: Install build tools
         shell: pwsh
