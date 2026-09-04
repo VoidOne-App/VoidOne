@@ -115,6 +115,25 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $env:QT_PLUGIN_PATH = Join-Path $env:GITHUB_WORKSPACE 'build'
+          $env:QT_DEBUG_PLUGINS = '1'
+          $env:QT_LOGGING_RULES = 'qt.sql.*=true'
+
+          Write-Host 'Running database tests directly to preserve Qt/SQLite diagnostics.'
+          $databaseTests = @(
+            (Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_tests.exe'),
+            (Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_lifecycle_tests.exe')
+          )
+          foreach ($test in $databaseTests) {
+            Write-Host "===== $test ====="
+            & $test -v2 2>&1
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -ne 0) {
+              throw "Database test failed: $test (exit code $exitCode)"
+            }
+          }
+
+          Write-Host 'Running full CTest suite.'
           & ctest --test-dir build -C Release --output-on-failure --timeout 120 --verbose
           if ($LASTEXITCODE -ne 0) { throw "CTest failed: $LASTEXITCODE" }
 
