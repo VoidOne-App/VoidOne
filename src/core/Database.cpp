@@ -166,7 +166,7 @@ bool Database::addGamesBatch(const QVector<GameRecord> &games)
     if (games.isEmpty())
         return true;
 
-    const QSqlDatabase db = database();
+    QSqlDatabase db = database();
     if (!db.isValid() || !db.isOpen()) {
         qWarning() << "[Database] Batch insert requested before initialization.";
         return false;
