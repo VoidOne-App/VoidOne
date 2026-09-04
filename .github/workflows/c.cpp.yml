@@ -89,11 +89,25 @@ jobs:
           & cmake --build build --config Release --parallel
           if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
 
+      - name: Deploy Qt runtime for tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $testBinaries = Get-ChildItem 'build\tests' -Filter 'voidone_*_tests.exe' -File
+          if (-not $testBinaries) { throw 'No test executables were produced.' }
+          foreach ($test in $testBinaries) {
+            Write-Host "Deploying Qt runtime for $($test.Name)"
+            & windeployqt --release --no-translations --no-compiler-runtime $test.FullName
+            if ($LASTEXITCODE -ne 0) { throw "windeployqt failed for $($test.Name): $LASTEXITCODE" }
+          }
+          $sqlitePlugin = Get-ChildItem 'build\tests' -Recurse -Filter 'qsqlite.dll' -File | Select-Object -First 1
+          if (-not $sqlitePlugin) { throw 'Qt QSQLITE plugin was not deployed for the database tests.' }
+
       - name: Test
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & ctest --test-dir build -C Release --output-on-failure --timeout 120
+          & ctest --test-dir build -C Release --output-on-failure --timeout 120 --verbose
           if ($LASTEXITCODE -ne 0) { throw "CTest failed: $LASTEXITCODE" }
 
       - name: Stage application
@@ -195,9 +209,9 @@ jobs:
               title = $title
               description = $description
               fields = @(
-                @{ name = 'Branch / Tag'; value = "`$ref`"; inline = $true }
-                @{ name = 'Commit'; value = "`$sha`"; inline = $true }
-                @{ name = 'Event'; value = "`$event`"; inline = $true }
+                @{ name = 'Branch / Tag'; value = ('`' + $ref + '`'); inline = $true }
+                @{ name = 'Commit'; value = ('`' + $sha + '`'); inline = $true }
+                @{ name = 'Event'; value = ('`' + $event + '`'); inline = $true }
               )
               url = $runUrl
               footer = @{ text = 'VoidOne • GitHub Actions' }
