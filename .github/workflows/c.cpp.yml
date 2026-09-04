@@ -115,21 +115,33 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $env:QT_PLUGIN_PATH = Join-Path $env:GITHUB_WORKSPACE 'build'
+          $env:QT_PLUGIN_PATH = "$env:GITHUB_WORKSPACE\build;$env:QT_ROOT_DIR\plugins"
           $env:QT_DEBUG_PLUGINS = '1'
           $env:QT_LOGGING_RULES = 'qt.sql.*=true'
 
-          Write-Host 'Running database tests directly to preserve Qt/SQLite diagnostics.'
+          Write-Host "QT_PLUGIN_PATH=$env:QT_PLUGIN_PATH"
+          Write-Host "QT_ROOT_DIR=$env:QT_ROOT_DIR"
+          Write-Host 'Checking deployed SQLite plugin:'
+          Get-Item (Join-Path $env:GITHUB_WORKSPACE 'build\sqldrivers\qsqlite.dll') | Select-Object FullName,Length,LastWriteTime
+
+          Write-Host 'Running database tests directly and capturing native stdout/stderr.'
           $databaseTests = @(
             (Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_tests.exe'),
             (Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_lifecycle_tests.exe')
           )
           foreach ($test in $databaseTests) {
             Write-Host "===== $test ====="
-            & $test -v2 2>&1
-            $exitCode = $LASTEXITCODE
-            if ($exitCode -ne 0) {
-              throw "Database test failed: $test (exit code $exitCode)"
+            $stdout = Join-Path $env:RUNNER_TEMP ((Split-Path $test -Leaf) + '.stdout.log')
+            $stderr = Join-Path $env:RUNNER_TEMP ((Split-Path $test -Leaf) + '.stderr.log')
+            Remove-Item $stdout, $stderr -Force -ErrorAction SilentlyContinue
+            $process = Start-Process -FilePath $test -ArgumentList @('-v2') -WorkingDirectory (Join-Path $env:GITHUB_WORKSPACE 'build\tests') -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+            Write-Host "Exit code: $($process.ExitCode)"
+            Write-Host '----- stdout -----'
+            if (Test-Path $stdout) { Get-Content $stdout }
+            Write-Host '----- stderr -----'
+            if (Test-Path $stderr) { Get-Content $stderr }
+            if ($process.ExitCode -ne 0) {
+              throw "Database test failed: $test (exit code $($process.ExitCode))"
             }
           }
 
