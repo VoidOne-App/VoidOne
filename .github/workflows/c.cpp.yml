@@ -11,10 +11,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: voidone-ci-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   QT_VERSION: '6.11.2'
   QT_ARCH: win64_msvc2022_64
@@ -27,18 +23,18 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 1
 
       - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@v1.13.0
         with:
           arch: x64
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@v4.3.1
         with:
           version: ${{ env.QT_VERSION }}
           target: desktop
@@ -49,7 +45,12 @@ jobs:
 
       - name: Install build tools
         shell: pwsh
-        run: choco install ninja nsis -y --no-progress
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco install ninja nsis -y --no-progress
+          ninja --version
+          makensis /VERSION
+          cmake --version
 
       - name: Resolve version
         id: version
@@ -221,7 +222,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "ZIP creation failed: $LASTEXITCODE" }
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: VoidOne-${{ steps.version.outputs.value }}
           path: |
