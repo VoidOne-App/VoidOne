@@ -48,8 +48,25 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           choco install ninja nsis -y --no-progress
+
+          $nsisDir = Join-Path ${env:ProgramFiles(x86)} 'NSIS'
+          $makensis = Join-Path $nsisDir 'makensis.exe'
+
+          if (-not (Test-Path $makensis -PathType Leaf)) {
+            throw "NSIS compiler was not found at: $makensis"
+          }
+
+          # Chocolatey may update PATH after the current PowerShell process starts.
+          # Update this process and persist the directory for all later GitHub Actions steps.
+          $env:Path = "$nsisDir;$env:Path"
+          $nsisDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+          Write-Host "NSIS directory: $nsisDir"
+          Write-Host "NSIS compiler: $makensis"
+          & $makensis /VERSION
+          if ($LASTEXITCODE -ne 0) { throw "NSIS version check failed: $LASTEXITCODE" }
+
           ninja --version
-          makensis /VERSION
           cmake --version
 
       - name: Resolve version
