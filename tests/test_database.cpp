@@ -85,5 +85,5 @@ void DatabaseTests::batchInsertIsAtomic()
     QVERIFY(std::any_of(games.cbegin(), games.cend(), [&](const GameRecord &g) { return g.exePath == second.exePath; }));
 }
 
-QTEST_APPLESS_MAIN(DatabaseTests)
+QTEST_GUILESS_MAIN(DatabaseTests)
 #include "test_database.moc"
