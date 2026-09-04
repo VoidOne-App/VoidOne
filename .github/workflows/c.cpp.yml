@@ -66,16 +66,14 @@ jobs:
           "value=$version" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "## Build" >> $env:GITHUB_STEP_SUMMARY
           "- Version: **$version**" >> $env:GITHUB_STEP_SUMMARY
-          "- Commit: `${{ github.sha }}`" >> $env:GITHUB_STEP_SUMMARY
+          "- Commit: $env:GITHUB_SHA" >> $env:GITHUB_STEP_SUMMARY
 
       - name: Configure
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $args = @(
-            '-S', '.',
-            '-B', 'build',
-            '-G', 'Ninja',
+            '-S', '.', '-B', 'build', '-G', 'Ninja',
             '-DCMAKE_BUILD_TYPE=Release',
             '-DVOIDONE_BUILD_TESTS=ON',
             '-DVOIDONE_GENERATE_INSTALLER=OFF',
@@ -127,7 +125,7 @@ jobs:
           if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) { throw 'Installer was not produced.' }
 
       - name: Sign release binaries
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 != '' && secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD != ''
         shell: pwsh
         env:
           SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
@@ -135,23 +133,15 @@ jobs:
           SIGNING_TIMESTAMP_URL: ${{ secrets.WINDOWS_SIGNING_TIMESTAMP_URL }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64) -or
-              [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) {
-            throw 'Release signing secrets are missing. Configure WINDOWS_SIGNING_CERTIFICATE_BASE64 and WINDOWS_SIGNING_CERTIFICATE_PASSWORD.'
-          }
           $timestamp = $env:SIGNING_TIMESTAMP_URL
-          if ([string]::IsNullOrWhiteSpace($timestamp)) {
-            $timestamp = 'http://timestamp.digicert.com'
-          }
+          if ([string]::IsNullOrWhiteSpace($timestamp)) { $timestamp = 'http://timestamp.digicert.com' }
           $pfx = Join-Path $env:RUNNER_TEMP 'voidone-signing.pfx'
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_CERTIFICATE_BASE64))
           $password = ConvertTo-SecureString $env:SIGNING_CERTIFICATE_PASSWORD -AsPlainText -Force
           $cert = Import-PfxCertificate -FilePath $pfx -Password $password -CertStoreLocation Cert:\CurrentUser\My
           if (-not $cert) { throw 'Failed to import signing certificate.' }
-          $thumbprint = $cert.Thumbprint
-          $targets = @('package\VoidOne.exe', 'dist\VoidOne-Setup-x64.exe')
-          foreach ($target in $targets) {
-            & signtool sign /sha1 $thumbprint /fd SHA256 /tr $timestamp /td SHA256 $target
+          foreach ($target in @('package\VoidOne.exe', 'dist\VoidOne-Setup-x64.exe')) {
+            & signtool sign /sha1 $cert.Thumbprint /fd SHA256 /tr $timestamp /td SHA256 $target
             if ($LASTEXITCODE -ne 0) { throw "Signing failed for $target: $LASTEXITCODE" }
             & signtool verify /pa /all $target
             if ($LASTEXITCODE -ne 0) { throw "Signature verification failed for $target: $LASTEXITCODE" }
@@ -176,17 +166,37 @@ jobs:
           retention-days: 14
 
       - name: Discord notification
-        if: always()
+        if: always() && (job.status != 'success' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
         shell: pwsh
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:DISCORD_WEBHOOK)) {
-            Write-Host 'DISCORD_WEBHOOK_URL is not configured; notification skipped.'
-            exit 0
-          }
+          if ([string]::IsNullOrWhiteSpace($env:DISCORD_WEBHOOK)) { exit 0 }
           $status = '${{ job.status }}'
+          $event = '${{ github.event_name }}'
+          $ref = '${{ github.ref_name }}'
+          $sha = '${{ github.sha }}'.Substring(0,7)
+          $repo = '${{ github.repository }}'
+          $runUrl = "https://github.com/$repo/actions/runs/${{ github.run_id }}"
+          switch ($status) {
+            'success' { $title = '✅ VoidOne CI — Build Successful'; $description = 'Windows build, tests, and packaging completed successfully.' }
+            'failure' { $title = '❌ VoidOne CI — Build Failed'; $description = 'The CI pipeline failed. Check the workflow logs for details.' }
+            'cancelled' { $title = '⚠️ VoidOne CI — Build Cancelled'; $description = 'The CI run was cancelled before completion.' }
+            default { $title = 'ℹ️ VoidOne CI — Build Update'; $description = "CI finished with status: $status" }
+          }
           $payload = @{
-            content = "VoidOne CI: $status | ${{ github.ref_name }} | ${{ github.sha }}"
-          } | ConvertTo-Json
+            username = 'VoidOne CI'
+            embeds = @(@{
+              title = $title
+              description = $description
+              fields = @(
+                @{ name = 'Branch / Tag'; value = "`$ref`"; inline = $true }
+                @{ name = 'Commit'; value = "`$sha`"; inline = $true }
+                @{ name = 'Event'; value = "`$event`"; inline = $true }
+              )
+              url = $runUrl
+              footer = @{ text = 'VoidOne • GitHub Actions' }
+              timestamp = [DateTime]::UtcNow.ToString('o')
+            })
+          } | ConvertTo-Json -Depth 6
           Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK -Method Post -ContentType 'application/json' -Body $payload
