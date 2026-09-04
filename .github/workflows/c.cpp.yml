@@ -125,7 +125,7 @@ jobs:
           if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) { throw 'Installer was not produced.' }
 
       - name: Sign release binaries
-        if: startsWith(github.ref, 'refs/tags/v') && secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 != '' && secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD != ''
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
@@ -133,6 +133,11 @@ jobs:
           SIGNING_TIMESTAMP_URL: ${{ secrets.WINDOWS_SIGNING_TIMESTAMP_URL }}
         run: |
           $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64) -or
+              [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) {
+            Write-Host 'Signing secrets are not configured. Skipping code signing.'
+            exit 0
+          }
           $timestamp = $env:SIGNING_TIMESTAMP_URL
           if ([string]::IsNullOrWhiteSpace($timestamp)) { $timestamp = 'http://timestamp.digicert.com' }
           $pfx = Join-Path $env:RUNNER_TEMP 'voidone-signing.pfx'
