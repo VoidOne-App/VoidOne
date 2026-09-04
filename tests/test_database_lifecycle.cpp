@@ -27,5 +27,5 @@ void DatabaseLifecycleTests::initializeAfterShutdown()
     Database::shutdown();
 }
 
-QTEST_APPLESS_MAIN(DatabaseLifecycleTests)
+QTEST_GUILESS_MAIN(DatabaseLifecycleTests)
 #include "test_database_lifecycle.moc"
