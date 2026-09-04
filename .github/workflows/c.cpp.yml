@@ -235,8 +235,15 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          Compress-Archive -Path 'package\*' -DestinationPath 'dist\VoidOne-Portable-x64.zip' -CompressionLevel Optimal
-          if ($LASTEXITCODE -ne 0) { throw "ZIP creation failed: $LASTEXITCODE" }
+          $zip = Join-Path $env:GITHUB_WORKSPACE 'dist\VoidOne-Portable-x64.zip'
+          Remove-Item $zip -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path 'package\*' -DestinationPath $zip -CompressionLevel Optimal
+          if (-not (Test-Path $zip -PathType Leaf)) {
+            throw "Portable ZIP was not created: $zip"
+          }
+          $zipInfo = Get-Item $zip
+          Write-Host "Portable ZIP: $($zipInfo.FullName)"
+          Write-Host "Portable ZIP size: $($zipInfo.Length) bytes"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7.0.1
