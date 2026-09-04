@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  QT_VERSION: '6.8.3'
+  QT_VERSION: '6.11.2'
   QT_ARCH: win64_msvc2022_64
   APP_NAME: VoidOne
 
@@ -45,6 +45,7 @@ jobs:
           arch: ${{ env.QT_ARCH }}
           cache: true
           setup-python: false
+          aqtversion: 'git+https://github.com/miurahr/aqtinstall.git'
 
       - name: Install build tools
         shell: pwsh
