@@ -124,24 +124,31 @@ jobs:
           Write-Host 'Checking deployed SQLite plugin:'
           Get-Item (Join-Path $env:GITHUB_WORKSPACE 'build\sqldrivers\qsqlite.dll') | Select-Object FullName,Length,LastWriteTime
 
-          Write-Host 'Running database tests directly and capturing native stdout/stderr.'
+          Write-Host 'Running database tests with QTest file logging.'
           $databaseTests = @(
             (Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_tests.exe'),
             (Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_lifecycle_tests.exe')
           )
           foreach ($test in $databaseTests) {
             Write-Host "===== $test ====="
-            $stdout = Join-Path $env:RUNNER_TEMP ((Split-Path $test -Leaf) + '.stdout.log')
-            $stderr = Join-Path $env:RUNNER_TEMP ((Split-Path $test -Leaf) + '.stderr.log')
-            Remove-Item $stdout, $stderr -Force -ErrorAction SilentlyContinue
-            $process = Start-Process -FilePath $test -ArgumentList @('-v2') -WorkingDirectory (Join-Path $env:GITHUB_WORKSPACE 'build\tests') -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-            Write-Host "Exit code: $($process.ExitCode)"
-            Write-Host '----- stdout -----'
-            if (Test-Path $stdout) { Get-Content $stdout }
-            Write-Host '----- stderr -----'
-            if (Test-Path $stderr) { Get-Content $stderr }
-            if ($process.ExitCode -ne 0) {
-              throw "Database test failed: $test (exit code $($process.ExitCode))"
+            $log = Join-Path $env:RUNNER_TEMP ((Split-Path $test -Leaf) + '.qtest.log')
+            Remove-Item $log -Force -ErrorAction SilentlyContinue
+
+            & $test '-v2' '-o' "$log,txt"
+            $exitCode = $LASTEXITCODE
+
+            Write-Host "Exit code: $exitCode"
+            Write-Host '----- QTest log -----'
+            if (Test-Path $log) {
+              Get-Content $log
+            } else {
+              Write-Host 'QTest did not create a log file.'
+            }
+
+            if ($exitCode -ne 0) {
+              Write-Host '----- Executable diagnostics -----'
+              Get-Item $test | Select-Object FullName,Length,LastWriteTime
+              throw "Database test failed: $test (exit code $exitCode)"
             }
           }
 
