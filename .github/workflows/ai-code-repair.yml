@@ -1,0 +1,109 @@
+name: VoidOne AI Code Repair
+
+on:
+  workflow_run:
+    workflows: ["VoidOne CI"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "GitHub Actions run ID to diagnose (optional for manual runs)"
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  repair:
+    name: Diagnose failed CI and generate validated repair
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout trusted repair engine
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Resolve target run
+        id: run
+        shell: bash
+        env:
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+        run: |
+          set -euo pipefail
+          run_id="${INPUT_RUN_ID:-${EVENT_RUN_ID:-}}"
+          if [[ -z "$run_id" ]]; then
+            echo "run_id is required for manual runs"
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Repair target run: $run_id"
+
+      - name: Download failed CI logs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          gh run view "$RUN_ID" --log-failed > ci-failure.log
+          if [[ ! -s ci-failure.log ]]; then
+            echo "GitHub Actions returned no failed-step log output." >&2
+            exit 1
+          fi
+          wc -c ci-failure.log
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements-ai-repair.txt
+
+      - name: Install repair dependencies
+        shell: bash
+        run: python -m pip install -r scripts/requirements-ai-repair.txt
+
+      - name: Generate and validate repair candidate
+        id: repair
+        continue-on-error: true
+        env:
+          AI_REPAIR_PROVIDER: experiential-labs
+          AI_REPAIR_MAX_ATTEMPTS: "2"
+          EXPLABS_API_KEY: ${{ secrets.EXPLABS_API_KEY }}
+          EXPLABS_BASE_URL: https://api.experientiallabs.ai/v1
+          EXPLABS_DIAGNOSIS_MODEL: ${{ vars.EXPLABS_DIAGNOSIS_MODEL || 'deepseek-v4-flash' }}
+          EXPLABS_SECOND_OPINION_MODEL: ${{ vars.EXPLABS_SECOND_OPINION_MODEL || 'qwen3.8-27b' }}
+          EXPLABS_REPAIR_MODEL: ${{ vars.EXPLABS_REPAIR_MODEL || 'claude-fable-5.1' }}
+          EXPLABS_REVIEW_MODEL: ${{ vars.EXPLABS_REVIEW_MODEL || 'gpt-5.6-luna' }}
+          AI_REPAIR_TEMP_DIR: ${{ runner.temp }}/voidone-ai
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/ai/dispatcher.py --repo . --log-file ci-failure.log
+
+      - name: Publish repair artifacts
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: VoidOne-AI-Repair-${{ steps.run.outputs.run_id }}
+          path: |
+            ${{ runner.temp }}/voidone-ai/repair-report.json
+            ${{ runner.temp }}/voidone-ai/repair-candidate.patch
+            ci-failure.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Fail when no validated repair was produced
+        if: steps.repair.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "No validated AI repair candidate was produced."
+          exit 1
