@@ -77,12 +77,25 @@ jobs:
           } else {
             $version = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
           }
+
           if ($version -notmatch '^\d+\.\d+\.\d+') {
             throw "Invalid version: $version"
           }
+
+          # Keep the full SemVer-like value for the application and release UI.
+          # Windows PE version resources require exactly four numeric components.
+          $baseVersion = $version -replace '-.*$',''
+          $parts = $baseVersion.Split('.')
+          if ($parts.Count -lt 3) {
+            throw "Unable to derive Windows file version from: $version"
+          }
+          $windowsVersion = "$($parts[0]).$($parts[1]).$($parts[2]).0"
+
           "value=$version" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "windows_value=$windowsVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "## Build" >> $env:GITHUB_STEP_SUMMARY
           "- Version: **$version**" >> $env:GITHUB_STEP_SUMMARY
+          "- Windows file version: **$windowsVersion**" >> $env:GITHUB_STEP_SUMMARY
           "- Commit: $env:GITHUB_SHA" >> $env:GITHUB_STEP_SUMMARY
 
       - name: Configure
@@ -196,7 +209,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' installer.nsi
+          & makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' installer.nsi
           if ($LASTEXITCODE -ne 0) { throw "NSIS failed: $LASTEXITCODE" }
           if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) { throw 'Installer was not produced.' }
 
