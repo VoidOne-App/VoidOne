@@ -20,8 +20,8 @@
 !define START_MENU_DIR "$SMPROGRAMS\${APP_NAME}"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 
-; VERSION is the human-readable SemVer/release value.
-; WINDOWS_VERSION is the four-part numeric PE version required by Windows.
+; VERSION is supplied by CI from the Git tag. WINDOWS_VERSION is the numeric
+; PE version derived from that same tag for Windows version-resource rules.
 !ifndef VERSION
   !define VERSION "0.0.0-dev"
 !endif
