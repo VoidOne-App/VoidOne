@@ -54,12 +54,14 @@ def main() -> int:
     context = collect_context(repo, diagnosis)
     report: dict = {"diagnosis": diagnosis, "attempts": [], "status": "FAILED"}
     previous = ""
+    output_root = Path(os.getenv("AI_REPAIR_TEMP_DIR", repo / ".voidone-ai"))
+    output_root.mkdir(parents=True, exist_ok=True)
 
     for attempt in range(1, int(os.getenv("AI_REPAIR_MAX_ATTEMPTS", "2")) + 1):
         item: dict = {"attempt": attempt}
         try:
             result = generate_patch(repo, log, diagnosis, context, previous)
-            item["ai"] = {k: result.get(k) for k in ("status", "diagnosis", "confidence")}
+            item["ai"] = {k: result.get(k) for k in ("status", "diagnosis", "confidence", "provider", "model")}
             if result.get("status") != "PATCH":
                 raise RuntimeError("AI returned NO_FIX")
             confidence = float(result.get("confidence", 0))
@@ -103,9 +105,15 @@ def main() -> int:
             if not review_ok:
                 raise RuntimeError(review_reason)
 
+            patch_path = output_root / "repair-candidate.patch"
+            patch_path.write_text(patch, encoding="utf-8")
             report["attempts"].append(item)
             report["status"] = "SUCCESS"
-            report["final"] = {"patch_files": len(patch.split("+++ b/")) - 1, "review": review_reason}
+            report["final"] = {
+                "patch_files": len(patch.split("+++ b/")) - 1,
+                "review": review_reason,
+                "candidate_patch": str(patch_path),
+            }
             write_report(repo, report)
             print(json.dumps(report, indent=2, ensure_ascii=False))
             return 0
