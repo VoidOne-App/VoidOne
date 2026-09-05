@@ -10,6 +10,7 @@ import requests
 
 
 MAX_RESPONSE = 180000
+EXPERIENTIAL_PROVIDERS = {"experiential", "experiential-labs", "experiential_labs", "explabs"}
 
 
 def _json(text: str) -> dict[str, Any]:
@@ -111,18 +112,17 @@ def _experiential_labs(prompt: str) -> dict[str, Any]:
 
 
 def generate_patch(repo: Path, log: str, diagnosis: dict[str, Any], context: str, previous: str = "") -> dict[str, Any]:
-    prompt = _prompt(repo, log, diagnosis, context, previous)
     provider = os.getenv("AI_REPAIR_PROVIDER", "gemini").strip().lower()
-    if provider in {"experiential", "experiential-labs", "experiential_labs", "explabs"}:
+    prompt = _prompt(repo, log, diagnosis, context, previous)
+    if provider in EXPERIENTIAL_PROVIDERS:
         result = _experiential_labs(prompt)
     elif provider == "gemini":
         result = _gemini(prompt)
     else:
         raise RuntimeError(f"Unsupported AI_REPAIR_PROVIDER: {provider}")
     result["provider"] = provider
-    result["model"] = (
-        os.getenv("EXPLABS_MODEL", "claude-fable-5.1")
-        if provider in {"experiential", "experiential-labs", "experiential_labs", "explabs"}
-        else os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
-    )
+    result["model"] = os.getenv(
+        "EXPLABS_MODEL" if provider in EXPERIENTIAL_PROVIDERS else "GEMINI_MODEL",
+        "claude-fable-5.1" if provider in EXPERIENTIAL_PROVIDERS else "gemini-2.5-pro",
+    ).strip()
     return result
