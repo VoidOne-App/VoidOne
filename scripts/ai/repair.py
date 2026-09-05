@@ -86,5 +86,43 @@ def _gemini(prompt: str) -> dict[str, Any]:
     return _json(text[:MAX_RESPONSE])
 
 
+def _experiential_labs(prompt: str) -> dict[str, Any]:
+    key = os.getenv("EXPLABS_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError("EXPLABS_API_KEY is not configured")
+    base_url = os.getenv("EXPLABS_BASE_URL", "https://api.experientiallabs.ai/v1").rstrip("/")
+    model = os.getenv("EXPLABS_MODEL", "claude-fable-5.1").strip()
+    response = requests.post(
+        f"{base_url}/chat/completions",
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.05,
+        },
+        timeout=180,
+    )
+    response.raise_for_status()
+    data = response.json()
+    text = data["choices"][0]["message"]["content"]
+    if isinstance(text, list):
+        text = "".join(str(part.get("text", "")) if isinstance(part, dict) else str(part) for part in text)
+    return _json(str(text)[:MAX_RESPONSE])
+
+
 def generate_patch(repo: Path, log: str, diagnosis: dict[str, Any], context: str, previous: str = "") -> dict[str, Any]:
-    return _gemini(_prompt(repo, log, diagnosis, context, previous))
+    prompt = _prompt(repo, log, diagnosis, context, previous)
+    provider = os.getenv("AI_REPAIR_PROVIDER", "gemini").strip().lower()
+    if provider in {"experiential", "experiential-labs", "experiential_labs", "explabs"}:
+        result = _experiential_labs(prompt)
+    elif provider == "gemini":
+        result = _gemini(prompt)
+    else:
+        raise RuntimeError(f"Unsupported AI_REPAIR_PROVIDER: {provider}")
+    result["provider"] = provider
+    result["model"] = (
+        os.getenv("EXPLABS_MODEL", "claude-fable-5.1")
+        if provider in {"experiential", "experiential-labs", "experiential_labs", "explabs"}
+        else os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
+    )
+    return result
