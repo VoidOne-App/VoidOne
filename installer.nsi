@@ -61,10 +61,12 @@ VIAddVersionKey "OriginalFilename" "VoidOne-Setup-x64.exe"
 !define MUI_INSTFILESPAGE_HEADER "Installing VoidOne"
 !define MUI_INSTFILESPAGE_TEXT "Please wait while VoidOne is installed on your computer."
 !define MUI_UNCONFIRMPAGE_TEXT_TOP "This will remove VoidOne from this computer. Your personal game/library data outside the installation folder is not intentionally removed."
+!define MUI_COMPONENTSPAGE_SMALLDESC
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
@@ -112,7 +114,7 @@ Function .onInit
     ${EndIf}
 
     ; Avoid replacing a running executable or locked Qt files.
-    FindWindow $1 "VoidOne"
+    FindWindow $1 "" "${APP_NAME}"
     ${If} $1 != 0
         MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "VoidOne appears to be running. Please close it before continuing." IDOK continue IDABORT cancel
         Abort
@@ -198,11 +200,8 @@ Section "Uninstall"
 SectionEnd
 
 ; -----------------------------------------------------------------------------
-; Section selection defaults / labels
+; Section descriptions
 ; -----------------------------------------------------------------------------
-Function .onSelChange
-FunctionEnd
-
 LangString DESC_SEC_MAIN ${LANG_ENGLISH} "Required VoidOne application files and runtime dependencies."
 LangString DESC_SEC_STARTMENU ${LANG_ENGLISH} "Create a Start Menu folder with launch and uninstall shortcuts."
 LangString DESC_SEC_DESKTOP ${LANG_ENGLISH} "Create a shortcut to VoidOne on the desktop."
