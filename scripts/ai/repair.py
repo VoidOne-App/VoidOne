@@ -11,6 +11,13 @@ import requests
 
 MAX_RESPONSE = 180000
 EXPERIENTIAL_PROVIDERS = {"experiential", "experiential-labs", "experiential_labs", "explabs"}
+DEFAULT_BASE_URL = "https://api.experientiallabs.ai/v1"
+DEFAULT_MODELS = {
+    "diagnosis": "deepseek-v4-flash",
+    "second_opinion": "qwen3.8-27b",
+    "repair": "claude-fable-5.1",
+    "review": "gpt-5.6-luna",
+}
 
 
 def _json(text: str) -> dict[str, Any]:
@@ -36,7 +43,7 @@ def _json(text: str) -> dict[str, Any]:
     return {}
 
 
-def _prompt(repo: Path, log: str, diagnosis: dict[str, Any], context: str, previous: str = "") -> str:
+def _prompt(repo: Path, log: str, diagnosis: dict[str, Any], context: str, previous: str = "", model_feedback: str = "") -> str:
     return f"""You are VoidOne's principal CI/package reliability engineer.
 
 The product is C++23 + Qt6. Python is engineering automation only.
@@ -55,8 +62,11 @@ Return ONLY JSON with:
 FAILURE:
 {log[-24000:]}
 
-DIAGNOSIS:
+LOCAL DIAGNOSIS:
 {json.dumps(diagnosis, ensure_ascii=False)}
+
+MODEL FEEDBACK:
+{model_feedback or "none"}
 
 PREVIOUS VALIDATION:
 {previous or "none"}
@@ -66,41 +76,37 @@ REPOSITORY CONTEXT:
 """.strip()
 
 
-def _gemini(prompt: str) -> dict[str, Any]:
-    key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not key:
-        raise RuntimeError("GEMINI_API_KEY is not configured")
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-pro").strip()
-    endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    response = requests.post(
-        endpoint,
-        headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.05, "responseMimeType": "application/json"},
-        },
-        timeout=180,
-    )
-    response.raise_for_status()
-    data = response.json()
-    text = data["candidates"][0]["content"]["parts"][0]["text"]
-    return _json(text[:MAX_RESPONSE])
-
-
-def _experiential_labs(prompt: str) -> dict[str, Any]:
+def _experiential_config() -> tuple[str, str]:
     key = os.getenv("EXPLABS_API_KEY", "").strip()
     if not key:
         raise RuntimeError("EXPLABS_API_KEY is not configured")
-    base_url = os.getenv("EXPLABS_BASE_URL", "https://api.experientiallabs.ai/v1").rstrip("/")
-    model = os.getenv("EXPLABS_MODEL", "claude-fable-5.1").strip()
+    return os.getenv("EXPLABS_BASE_URL", DEFAULT_BASE_URL).rstrip("/"), key
+
+
+def _experiential_models() -> set[str]:
+    base_url, key = _experiential_config()
+    response = requests.get(
+        f"{base_url}/models",
+        headers={"Authorization": f"Bearer {key}"},
+        timeout=30,
+    )
+    response.raise_for_status()
+    data = response.json()
+    return {str(item.get("id", "")) for item in data.get("data", []) if isinstance(item, dict)}
+
+
+def _experiential_call(model: str, prompt: str) -> dict[str, Any]:
+    base_url, key = _experiential_config()
+    available = _experiential_models()
+    if model not in available:
+        raise RuntimeError(f"Experiential model is not available to this key: {model}")
+
+    # Experiential's official quickstart recommends a minimal OpenAI-compatible
+    # request. In particular, some Claude routes reject sampling parameters.
     response = requests.post(
         f"{base_url}/chat/completions",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        json={
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.05,
-        },
+        json={"model": model, "messages": [{"role": "user", "content": prompt}]},
         timeout=180,
     )
     response.raise_for_status()
@@ -111,18 +117,66 @@ def _experiential_labs(prompt: str) -> dict[str, Any]:
     return _json(str(text)[:MAX_RESPONSE])
 
 
+def _model(role: str) -> str:
+    return os.getenv(f"EXPLABS_{role.upper()}_MODEL", DEFAULT_MODELS[role]).strip()
+
+
+def _model_analysis(prompt: str) -> str:
+    result = _experiential_call(_model("diagnosis"), prompt)
+    return json.dumps(result, ensure_ascii=False)
+
+
+def _second_opinion(prompt: str) -> str:
+    result = _experiential_call(_model("second_opinion"), prompt)
+    return json.dumps(result, ensure_ascii=False)
+
+
 def generate_patch(repo: Path, log: str, diagnosis: dict[str, Any], context: str, previous: str = "") -> dict[str, Any]:
-    provider = os.getenv("AI_REPAIR_PROVIDER", "gemini").strip().lower()
-    prompt = _prompt(repo, log, diagnosis, context, previous)
-    if provider in EXPERIENTIAL_PROVIDERS:
-        result = _experiential_labs(prompt)
-    elif provider == "gemini":
-        result = _gemini(prompt)
-    else:
-        raise RuntimeError(f"Unsupported AI_REPAIR_PROVIDER: {provider}")
+    provider = os.getenv("AI_REPAIR_PROVIDER", "experiential-labs").strip().lower()
+    if provider not in EXPERIENTIAL_PROVIDERS:
+        raise RuntimeError("VoidOne's zero-budget repair pipeline requires AI_REPAIR_PROVIDER=experiential-labs")
+
+    analysis_prompt = f"""You are VoidOne's fast CI failure analyst.
+Return ONLY JSON with keys: root_cause, evidence, proposed_fix, confidence.
+Do not write a patch. Focus on the actual failure and the smallest safe fix.
+
+CI FAILURE:
+{log[-24000:]}
+
+LOCAL DIAGNOSIS:
+{json.dumps(diagnosis, ensure_ascii=False)}
+
+REPOSITORY CONTEXT:
+{context[:40000]}"""
+    fast_analysis = _model_analysis(analysis_prompt)
+
+    second_prompt = f"""You are VoidOne's second-opinion CI engineer.
+Return ONLY JSON with keys: agreement, risks, recommendation, confidence.
+Challenge the first diagnosis. Do not write a patch.
+
+FIRST ANALYSIS:
+{fast_analysis}
+
+CI FAILURE:
+{log[-18000:]}
+
+LOCAL DIAGNOSIS:
+{json.dumps(diagnosis, ensure_ascii=False)}"""
+    second_opinion = _second_opinion(second_prompt)
+
+    repair_prompt = _prompt(
+        repo,
+        log,
+        diagnosis,
+        context,
+        previous,
+        model_feedback=f"Fast diagnosis: {fast_analysis}\nSecond opinion: {second_opinion}",
+    )
+    result = _experiential_call(_model("repair"), repair_prompt)
     result["provider"] = provider
-    result["model"] = os.getenv(
-        "EXPLABS_MODEL" if provider in EXPERIENTIAL_PROVIDERS else "GEMINI_MODEL",
-        "claude-fable-5.1" if provider in EXPERIENTIAL_PROVIDERS else "gemini-2.5-pro",
-    ).strip()
+    result["model"] = _model("repair")
+    result["analysis_model"] = _model("diagnosis")
+    result["second_opinion_model"] = _model("second_opinion")
+    result["analysis"] = _json(fast_analysis)
+    result["second_opinion"] = _json(second_opinion)
     return result
