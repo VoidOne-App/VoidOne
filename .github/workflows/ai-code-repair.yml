@@ -22,7 +22,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout trusted repair engine
         uses: actions/checkout@v7
@@ -79,9 +79,10 @@ jobs:
           AI_REPAIR_MAX_ATTEMPTS: "2"
           EXPLABS_API_KEY: ${{ secrets.EXPLABS_API_KEY }}
           EXPLABS_BASE_URL: https://api.experientiallabs.ai/v1
-          EXPLABS_MODEL: claude-fable-5.1
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_REVIEW_MODEL: ${{ vars.GEMINI_REVIEW_MODEL || 'gemini-2.5-pro' }}
+          EXPLABS_DIAGNOSIS_MODEL: ${{ vars.EXPLABS_DIAGNOSIS_MODEL || 'deepseek-v4-flash' }}
+          EXPLABS_SECOND_OPINION_MODEL: ${{ vars.EXPLABS_SECOND_OPINION_MODEL || 'qwen3.8-27b' }}
+          EXPLABS_REPAIR_MODEL: ${{ vars.EXPLABS_REPAIR_MODEL || 'claude-fable-5.1' }}
+          EXPLABS_REVIEW_MODEL: ${{ vars.EXPLABS_REVIEW_MODEL || 'gpt-5.6-luna' }}
           AI_REPAIR_TEMP_DIR: ${{ runner.temp }}/voidone-ai
         shell: bash
         run: |
