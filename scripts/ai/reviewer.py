@@ -8,6 +8,9 @@ from typing import Any
 
 import requests
 
+DEFAULT_BASE_URL = "https://api.experientiallabs.ai/v1"
+DEFAULT_REVIEW_MODEL = "gpt-5.6-luna"
+
 
 def _parse(text: str) -> dict[str, Any]:
     text = text.strip()
@@ -51,32 +54,50 @@ PATCH:
 """.strip()
 
 
+def _experiential_models(base_url: str, key: str) -> set[str]:
+    response = requests.get(
+        f"{base_url}/models",
+        headers={"Authorization": f"Bearer {key}"},
+        timeout=30,
+    )
+    response.raise_for_status()
+    data = response.json()
+    return {str(item.get("id", "")) for item in data.get("data", []) if isinstance(item, dict)}
+
+
 def review(repo: Path, log: str, patch: str, diagnosis: dict[str, Any], policy: Any) -> tuple[bool, str]:
     del repo, policy
-    key = os.getenv("GEMINI_API_KEY", "").strip()
+    key = os.getenv("EXPLABS_API_KEY", "").strip()
     if not key:
-        return False, "Independent reviewer unavailable: GEMINI_API_KEY is missing."
-    model = os.getenv("GEMINI_REVIEW_MODEL", os.getenv("GEMINI_MODEL", "gemini-2.5-pro")).strip()
-    endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        return False, "Independent reviewer unavailable: EXPLABS_API_KEY is missing."
+
+    base_url = os.getenv("EXPLABS_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
+    model = os.getenv("EXPLABS_REVIEW_MODEL", DEFAULT_REVIEW_MODEL).strip()
     try:
+        available = _experiential_models(base_url, key)
+        if model not in available:
+            return False, f"Independent reviewer model is not available to this key: {model}"
+
+        # Keep this request minimal. Experiential documents that some Claude
+        # routes reject explicit sampling parameters, so the reviewer sends only
+        # model + messages and lets the gateway/model defaults apply.
         response = requests.post(
-            endpoint,
-            headers={"x-goog-api-key": key, "Content-Type": "application/json"},
-            json={
-                "contents": [{"parts": [{"text": _review_prompt(log, diagnosis, patch)}]}],
-                "generationConfig": {"temperature": 0.0, "responseMimeType": "application/json"},
-            },
+            f"{base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"model": model, "messages": [{"role": "user", "content": _review_prompt(log, diagnosis, patch)}]},
             timeout=150,
         )
         response.raise_for_status()
         data = response.json()
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
-        result = _parse(text)
+        text = data["choices"][0]["message"]["content"]
+        if isinstance(text, list):
+            text = "".join(str(part.get("text", "")) if isinstance(part, dict) else str(part) for part in text)
+        result = _parse(str(text))
         decision = result.get("decision")
         confidence = float(result.get("confidence", 0))
         reason = str(result.get("reason", ""))
         if decision == "APPROVE" and confidence >= 70:
-            return True, reason
+            return True, f"{model}: {reason}"
         return False, f"Reviewer rejected patch ({confidence:.0f}%): {reason}"
     except Exception as exc:
         return False, f"Independent reviewer failed: {exc}"
