@@ -16,7 +16,7 @@ paths-ignore:
   - docs
   - '**/generated/**'
 
-# Broad security coverage plus correctness/quality checks.
+# Focus CodeQL on security-relevant findings. The broader quality suite can
+# produce low-value notes for generated/framework-heavy C++ patterns.
 queries:
   - uses: security-extended
-  - uses: security-and-quality

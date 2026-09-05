@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   QT_VERSION: '6.11.2'
@@ -252,6 +252,22 @@ jobs:
             dist/VoidOne-Portable-x64.zip
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = '${{ github.ref_name }}'
+          $title = "VoidOne $tag"
+          gh release create $tag `
+            'dist/VoidOne-Setup-x64.exe' `
+            'dist/VoidOne-Portable-x64.zip' `
+            --title $title `
+            --generate-notes `
+            --verify-tag
 
       - name: Discord notification
         if: always() && (job.status != 'success' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
