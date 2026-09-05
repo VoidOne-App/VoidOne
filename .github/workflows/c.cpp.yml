@@ -51,43 +51,35 @@ jobs:
 
           $nsisDir = Join-Path ${env:ProgramFiles(x86)} 'NSIS'
           $makensis = Join-Path $nsisDir 'makensis.exe'
-
-          if (-not (Test-Path $makensis -PathType Leaf)) {
-            throw "NSIS compiler was not found at: $makensis"
-          }
+          if (-not (Test-Path $makensis -PathType Leaf)) { throw "NSIS compiler was not found at: $makensis" }
 
           $env:Path = "$nsisDir;$env:Path"
           $nsisDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-          Write-Host "NSIS directory: $nsisDir"
-          Write-Host "NSIS compiler: $makensis"
           & $makensis /VERSION
           if ($LASTEXITCODE -ne 0) { throw "NSIS version check failed: $LASTEXITCODE" }
-
           ninja --version
           cmake --version
 
       - name: Resolve version
         id: version
         shell: pwsh
+        env:
+          VOIDONE_REF_TYPE: ${{ github.ref_type }}
+          VOIDONE_REF_NAME: ${{ github.ref_name }}
         run: |
           $ErrorActionPreference = 'Stop'
 
           # Git tags are the single source of truth for release versions.
-          if ('${{ github.ref_type }}' -eq 'tag') {
-            $version = '${{ github.ref_name }}' -replace '^v',''
+          if ($env:VOIDONE_REF_TYPE -eq 'tag') {
+            $version = $env:VOIDONE_REF_NAME -replace '^v',''
           } else {
             $version = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
           }
 
-          # Release tags must be SemVer-like: vMAJOR.MINOR.PATCH[-PRERELEASE]
           if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
             throw "Invalid version/tag: $version. Expected vMAJOR.MINOR.PATCH[-PRERELEASE]."
           }
 
-          # Windows PE version resources require exactly four numeric components.
-          # The release/prerelease label remains in VERSION; PE metadata uses the
-          # stable MAJOR.MINOR.PATCH plus a numeric fourth component.
           $baseVersion = $version -replace '-.*$',''
           $parts = $baseVersion.Split('.')
           $windowsVersion = "$($parts[0]).$($parts[1]).$($parts[2]).0"
@@ -95,7 +87,7 @@ jobs:
           "value=$version" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "windows_value=$windowsVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "## Build" >> $env:GITHUB_STEP_SUMMARY
-          "- Version source: **Git tag**" >> $env:GITHUB_STEP_SUMMARY
+          "- Version source: **Git tag** (PRs use an ephemeral dev version)" >> $env:GITHUB_STEP_SUMMARY
           "- Version: **$version**" >> $env:GITHUB_STEP_SUMMARY
           "- Windows file version: **$windowsVersion**" >> $env:GITHUB_STEP_SUMMARY
           "- Commit: $env:GITHUB_SHA" >> $env:GITHUB_STEP_SUMMARY
@@ -104,13 +96,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $args = @(
-            '-S', '.', '-B', 'build', '-G', 'Ninja',
-            '-DCMAKE_BUILD_TYPE=Release',
-            '-DVOIDONE_BUILD_TESTS=ON',
-            '-DVOIDONE_GENERATE_INSTALLER=OFF',
-            '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}'
-          )
+          $args = @('-S','.', '-B','build','-G','Ninja','-DCMAKE_BUILD_TYPE=Release','-DVOIDONE_BUILD_TESTS=ON','-DVOIDONE_GENERATE_INSTALLER=OFF','-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}')
           & cmake @args
           if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
 
@@ -125,21 +111,13 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $testBinaries = Get-ChildItem 'build' -Recurse -Filter 'voidone_*_tests.exe' -File |
-            Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' }
-          if (-not $testBinaries) {
-            Write-Host 'Built files matching voidone_*_tests.exe:'
-            Get-ChildItem 'build' -Recurse -Filter '*.exe' -File |
-              Select-Object -ExpandProperty FullName
-            throw 'No test executables were produced.'
-          }
+          $testBinaries = Get-ChildItem 'build' -Recurse -Filter 'voidone_*_tests.exe' -File | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' }
+          if (-not $testBinaries) { throw 'No test executables were produced.' }
           foreach ($test in $testBinaries) {
-            Write-Host "Deploying Qt runtime for $($test.FullName)"
             & windeployqt --release --no-translations --no-compiler-runtime $test.FullName
             if ($LASTEXITCODE -ne 0) { throw "windeployqt failed for $($test.Name): $LASTEXITCODE" }
           }
-          $sqlitePlugin = Get-ChildItem 'build' -Recurse -Filter 'qsqlite.dll' -File |
-            Select-Object -First 1
+          $sqlitePlugin = Get-ChildItem 'build' -Recurse -Filter 'qsqlite.dll' -File | Select-Object -First 1
           if (-not $sqlitePlugin) { throw 'Qt QSQLITE plugin was not deployed for the database tests.' }
 
       - name: Test
@@ -149,41 +127,15 @@ jobs:
           $env:QT_PLUGIN_PATH = "$env:GITHUB_WORKSPACE\build;$env:QT_ROOT_DIR\plugins"
           $env:QT_DEBUG_PLUGINS = '1'
           $env:QT_LOGGING_RULES = 'qt.sql.*=true'
-
-          Write-Host "QT_PLUGIN_PATH=$env:QT_PLUGIN_PATH"
-          Write-Host "QT_ROOT_DIR=$env:QT_ROOT_DIR"
-          Write-Host 'Checking deployed SQLite plugin:'
-          Get-Item (Join-Path $env:GITHUB_WORKSPACE 'build\sqldrivers\qsqlite.dll') | Select-Object FullName,Length,LastWriteTime
-
-          Write-Host 'Running database tests with QTest file logging.'
-          $databaseTests = @(
-            (Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_tests.exe'),
-            (Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_lifecycle_tests.exe')
-          )
+          $databaseTests = @((Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_tests.exe'),(Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_lifecycle_tests.exe'))
           foreach ($test in $databaseTests) {
-            Write-Host "===== $test ====="
             $log = Join-Path $env:RUNNER_TEMP ((Split-Path $test -Leaf) + '.qtest.log')
             Remove-Item $log -Force -ErrorAction SilentlyContinue
-
             & $test '-v2' '-o' "$log,txt"
             $exitCode = $LASTEXITCODE
-
-            Write-Host "Exit code: $exitCode"
-            Write-Host '----- QTest log -----'
-            if (Test-Path $log) {
-              Get-Content $log
-            } else {
-              Write-Host 'QTest did not create a log file.'
-            }
-
-            if ($exitCode -ne 0) {
-              Write-Host '----- Executable diagnostics -----'
-              Get-Item $test | Select-Object FullName,Length,LastWriteTime
-              throw "Database test failed: $test (exit code $exitCode)"
-            }
+            if (Test-Path $log) { Get-Content $log }
+            if ($exitCode -ne 0) { throw "Database test failed: $test (exit code $exitCode)" }
           }
-
-          Write-Host 'Running full CTest suite.'
           & ctest --test-dir build -C Release --output-on-failure --timeout 120 --verbose
           if ($LASTEXITCODE -ne 0) { throw "CTest failed: $LASTEXITCODE" }
 
@@ -193,17 +145,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Remove-Item package, dist -Recurse -Force -ErrorAction SilentlyContinue
           New-Item package, dist -ItemType Directory -Force | Out-Null
-          $exe = Get-ChildItem build -Filter 'VoidOne.exe' -Recurse -File |
-            Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } |
-            Select-Object -First 1
+          $exe = Get-ChildItem build -Filter 'VoidOne.exe' -Recurse -File | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } | Select-Object -First 1
           if (-not $exe) { throw 'VoidOne.exe was not produced.' }
           Copy-Item $exe.FullName 'package\VoidOne.exe'
           $qml = Join-Path $env:GITHUB_WORKSPACE 'src\ui\qml'
-          if (Test-Path $qml) {
-            & windeployqt --release --compiler-runtime --no-translations --qmldir $qml 'package\VoidOne.exe'
-          } else {
-            & windeployqt --release --compiler-runtime --no-translations 'package\VoidOne.exe'
-          }
+          if (Test-Path $qml) { & windeployqt --release --compiler-runtime --no-translations --qmldir $qml 'package\VoidOne.exe' } else { & windeployqt --release --compiler-runtime --no-translations 'package\VoidOne.exe' }
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed: $LASTEXITCODE" }
           if (-not (Test-Path 'package\platforms\qwindows.dll')) { throw 'Qt Windows platform plugin is missing.' }
 
@@ -224,11 +170,7 @@ jobs:
           SIGNING_TIMESTAMP_URL: ${{ secrets.WINDOWS_SIGNING_TIMESTAMP_URL }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64) -or
-              [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) {
-            Write-Host 'Signing secrets are not configured. Skipping code signing.'
-            exit 0
-          }
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64) -or [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) { Write-Host 'Signing secrets are not configured. Skipping code signing.'; exit 0 }
           $timestamp = $env:SIGNING_TIMESTAMP_URL
           if ([string]::IsNullOrWhiteSpace($timestamp)) { $timestamp = 'http://timestamp.digicert.com' }
           $pfx = Join-Path $env:RUNNER_TEMP 'voidone-signing.pfx'
@@ -236,7 +178,7 @@ jobs:
           $password = ConvertTo-SecureString $env:SIGNING_CERTIFICATE_PASSWORD -AsPlainText -Force
           $cert = Import-PfxCertificate -FilePath $pfx -Password $password -CertStoreLocation Cert:\CurrentUser\My
           if (-not $cert) { throw 'Failed to import signing certificate.' }
-          foreach ($target in @('package\VoidOne.exe', 'dist\VoidOne-Setup-x64.exe')) {
+          foreach ($target in @('package\VoidOne.exe','dist\VoidOne-Setup-x64.exe')) {
             & signtool sign /sha1 $cert.Thumbprint /fd SHA256 /tr $timestamp /td SHA256 $target
             if ($LASTEXITCODE -ne 0) { throw "Signing failed for ${target}: $LASTEXITCODE" }
             & signtool verify /pa /all $target
@@ -251,12 +193,7 @@ jobs:
           $zip = Join-Path $env:GITHUB_WORKSPACE 'dist\VoidOne-Portable-x64.zip'
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path 'package\*' -DestinationPath $zip -CompressionLevel Optimal
-          if (-not (Test-Path $zip -PathType Leaf)) {
-            throw "Portable ZIP was not created: $zip"
-          }
-          $zipInfo = Get-Item $zip
-          Write-Host "Portable ZIP: $($zipInfo.FullName)"
-          Write-Host "Portable ZIP size: $($zipInfo.Length) bytes"
+          if (-not (Test-Path $zip -PathType Leaf)) { throw "Portable ZIP was not created: $zip" }
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7.0.1
@@ -287,19 +224,5 @@ jobs:
             'cancelled' { $title = '⚠️ VoidOne CI — Build Cancelled'; $description = 'The CI run was cancelled before completion.' }
             default { $title = 'ℹ️ VoidOne CI — Build Update'; $description = "CI finished with status: $status" }
           }
-          $payload = @{
-            username = 'VoidOne CI'
-            embeds = @(@{
-              title = $title
-              description = $description
-              fields = @(
-                @{ name = 'Branch / Tag'; value = ('`' + $ref + '`'); inline = $true }
-                @{ name = 'Commit'; value = ('`' + $sha + '`'); inline = $true }
-                @{ name = 'Event'; value = ('`' + $event + '`'); inline = $true }
-              )
-              url = $runUrl
-              footer = @{ text = 'VoidOne • GitHub Actions' }
-              timestamp = [DateTime]::UtcNow.ToString('o')
-            })
-          } | ConvertTo-Json -Depth 6
+          $payload = @{ username='VoidOne CI'; embeds=@(@{ title=$title; description=$description; fields=@(@{name='Branch / Tag';value=('`'+$ref+'`');inline=$true},@{name='Commit';value=('`'+$sha+'`');inline=$true},@{name='Event';value=('`'+$event+'`');inline=$true}); url=$runUrl; footer=@{text='VoidOne • GitHub Actions'}; timestamp=[DateTime]::UtcNow.ToString('o') }) } | ConvertTo-Json -Depth 6
           Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK -Method Post -ContentType 'application/json' -Body $payload
