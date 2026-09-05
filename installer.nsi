@@ -95,7 +95,7 @@ VIAddVersionKey "OriginalFilename" "VoidOne-Setup-x64.exe"
 !insertmacro MUI_LANGUAGE "Farsi"
 
 ; -----------------------------------------------------------------------------
-; Optional installation components
+; Installation components
 ; -----------------------------------------------------------------------------
 Section "VoidOne" SEC_MAIN
     SectionIn RO
@@ -168,7 +168,6 @@ Function .onInit
     ${EndIf}
 
     SetRegView 64
-    SetShellVarContext all
     SetShellVarContext all
 
     ; Preserve the user's existing installation location during upgrades.
