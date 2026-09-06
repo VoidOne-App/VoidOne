@@ -1,7 +1,6 @@
 {
   "version": 6,
   "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
-
   "configurePresets": [
     {
       "name": "base",
@@ -31,7 +30,7 @@
     {
       "name": "release",
       "displayName": "Release (local)",
-      "description": "Optimized local release build matching production defaults.",
+      "description": "Optimized local release build with tests enabled.",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
@@ -56,7 +55,7 @@
     {
       "name": "reproducible",
       "displayName": "Reproducible verification build",
-      "description": "Release build intended for reproducibility checks. SOURCE_DATE_EPOCH must be set before configuring.",
+      "description": "Release verification build. SOURCE_DATE_EPOCH must be set before configuring.",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
@@ -67,14 +66,12 @@
       }
     }
   ],
-
   "buildPresets": [
     { "name": "dev", "configurePreset": "dev" },
     { "name": "release", "configurePreset": "release" },
     { "name": "ci-windows", "configurePreset": "ci-windows" },
     { "name": "reproducible", "configurePreset": "reproducible" }
   ],
-
   "testPresets": [
     {
       "name": "dev",
