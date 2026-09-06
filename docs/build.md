@@ -1,410 +1,195 @@
-VoidOne Build Guide
+# VoidOne Build Guide
 
-This document explains how to build VoidOne from source.
+VoidOne is a native C++23 / Qt 6 desktop application. The repository uses CMake presets so local development and CI share the same build vocabulary.
 
-«Development status: VoidOne is currently in active development. Build instructions and project requirements may change as the project evolves.»
+> VoidOne is in active development. Requirements and build behavior may evolve.
 
----
+## 1. Requirements
 
-🛠️ Prerequisites
+### Windows — primary platform
 
-Windows
-
-- Windows 10 or Windows 11
-- Visual Studio 2022 or Visual Studio Build Tools 2022
-- MSVC x64 compiler
-- Qt 6
-- CMake
+- Windows 10 or Windows 11, x64
+- Visual Studio 2022 or Build Tools with MSVC x64
+- Qt 6.11.x with the MSVC 2022 64-bit kit
+- CMake 3.25+
 - Ninja
 - Git
 
-VoidOne is currently developed and tested primarily on Windows.
+### Linux
 
-Linux
-
-- A recent Linux distribution
-- GCC or Clang
+- Recent 64-bit Linux distribution
+- GCC or Clang with C++23 support
 - Qt 6
-- CMake
+- CMake 3.25+
 - Ninja
 - Git
-- Required system development libraries
 
-Linux builds are currently tested through the project's CI pipeline.
+Linux support is part of the project direction, but Windows is currently the primary release platform.
 
-macOS
+### macOS
 
-macOS support is not currently part of the primary build/test configuration.
+macOS is not currently part of the primary build/test/release pipeline.
 
-The project may support macOS in the future as the build system and platform integration mature.
+## 2. Clone
 
----
-
-📦 Installing Qt
-
-VoidOne uses Qt 6 with QML.
-
-You can obtain Qt from:
-
-https://www.qt.io/download-open-source
-
-For Windows, use a Qt installation containing the MSVC 2022 64-bit desktop kit.
-
-For Linux, install the GCC 64-bit desktop kit.
-
----
-
-📥 Clone the Repository
-
-Clone the repository:
-
+```bash
 git clone https://github.com/VoidOne-App/VoidOne.git
 cd VoidOne
+```
 
+## 3. Configure Qt
 
----
+If Qt is not discoverable by CMake, set `CMAKE_PREFIX_PATH` to the appropriate Qt kit.
 
-⚙️ Configure the Project
+Windows example:
 
-VoidOne uses CMake as its build system.
+```powershell
+cmake --preset release -DCMAKE_PREFIX_PATH="C:\Qt\6.11.2\msvc2022_64"
+```
 
-Windows
+Linux example:
 
-If Qt is available in your environment:
+```bash
+cmake --preset release -DCMAKE_PREFIX_PATH="$HOME/Qt/6.11.2/gcc_64"
+```
 
-cmake `
-  -S . `
-  -B build `
-  -G Ninja `
-  -DCMAKE_BUILD_TYPE=Release `
-  -DCMAKE_CXX_STANDARD=23
+## 4. CMake presets
 
-If CMake cannot automatically locate Qt, specify the Qt installation:
+The repository provides these supported presets:
 
-cmake `
-  -S . `
-  -B build `
-  -G Ninja `
-  -DCMAKE_BUILD_TYPE=Release `
-  -DCMAKE_CXX_STANDARD=23 `
-  -DCMAKE_PREFIX_PATH="C:\Qt\6.x.x\msvc2022_64"
+| Preset | Purpose |
+|---|---|
+| `dev` | Debug development, tests, sanitizers |
+| `release` | Local optimized release with tests |
+| `ci-windows` | Strict Windows CI configuration |
+| `reproducible` | Reproducibility verification |
 
-Replace the path with the location of your Qt installation.
+Configure a preset:
 
----
-
-Linux
-
-cmake \
-  -S . \
-  -B build \
-  -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_CXX_STANDARD=23
-
-If Qt cannot be found automatically:
-
-cmake \
-  -S . \
-  -B build \
-  -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_CXX_STANDARD=23 \
-  -DCMAKE_PREFIX_PATH="$HOME/Qt/6.x.x/gcc_64"
-
----
-
-🔨 Build
-
-Build the project using:
-
-cmake --build build --parallel
-
-For a Debug build:
-
-cmake \
-  -S . \
-  -B build-debug \
-  -G Ninja \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_CXX_STANDARD=23
-
-cmake --build build-debug --parallel
-
----
-
-▶️ Running the Application
-
-The exact executable location depends on the current CMake configuration.
-
-To locate the executable after building:
-
-Windows
-
-Get-ChildItem build -Filter *.exe -Recurse
-
-Linux
-
-find build -type f -executable
-
-Run the resulting executable from its build directory.
-
----
-
-📦 Creating a Windows Release Package
-
-For a distributable Windows build, the Qt runtime libraries must be deployed alongside the executable.
-
-Qt provides the "windeployqt" tool for this purpose.
-
-Example:
-
-windeployqt `
-  --release `
-  --qmldir ".\src\ui\qml" `
-  ".\build\path\to\VoidOneLauncher.exe"
-
-The resulting directory should contain the executable and the required Qt runtime files.
-
-You can then package the directory as a ZIP archive.
-
-«The official GitHub Actions workflow performs this deployment automatically for Windows release builds.»
-
----
-
-🐧 Linux Release Package
-
-Linux release packaging is currently handled by the GitHub Actions workflow.
-
-The CI pipeline:
-
-1. Builds the Release configuration.
-2. Installs the project into a package directory.
-3. Verifies the executable.
-4. Creates a ".tar.gz" archive.
-5. Generates a SHA-256 checksum.
-6. Uploads the resulting artifacts.
-
----
-
-🧪 Tests
-
-If the project has tests enabled, configure them with:
-
-cmake \
-  -S . \
-  -B build-tests \
-  -G Ninja \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_CXX_STANDARD=23 \
-  -DNEONLAUNCHER_BUILD_TESTS=ON
-
-Build:
-
-cmake --build build-tests --parallel
-
-Run:
-
-ctest \
-  --test-dir build-tests \
-  --output-on-failure \
-  --parallel 2
-
----
-
-🔍 Static Analysis
-
-The project can also be built using Clang and "clang-tidy".
-
-Example:
-
-cmake \
-  -S . \
-  -B build-analysis \
-  -G Ninja \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_CXX_STANDARD=23 \
-  -DCMAKE_CXX_COMPILER=clang++ \
-  -DCMAKE_CXX_CLANG_TIDY=clang-tidy
-
-Then:
-
-cmake --build build-analysis --parallel
-
----
-
-🧹 Clean Build
-
-If you encounter unexpected CMake or Qt configuration errors, remove the build directory and configure again.
-
-Linux
-
-rm -rf build
-
-Windows PowerShell
-
-Remove-Item -Recurse -Force build
-
-Then configure and build again:
-
-cmake \
-  -S . \
-  -B build \
-  -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_CXX_STANDARD=23
-
-cmake --build build --parallel
-
----
-
-❗ Troubleshooting
-
-Qt Not Found
-
-If CMake reports that Qt cannot be found, verify that the correct Qt installation is being used.
-
-Check your Qt path and pass it through:
-
-CMAKE_PREFIX_PATH
-
-For example:
-
--DCMAKE_PREFIX_PATH="C:\Qt\6.x.x\msvc2022_64"
+```bash
+cmake --preset dev
+```
 
 or:
 
--DCMAKE_PREFIX_PATH="$HOME/Qt/6.x.x/gcc_64"
+```bash
+cmake --preset release
+```
 
----
+Build using the matching build preset:
 
-CMake Cannot Find Ninja
+```bash
+cmake --build --preset dev
+```
 
-Install Ninja and make sure it is available in your "PATH".
+```bash
+cmake --build --preset release
+```
 
-Check:
+## 5. Run tests
 
-ninja --version
+```bash
+ctest --preset dev
+```
 
----
+For a release-style validation build:
 
-Application Starts and Immediately Exits
+```bash
+ctest --preset release
+```
 
-Run the application from a terminal so that runtime output can be observed.
+For CI-equivalent Windows validation:
 
-On Windows:
+```bash
+cmake --preset ci-windows
+cmake --build --preset ci-windows
+ctest --preset ci-windows
+```
 
-.\path\to\VoidOneLauncher.exe
+CTest is the authoritative test entry point. Use `--output-on-failure` when diagnosing a failing test locally.
+
+## 6. Manual CMake configuration
+
+Presets are preferred, but a direct configure remains supported:
+
+```bash
+cmake -S . -B build/manual -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_STANDARD=23 \
+  -DVOIDONE_BUILD_TESTS=ON
+```
+
+Build:
+
+```bash
+cmake --build build/manual --parallel
+```
+
+## 7. Run the application
+
+The exact binary location depends on the selected preset. To locate it on Windows:
+
+```powershell
+Get-ChildItem build -Filter VoidOne.exe -Recurse -File
+```
 
 On Linux:
 
-./path/to/VoidOneLauncher
+```bash
+find build -type f -executable -name 'VoidOne*'
+```
 
-For development builds, Qt/QML debug output can help identify:
+## 8. Windows packaging
 
-- QML loading failures
-- Missing modules
-- Missing runtime libraries
-- Application initialization failures
-- Incorrect resource paths
+Release packaging is performed by GitHub Actions and should be reproduced from the repository root.
 
----
+The packaging flow stages the application under `package/`, deploys Qt with `windeployqt`, and then builds:
 
-🤖 GitHub Actions
+- `dist/VoidOne-Setup-x64.exe`
+- `dist/VoidOne-Portable-x64.zip`
 
-VoidOne uses GitHub Actions for automated builds and validation.
+The NSIS source is located at:
 
-The CI pipeline currently includes:
+```text
+packaging/windows/installer.nsi
+```
 
-- Windows Release
-- Windows Debug
-- Linux Release
-- Linux Debug
-- Unit Tests
-- AddressSanitizer
-- UndefinedBehaviorSanitizer
-- Static Analysis
-- QML validation
-- Automated release packaging
+The installer expects its inputs from repository-root paths and therefore remains safe to invoke from the repository CI workflow.
 
-You can view the workflow from the repository's Actions tab.
+## 9. Clean builds
 
----
+When changing Qt versions, toolchains, presets, or major CMake configuration, prefer a clean build directory:
 
-🌿 Development Workflow
+```powershell
+Remove-Item build -Recurse -Force
+```
 
-Create a feature branch:
+Then configure again with the desired preset.
 
-git checkout main
-git pull origin main
-git checkout -b feature/your-feature
+Do not commit generated directories. The repository `.gitignore` excludes build, package, distribution, IDE, and common compiler artifacts.
 
-Make your changes and test them locally.
+## 10. Reproducible verification
 
-Then commit:
+The `reproducible` preset requires `SOURCE_DATE_EPOCH` to be set before configuration.
 
-git add .
-git commit -m "Add your feature"
+Example in PowerShell:
 
-Push the branch:
+```powershell
+$env:SOURCE_DATE_EPOCH = "<unix-timestamp>"
+cmake --preset reproducible
+cmake --build --preset reproducible
+```
 
-git push origin feature/your-feature
+The goal is deterministic build metadata and normalized compiler paths where the selected toolchain supports them.
 
-Then open a Pull Request on GitHub.
+## 11. CI source of truth
 
----
+The Windows workflow is:
 
-🐛 Reporting Problems
+```text
+.github/workflows/c.cpp.yml
+```
 
-When reporting a build or runtime problem, please include:
+It performs source checkout, toolchain setup, version resolution, CMake build, tests, Qt deployment, installer validation, NSIS packaging, optional signing, portable packaging, artifact upload, and release publication for tags.
 
-- Operating system
-- Compiler
-- Compiler version
-- Qt version
-- CMake version
-- Relevant error messages
-- Build configuration
-- Steps to reproduce the problem
-
-For runtime crashes, include any terminal or debug output available.
-
----
-
-🤝 Contributing
-
-Contributions are welcome.
-
-You can contribute through:
-
-- C++
-- Qt / QML
-- UI/UX
-- Testing
-- Documentation
-- Bug reports
-- Feature proposals
-- Performance improvements
-- Platform support
-
-You do not need to be an expert to contribute.
-
----
-
-📌 Current Development Focus
-
-The project is currently focused on establishing a stable foundation:
-
-- Reliable C++/Qt architecture
-- QML application startup
-- Cross-platform builds
-- Automated CI/CD
-- Release packaging
-- Game detection
-- Game library management
-
-As the foundation becomes stable, additional launcher features will be introduced.
-
----
-
-VoidOne — One launcher for your games.
+When this document and the workflow disagree about an implementation detail, the workflow and the actual build scripts are authoritative.
