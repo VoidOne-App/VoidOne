@@ -46,19 +46,41 @@ jobs:
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           echo "Repair target run: $run_id"
 
+      - name: Prepare AI repair workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          repair_dir="${RUNNER_TEMP}/voidone-ai"
+          mkdir -p "$repair_dir"
+          echo "repair_dir=$repair_dir" >> "$GITHUB_OUTPUT"
+          echo "AI repair workspace: $repair_dir"
+
       - name: Download failed CI logs
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ steps.run.outputs.run_id }}
+          REPAIR_DIR: ${{ steps.workspace.outputs.repair_dir }}
         run: |
           set -euo pipefail
-          gh run view "$RUN_ID" --log-failed > ci-failure.log
-          if [[ ! -s ci-failure.log ]]; then
+          gh run view "$RUN_ID" --log-failed > "$REPAIR_DIR/ci-failure.log"
+          if [[ ! -s "$REPAIR_DIR/ci-failure.log" ]]; then
             echo "GitHub Actions returned no failed-step log output." >&2
             exit 1
           fi
-          wc -c ci-failure.log
+          wc -c "$REPAIR_DIR/ci-failure.log"
+
+      - name: Verify repair repository is clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            echo "Repair engine checkout is not clean." >&2
+            git status --short
+            exit 1
+          fi
+          echo "Repair engine checkout is clean."
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -83,11 +105,13 @@ jobs:
           EXPLABS_SECOND_OPINION_MODEL: ${{ vars.EXPLABS_SECOND_OPINION_MODEL || 'qwen3.8-27b' }}
           EXPLABS_REPAIR_MODEL: ${{ vars.EXPLABS_REPAIR_MODEL || 'claude-fable-5.1' }}
           EXPLABS_REVIEW_MODEL: ${{ vars.EXPLABS_REVIEW_MODEL || 'gpt-5.6-luna' }}
-          AI_REPAIR_TEMP_DIR: ${{ runner.temp }}/voidone-ai
+          AI_REPAIR_TEMP_DIR: ${{ steps.workspace.outputs.repair_dir }}
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/ai/dispatcher.py --repo . --log-file ci-failure.log
+          python scripts/ai/dispatcher.py \
+            --repo . \
+            --log-file "${AI_REPAIR_TEMP_DIR}/ci-failure.log"
 
       - name: Publish repair artifacts
         if: always()
@@ -95,9 +119,9 @@ jobs:
         with:
           name: VoidOne-AI-Repair-${{ steps.run.outputs.run_id }}
           path: |
-            ${{ runner.temp }}/voidone-ai/repair-report.json
-            ${{ runner.temp }}/voidone-ai/repair-candidate.patch
-            ci-failure.log
+            ${{ steps.workspace.outputs.repair_dir }}/repair-report.json
+            ${{ steps.workspace.outputs.repair_dir }}/repair-candidate.patch
+            ${{ steps.workspace.outputs.repair_dir }}/ci-failure.log
           if-no-files-found: warn
           retention-days: 14
 
