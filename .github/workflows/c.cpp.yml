@@ -82,7 +82,6 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
 
-          # Git tags are the single source of truth for release versions.
           if ($env:VOIDONE_REF_TYPE -eq 'tag') {
             $version = $env:VOIDONE_REF_NAME -replace '^v',''
           } else {
@@ -219,8 +218,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
 
           $requiredFiles = @(
-            'installer.nsi',
-            'app-icon.ico',
+            'packaging\windows\installer.nsi',
+            'assets\app-icon.ico',
             'LICENSE',
             'package\VoidOne.exe',
             'package\platforms\qwindows.dll'
@@ -242,7 +241,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' installer.nsi
+          & makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' 'packaging\windows\installer.nsi'
           if ($LASTEXITCODE -ne 0) { throw "NSIS failed: $LASTEXITCODE" }
           if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) {
             throw 'Installer was not produced.'

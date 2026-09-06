@@ -65,8 +65,8 @@ VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 ${PUBLISHER}"
 VIAddVersionKey "OriginalFilename" "VoidOne-Setup-x64.exe"
 VIAddVersionKey "Comments" "Open-source native PC gaming platform"
 
-!define MUI_ICON "app-icon.ico"
-!define MUI_UNICON "app-icon.ico"
+!define MUI_ICON "assets\app-icon.ico"
+!define MUI_UNICON "assets\app-icon.ico"
 !define MUI_ABORTWARNING
 !define MUI_COMPONENTSPAGE_SMALLDESC
 !define MUI_COMPONENTSPAGE_TEXT_TOP "Choose the VoidOne shortcuts you want. The application itself is always installed."
