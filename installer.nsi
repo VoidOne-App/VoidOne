@@ -11,9 +11,6 @@
 !include "FileFunc.nsh"
 !include "Sections.nsh"
 
-; -----------------------------------------------------------------------------
-; Installer identity
-; -----------------------------------------------------------------------------
 !define APP_NAME "VoidOne"
 !define COMPANY_NAME "VoidOne"
 !define EXE_NAME "VoidOne.exe"
@@ -27,7 +24,6 @@
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 !define APP_REG_KEY "Software\${COMPANY_NAME}\${APP_NAME}"
 
-; Git tag is the source of truth. CI injects both values.
 !ifndef VERSION
   !define VERSION "0.0.0-dev"
 !endif
@@ -35,9 +31,6 @@
   !define WINDOWS_VERSION "0.0.0.0"
 !endif
 
-; -----------------------------------------------------------------------------
-; General installer configuration
-; -----------------------------------------------------------------------------
 Name "${APP_NAME} ${VERSION}"
 Caption "${APP_NAME} ${VERSION} Setup"
 OutFile "dist\VoidOne-Setup-x64.exe"
@@ -55,7 +48,6 @@ SetCompressor /SOLID lzma
 SetCompressorDictSize 32
 SetDateSave on
 
-; Windows Explorer / Apps & Features version metadata.
 VIProductVersion "${WINDOWS_VERSION}"
 VIAddVersionKey "ProductName" "${APP_NAME}"
 VIAddVersionKey "CompanyName" "${PUBLISHER}"
@@ -66,9 +58,6 @@ VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 ${PUBLISHER}"
 VIAddVersionKey "OriginalFilename" "VoidOne-Setup-x64.exe"
 VIAddVersionKey "Comments" "Open-source native PC gaming platform"
 
-; -----------------------------------------------------------------------------
-; Modern UI 2
-; -----------------------------------------------------------------------------
 !define MUI_ICON "app-icon.ico"
 !define MUI_UNICON "app-icon.ico"
 !define MUI_ABORTWARNING
@@ -76,7 +65,6 @@ VIAddVersionKey "Comments" "Open-source native PC gaming platform"
 !define MUI_COMPONENTSPAGE_TEXT_TOP "Choose the VoidOne shortcuts you want. The application itself is always installed."
 !define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_TITLE "Installation options"
 !define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_INFO "Select an option to see what it does."
-
 !define MUI_WELCOMEPAGE_TITLE "Welcome to VoidOne"
 !define MUI_WELCOMEPAGE_TEXT "Install VoidOne ${VERSION} on your Windows PC.$\r$\n$\r$\nA native, open-source PC gaming platform built around your games — not around a store.$\r$\n$\r$\nThe installer will validate your system, preserve an existing installation path when upgrading, register VoidOne with Windows, and give you control over optional shortcuts."
 !define MUI_DIRECTORYPAGE_TEXT_TOP "Choose where VoidOne should be installed. Your existing VoidOne installation directory will be reused automatically when possible."
@@ -90,20 +78,15 @@ VIAddVersionKey "Comments" "Open-source native PC gaming platform"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
 !define MUI_FINISHPAGE_LINK "Visit the VoidOne project on GitHub"
 !define MUI_FINISHPAGE_LINK_LOCATION "${WEB_SITE}"
-
 !define MUI_UNCONFIRMPAGE_TEXT_TOP "VoidOne will be removed from this computer. Personal library data stored outside the installation directory is not intentionally removed."
 !define MUI_UNCONFIRMPAGE_TEXT_CONFIRM "Click Uninstall to remove VoidOne from this computer."
 
-; -----------------------------------------------------------------------------
-; Custom System Check page
-; -----------------------------------------------------------------------------
 Var SystemCheckDialog
 Var SystemCheckStatus
 Var SystemCheckLabel
 Var SystemCheckInstallLabel
 Var SystemCheckDiskLabel
 Var SystemCheckArchitectureLabel
-Var SystemCheckExistingLabel
 
 !insertmacro MUI_PAGE_WELCOME
 Page custom SystemCheckPage SystemCheckPageLeave
@@ -112,30 +95,19 @@ Page custom SystemCheckPage SystemCheckPageLeave
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
-
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_UNPAGE_FINISH
-
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Farsi"
 
-; -----------------------------------------------------------------------------
-; Main application
-; -----------------------------------------------------------------------------
 Section "VoidOne" SEC_MAIN
     SectionIn RO
-
     SetOutPath "${INSTALL_BIN_DIR}"
     SetOverwrite on
     File /r "package\*"
-
-    ; Keep the uninstaller beside the installed application.
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-    ; -------------------------------------------------------------------------
-    ; Apps & Features / Add or Remove Programs metadata
-    ; -------------------------------------------------------------------------
     WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
     WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${VERSION}"
     WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${PUBLISHER}"
@@ -150,45 +122,30 @@ Section "VoidOne" SEC_MAIN
     WriteRegStr HKLM "${UNINST_KEY}" "ReleaseNotes" "${WEB_SITE}/releases"
     WriteRegDword HKLM "${UNINST_KEY}" "NoModify" 1
     WriteRegDword HKLM "${UNINST_KEY}" "NoRepair" 1
-
     ${GetSize} "$INSTDIR" "/S=0K" $2 $3 $4
     WriteRegDWORD HKLM "${UNINST_KEY}" "EstimatedSize" $2
-
     ${GetTime} "" "L" $0 $1 $2 $3 $4 $5 $6
     WriteRegStr HKLM "${UNINST_KEY}" "InstallDate" "$2$1$0"
 
-    ; Remember the selected installation directory for upgrades.
     WriteRegStr HKLM "${APP_REG_KEY}" "InstallDir" "$INSTDIR"
     WriteRegStr HKLM "${APP_REG_KEY}" "Version" "${VERSION}"
     WriteRegStr HKLM "${APP_REG_KEY}" "InstallerVersion" "${VERSION}"
 
-    ; -------------------------------------------------------------------------
-    ; Windows URI protocol: voidone://...
-    ; -------------------------------------------------------------------------
     WriteRegStr HKCR "${PROTOCOL_SCHEME}" "" "URL:${APP_NAME} Protocol"
     WriteRegStr HKCR "${PROTOCOL_SCHEME}" "URL Protocol" ""
     WriteRegStr HKCR "${PROTOCOL_SCHEME}\DefaultIcon" "" "${APP_EXE_PATH},0"
     WriteRegStr HKCR "${PROTOCOL_SCHEME}\shell\open\command" "" '"${APP_EXE_PATH}" "%1"'
 
-    ; -------------------------------------------------------------------------
-    ; .vone project-file association
-    ; -------------------------------------------------------------------------
     WriteRegStr HKCR ".${FILE_EXT}" "" "${APP_NAME}.ProjectFile"
     WriteRegStr HKCR "${APP_NAME}.ProjectFile" "" "${APP_NAME} Project File"
     WriteRegStr HKCR "${APP_NAME}.ProjectFile\DefaultIcon" "" "${APP_EXE_PATH},0"
     WriteRegStr HKCR "${APP_NAME}.ProjectFile\shell\open\command" "" '"${APP_EXE_PATH}" "%1"'
 
-    ; -------------------------------------------------------------------------
-    ; Explorer directory context-menu integration
-    ; -------------------------------------------------------------------------
     WriteRegStr HKCR "Directory\shell\VoidOne" "" "Open with VoidOne"
     WriteRegStr HKCR "Directory\shell\VoidOne" "Icon" "${APP_EXE_PATH},0"
     WriteRegStr HKCR "Directory\shell\VoidOne\command" "" '"${APP_EXE_PATH}" "--game-path=%1"'
 SectionEnd
 
-; -----------------------------------------------------------------------------
-; Optional shortcuts
-; -----------------------------------------------------------------------------
 Section /o "Start Menu shortcut" SEC_STARTMENU
     CreateDirectory "${START_MENU_DIR}"
     CreateShortCut "${START_MENU_DIR}\${APP_NAME}.lnk" "${APP_EXE_PATH}" "" "${APP_EXE_PATH}" 0
@@ -199,26 +156,17 @@ Section /o "Desktop shortcut" SEC_DESKTOP
     CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "${APP_EXE_PATH}" "" "${APP_EXE_PATH}" 0
 SectionEnd
 
-; -----------------------------------------------------------------------------
-; Installer initialization / preflight
-; -----------------------------------------------------------------------------
 Function .onInit
-    ; Hard platform requirements.
     ${IfNot} ${RunningX64}
         MessageBox MB_ICONSTOP|MB_OK "VoidOne requires a 64-bit version of Windows 10 or Windows 11."
         Abort
     ${EndIf}
-
     ${IfNot} ${AtLeastWin10}
         MessageBox MB_ICONSTOP|MB_OK "VoidOne requires Windows 10 or later."
         Abort
     ${EndIf}
-
-    ; All-users installation: use 64-bit registry view consistently.
     SetRegView 64
     SetShellVarContext all
-
-    ; Reuse the previous installation path automatically.
     ReadRegStr $0 HKLM "${UNINST_KEY}" "InstallLocation"
     ${If} $0 == ""
         ReadRegStr $0 HKLM "${APP_REG_KEY}" "InstallDir"
@@ -226,57 +174,46 @@ Function .onInit
     ${If} $0 != ""
         StrCpy $INSTDIR $0
     ${EndIf}
-
-    ; Never overwrite an active VoidOne process.
     FindWindow $1 "" "${APP_NAME}"
     ${If} $1 != 0
-        MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "VoidOne is currently running.$\r$\n$\r$\nPlease close VoidOne before continuing the installation." IDOK continue IDABORT cancel
+        MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "VoidOne is currently running.$\r$\n$\r$\nPlease close VoidOne before continuing the installation." IDOK continue IDCANCEL cancel
         Abort
         continue:
+        Goto done
+        cancel:
+        Abort
+        done:
     ${EndIf}
 FunctionEnd
 
-; -----------------------------------------------------------------------------
-; Custom system-check page
-; -----------------------------------------------------------------------------
 Function SystemCheckPage
     !insertmacro MUI_HEADER_TEXT "System check" "Verify that this PC is ready for VoidOne."
-
     nsDialogs::Create 1018
     Pop $SystemCheckDialog
     ${If} $SystemCheckDialog == error
         Abort
     ${EndIf}
-
     ${NSD_CreateLabel} 0 0 100% 18u "VoidOne will run a quick pre-installation check before copying files."
     Pop $SystemCheckLabel
-
     ${NSD_CreateLabel} 0 28u 100% 18u "Architecture: checking..."
     Pop $SystemCheckArchitectureLabel
-
     ${NSD_CreateLabel} 0 50u 100% 18u "Windows: checking..."
     Pop $SystemCheckStatus
-
     ${NSD_CreateLabel} 0 72u 100% 18u "Install location: checking..."
     Pop $SystemCheckInstallLabel
-
     ${NSD_CreateLabel} 0 94u 100% 18u "Disk space: checking..."
     Pop $SystemCheckDiskLabel
-
     ${If} ${RunningX64}
         ${NSD_SetText} $SystemCheckArchitectureLabel "Architecture: 64-bit Windows detected ✓"
     ${Else}
         ${NSD_SetText} $SystemCheckArchitectureLabel "Architecture: 64-bit Windows required ✗"
     ${EndIf}
-
     ${If} ${AtLeastWin10}
         ${NSD_SetText} $SystemCheckStatus "Windows: Windows 10/11 compatible ✓"
     ${Else}
         ${NSD_SetText} $SystemCheckStatus "Windows: Windows 10 or later required ✗"
     ${EndIf}
-
     ${NSD_SetText} $SystemCheckInstallLabel "Install location: $INSTDIR"
-
     ${GetRoot} "$INSTDIR" $0
     ${DriveSpace} "$0" "/D=F /S=M" $1
     ${If} $1 == ""
@@ -284,12 +221,10 @@ Function SystemCheckPage
     ${Else}
         ${NSD_SetText} $SystemCheckDiskLabel "Disk space: $1 MB free on $0 (recommended: 512 MB+)"
     ${EndIf}
-
     ReadRegStr $0 HKLM "${UNINST_KEY}" "DisplayVersion"
     ${If} $0 != ""
         ${NSD_SetText} $SystemCheckLabel "Existing installation detected: VoidOne $0 — this installer will upgrade it in place."
     ${EndIf}
-
     nsDialogs::Show
 FunctionEnd
 
@@ -304,9 +239,6 @@ Function SystemCheckPageLeave
     ${EndIf}
 FunctionEnd
 
-; -----------------------------------------------------------------------------
-; Uninstaller initialization
-; -----------------------------------------------------------------------------
 Function un.onInit
     SetRegView 64
     SetShellVarContext all
@@ -317,40 +249,26 @@ Function un.onUninstSuccess
     MessageBox MB_ICONINFORMATION|MB_OK "VoidOne has been removed successfully."
 FunctionEnd
 
-; -----------------------------------------------------------------------------
-; Uninstall
-; -----------------------------------------------------------------------------
 Section "Uninstall"
     SetRegView 64
     SetShellVarContext all
-
     Delete "$DESKTOP\${APP_NAME}.lnk"
     RMDir /r "${START_MENU_DIR}"
-
-    ; Remove Windows integrations owned by VoidOne.
     DeleteRegKey HKCR "${PROTOCOL_SCHEME}"
     DeleteRegKey HKCR ".${FILE_EXT}"
     DeleteRegKey HKCR "${APP_NAME}.ProjectFile"
     DeleteRegKey HKCR "Directory\shell\VoidOne"
-
-    ; Remove application metadata.
     DeleteRegKey HKLM "${UNINST_KEY}"
     DeleteRegKey HKLM "${APP_REG_KEY}"
-
-    ; The installer owns this directory, so remove the installed application tree.
     RMDir /r "$INSTDIR"
 SectionEnd
 
-; -----------------------------------------------------------------------------
-; Component descriptions
-; -----------------------------------------------------------------------------
 LangString DESC_SEC_MAIN ${LANG_ENGLISH} "Required VoidOne application files, Qt runtime, plugins, and dependencies."
 LangString DESC_SEC_STARTMENU ${LANG_ENGLISH} "Create a Start Menu folder with launch and uninstall shortcuts."
 LangString DESC_SEC_DESKTOP ${LANG_ENGLISH} "Create a shortcut to VoidOne on the Windows desktop."
-
 LangString DESC_SEC_MAIN ${LANG_FARSI} "فایل‌های اصلی VoidOne، محیط Qt، افزونه‌ها و وابستگی‌های موردنیاز."
 LangString DESC_SEC_STARTMENU ${LANG_FARSI} "ساخت پوشه‌ای در منوی Start برای اجرای VoidOne و حذف نصب."
-LangString DESC_SEC_DESKTOP ${LANG_FARSI} "ساخت میانبر VoidOne روی دسکتاپ ویندوز."
+LangString DESC_SEC_DESKTOP ${LANG_FARSI} "ساخت میانبر VoidOne روی دسکتاپ."
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_MAIN} $(DESC_SEC_MAIN)
