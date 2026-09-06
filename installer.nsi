@@ -23,6 +23,13 @@
 !define START_MENU_DIR "$SMPROGRAMS\${APP_NAME}"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 !define APP_REG_KEY "Software\${COMPANY_NAME}\${APP_NAME}"
+!define INSTALLER_MUTEX_NAME "Global\VoidOneInstaller-{7B8A4C2F-2D57-4E6B-9B4B-VOIDONE2026}"
+
+!ifndef NSIS_PTR_SIZE & SYSTYPE_PTR
+  !define SYSTYPE_PTR i
+!else
+  !define /ifndef SYSTYPE_PTR p
+!endif
 
 !ifndef VERSION
   !define VERSION "0.0.0-dev"
@@ -87,11 +94,17 @@ Var SystemCheckLabel
 Var SystemCheckInstallLabel
 Var SystemCheckDiskLabel
 Var SystemCheckArchitectureLabel
+Var RepairMode
+Var CommandLineParameters
 
+!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipRepairPage
 !insertmacro MUI_PAGE_WELCOME
 Page custom SystemCheckPage SystemCheckPageLeave
+!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipRepairPage
 !insertmacro MUI_PAGE_LICENSE "LICENSE"
+!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipRepairPage
 !insertmacro MUI_PAGE_DIRECTORY
+!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipRepairPage
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
@@ -103,6 +116,11 @@ Page custom SystemCheckPage SystemCheckPageLeave
 
 Section "VoidOne" SEC_MAIN
     SectionIn RO
+    ${If} $RepairMode == "1"
+        DetailPrint "Repair mode: reinstalling VoidOne in the existing installation directory."
+    ${Else}
+        DetailPrint "Installing VoidOne ${VERSION}."
+    ${EndIf}
     SetOutPath "${INSTALL_BIN_DIR}"
     SetOverwrite on
     File /r "package\*"
@@ -156,37 +174,94 @@ Section /o "Desktop shortcut" SEC_DESKTOP
     CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "${APP_EXE_PATH}" "" "${APP_EXE_PATH}" 0
 SectionEnd
 
+!macro SingleInstanceMutex
+    System::Call 'KERNEL32::CreateMutex(${SYSTYPE_PTR}0, i1, t"${INSTALLER_MUTEX_NAME}")?e'
+    Pop $0
+    IntCmpU $0 183 mutex_existing mutex_ready mutex_ready
+mutex_existing:
+    IfSilent mutex_abort mutex_message
+mutex_message:
+    MessageBox MB_ICONEXCLAMATION|MB_OK "Another VoidOne installer or uninstaller is already running. Please finish it before starting another one."
+mutex_abort:
+    Abort
+mutex_ready:
+!macroend
+
 Function .onInit
+    !insertmacro SingleInstanceMutex
+
+    SetRegView 64
+    SetShellVarContext all
+
+    ${GetParameters} $CommandLineParameters
+    StrCpy $RepairMode "0"
+    ClearErrors
+    ${GetOptions} $CommandLineParameters "/REPAIR" $0
+    ${IfNot} ${Errors}
+        StrCpy $RepairMode "1"
+    ${EndIf}
+    ClearErrors
+
+    ${If} $RepairMode == "1"
+        ReadRegStr $0 HKLM "${UNINST_KEY}" "InstallLocation"
+        ${If} $0 == ""
+            ReadRegStr $0 HKLM "${APP_REG_KEY}" "InstallDir"
+        ${EndIf}
+        ${If} $0 == ""
+            IfSilent repair_no_install_silent repair_no_install_message
+repair_no_install_message:
+            MessageBox MB_ICONSTOP|MB_OK "Repair mode requires an existing VoidOne installation. Run the normal installer first."
+repair_no_install_silent:
+            Abort
+        ${EndIf}
+        StrCpy $INSTDIR $0
+    ${Else}
+        ReadRegStr $0 HKLM "${UNINST_KEY}" "InstallLocation"
+        ${If} $0 == ""
+            ReadRegStr $0 HKLM "${APP_REG_KEY}" "InstallDir"
+        ${EndIf}
+        ${If} $0 != ""
+            StrCpy $INSTDIR $0
+        ${EndIf}
+    ${EndIf}
+
     ${IfNot} ${RunningX64}
+        IfSilent x64_fail_silent x64_fail_message
+x64_fail_message:
         MessageBox MB_ICONSTOP|MB_OK "VoidOne requires a 64-bit version of Windows 10 or Windows 11."
+ x64_fail_silent:
         Abort
     ${EndIf}
     ${IfNot} ${AtLeastWin10}
+        IfSilent win_fail_silent win_fail_message
+win_fail_message:
         MessageBox MB_ICONSTOP|MB_OK "VoidOne requires Windows 10 or later."
+win_fail_silent:
         Abort
     ${EndIf}
-    SetRegView 64
-    SetShellVarContext all
-    ReadRegStr $0 HKLM "${UNINST_KEY}" "InstallLocation"
-    ${If} $0 == ""
-        ReadRegStr $0 HKLM "${APP_REG_KEY}" "InstallDir"
-    ${EndIf}
-    ${If} $0 != ""
-        StrCpy $INSTDIR $0
-    ${EndIf}
+
     FindWindow $1 "" "${APP_NAME}"
     ${If} $1 != 0
+        IfSilent running_fail_silent running_fail_message
+running_fail_message:
         MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "VoidOne is currently running.$\r$\n$\r$\nPlease close VoidOne before continuing the installation." IDOK continue IDCANCEL cancel
         Abort
-        continue:
-        Goto done
-        cancel:
+running_fail_silent:
         Abort
-        done:
+continue:
+    ${EndIf}
+FunctionEnd
+
+Function SkipRepairPage
+    ${If} $RepairMode == "1"
+        Abort
     ${EndIf}
 FunctionEnd
 
 Function SystemCheckPage
+    ${If} $RepairMode == "1"
+        Abort
+    ${EndIf}
     !insertmacro MUI_HEADER_TEXT "System check" "Verify that this PC is ready for VoidOne."
     nsDialogs::Create 1018
     Pop $SystemCheckDialog
@@ -230,28 +305,40 @@ FunctionEnd
 
 Function SystemCheckPageLeave
     ${IfNot} ${RunningX64}
+        IfSilent systemcheck_x64_silent systemcheck_x64_message
+systemcheck_x64_message:
         MessageBox MB_ICONSTOP|MB_OK "This PC is not compatible with the x64 VoidOne build."
+        Abort
+systemcheck_x64_silent:
         Abort
     ${EndIf}
     ${IfNot} ${AtLeastWin10}
+        IfSilent systemcheck_win_silent systemcheck_win_message
+systemcheck_win_message:
         MessageBox MB_ICONSTOP|MB_OK "VoidOne requires Windows 10 or later."
+        Abort
+systemcheck_win_silent:
         Abort
     ${EndIf}
 FunctionEnd
 
 Function un.onInit
+    !insertmacro SingleInstanceMutex
     SetRegView 64
     SetShellVarContext all
 FunctionEnd
 
 Function un.onUninstSuccess
     HideWindow
+    IfSilent un_silent_done
     MessageBox MB_ICONINFORMATION|MB_OK "VoidOne has been removed successfully."
+un_silent_done:
 FunctionEnd
 
 Section "Uninstall"
     SetRegView 64
     SetShellVarContext all
+    DetailPrint "Removing VoidOne Windows integration and shortcuts."
     Delete "$DESKTOP\${APP_NAME}.lnk"
     RMDir /r "${START_MENU_DIR}"
     DeleteRegKey HKCR "${PROTOCOL_SCHEME}"
