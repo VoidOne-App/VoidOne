@@ -241,7 +241,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' 'packaging\windows\installer.nsi'
+          $installerScript = Join-Path $env:GITHUB_WORKSPACE 'packaging\windows\installer.nsi'
+          Write-Host "Building installer from absolute path: $installerScript"
+          & makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' $installerScript
           if ($LASTEXITCODE -ne 0) { throw "NSIS failed: $LASTEXITCODE" }
           if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) {
             throw 'Installer was not produced.'
