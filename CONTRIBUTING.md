@@ -1,22 +1,25 @@
 # Contributing to VoidOne
 
-First off, thanks for considering contributing — VoidOne is built entirely by
-and for the community, and every contribution matters, whether it's a bug
-report, a UI polish, or a new feature.
+Thank you for contributing to VoidOne. The project values small, reviewable changes, evidence-based engineering, and a stable development workflow.
 
-## Before You Start
+## Before you start
 
-- Check the [roadmap](README.md#-engineering-roadmap) to see what's already planned.
-- Search [existing issues](https://github.com/VoidOne-App/VoidOne/issues) and
-  [pull requests](https://github.com/VoidOne-App/VoidOne/pulls) to avoid duplicate work.
-- For anything non-trivial, consider opening an issue first to discuss the
-  approach before writing a lot of code.
+- Read the [README](README.md).
+- Read the [Build Guide](docs/build.md).
+- Check [Troubleshooting](docs/troubleshooting.md) before reporting a known build issue.
+- For security-sensitive issues, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
-## Development Setup
+## Development workflow
 
-See [Building from Source](README.md#-building-from-source) in the README for
-toolchain requirements. Once set up, use the CMake presets for a consistent
-environment:
+1. Create a focused branch from `main`.
+2. Make the smallest coherent change that solves the problem.
+3. Build using a repository CMake preset.
+4. Run the relevant tests.
+5. Check formatting and generated-file changes.
+6. Update documentation when behavior or developer workflow changes.
+7. Open a pull request with a clear description and test evidence.
+
+Recommended local validation:
 
 ```bash
 cmake --preset dev
@@ -24,57 +27,103 @@ cmake --build --preset dev
 ctest --preset dev
 ```
 
-The `dev` preset enables Debug symbols, AddressSanitizer/UBSan, and the test
-suite — this is what you want for day-to-day development.
+For Windows CI-equivalent validation:
 
-## Code Style
-
-- Match the existing style in the file you're editing (brace placement,
-  naming conventions, header guards).
-- Run with `-DVOIDONE_ENABLE_CLANG_TIDY=ON` if you have `clang-tidy` installed
-  — it'll catch most style/correctness issues before you even open a PR.
-- Keep commits focused: one logical change per commit makes review much easier.
-
-## Commit Messages
-
-We loosely follow [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-feat: add save backup compression
-fix: correct SteamScanner path resolution on non-C: drives
-docs: update build instructions for Qt 6.9
-ci: add retry logic to WiX install step
+```bash
+cmake --preset ci-windows
+cmake --build --preset ci-windows
+ctest --preset ci-windows
 ```
 
-This isn't strictly enforced, but it makes the auto-generated changelog in
-each release much more useful.
+## Repository structure
 
-## Submitting a Pull Request
+```text
+VoidOne/
+├── .ai/                     # AI-assisted engineering infrastructure
+├── .github/                 # CI/CD and repository automation
+├── assets/                  # Source-controlled application assets
+├── cmake/                   # CMake templates/helpers
+├── docs/                    # Engineering and user documentation
+├── packaging/windows/       # Windows installer and distribution definitions
+├── scripts/                 # Developer and CI scripts
+├── src/                     # Application source
+│   ├── core/                # Native/domain services
+│   └── ui/                  # QML/presentation layer
+├── tests/                   # Automated tests
+├── CMakeLists.txt           # Build definition
+└── CMakePresets.json        # Supported build/test presets
+```
 
-1. Fork the repository and create a branch off `main`.
-2. Make your changes, following the checklist in the PR template.
-3. Make sure `cmake --preset ci-windows` still builds cleanly and tests pass
-   locally before opening the PR — this is exactly what CI will check.
-4. Open the PR against `main` and fill out the template.
-5. A maintainer will review — expect some back-and-forth, that's normal and
-   not a sign anything is wrong with your contribution.
+Generated output belongs in `build/`, `package/`, or `dist/` and must not be committed.
 
-## What We Won't Merge
+## Code guidelines
 
-In line with [VoidOne's Promise](README.md#-voidones-promise--gamer-to-gamer),
-we won't accept contributions that add:
+### C++
 
-- Telemetry, analytics, or any form of usage tracking
-- Ads or sponsored content inside the app
-- Bundled third-party software the user didn't explicitly ask for
-- Mandatory online accounts for core (offline-capable) functionality
+- Use modern C++23 facilities where they improve clarity and safety.
+- Prefer RAII and explicit ownership.
+- Keep public interfaces small and stable.
+- Avoid unnecessary global state.
+- Treat compiler warnings as defects; CI uses warnings-as-errors.
+- Keep platform-specific code isolated behind clear boundaries.
 
-## Code of Conduct
+### Qt / QML
 
-This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By
-participating, you're expected to uphold it.
+- Keep business and persistence logic in C++ core services.
+- Keep QML focused on presentation and interaction.
+- Avoid coupling UI components directly to database implementation details.
+- Preserve existing QML module registration when adding or renaming QML files.
 
-## Questions?
+### Tests
 
-Open a [Discussion](https://github.com/VoidOne-App/VoidOne/discussions) or a
-regular issue — there's no such thing as a question too small.
+- Add or update tests for behavior changes.
+- Prefer deterministic tests that do not depend on network services.
+- Keep test data isolated from real user data.
+- When fixing a regression, add a test that would have caught it when practical.
+
+## Commits and pull requests
+
+Use concise conventional-style commit subjects when possible:
+
+```text
+feat: add library indexing
+fix: handle missing Steam metadata
+build: update Windows packaging
+ci: validate release artifacts
+docs: clarify local build workflow
+```
+
+Pull requests should explain:
+
+- what changed
+- why it changed
+- how it was tested
+- compatibility or migration impact
+- performance/security considerations when relevant
+
+Avoid mixing unrelated refactors with feature or bug-fix changes unless the refactor is required for correctness.
+
+## CI and release changes
+
+Changes to `.github/workflows/`, `packaging/windows/`, version handling, signing, or release publication are high-impact. Keep them narrowly scoped and validate them on a pull request before creating a release tag.
+
+Git tags are the release version source of truth. Do not hard-code release versions into installer metadata.
+
+## AI-assisted development
+
+AI-generated code is treated as untrusted output. Review it like any other external contribution and run deterministic validation before merging.
+
+See [AI-Assisted Code Repair](docs/engineering/ai-repair.md) for the repository's CI repair infrastructure.
+
+## Security
+
+Never commit:
+
+- API keys
+- passwords
+- private certificates
+- signing material
+- personal access tokens
+- local environment files containing secrets
+
+If a secret is accidentally committed, rotate it immediately and follow the security reporting process.
