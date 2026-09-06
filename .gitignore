@@ -1,0 +1,58 @@
+# Build outputs
+build/
+out/
+package/
+dist/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+install_manifest.txt
+Makefile
+.ninja_deps
+.ninja_log
+
+# IDE / editor
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Qt / generated artifacts
+*.qmlc
+*.jsc
+qmldir
+
+# Test / coverage artifacts
+Testing/
+coverage/
+*.gcda
+*.gcno
+*.gcov
+
+# Platform artifacts
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.obj
+*.o
+*.a
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+
+# OS metadata
+.DS_Store
+Thumbs.db

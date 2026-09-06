@@ -11,6 +11,13 @@
 !include "FileFunc.nsh"
 !include "Sections.nsh"
 
+; Resolve all repository-relative inputs from this script's location.
+!define PROJECT_ROOT "${__FILEDIR__}\..\.."
+!define PACKAGE_DIR "${PROJECT_ROOT}\package"
+!define DIST_DIR "${PROJECT_ROOT}\dist"
+!define APP_ICON_PATH "${PROJECT_ROOT}\assets\app-icon.ico"
+!define LICENSE_PATH "${PROJECT_ROOT}\LICENSE"
+
 !define APP_NAME "VoidOne"
 !define COMPANY_NAME "VoidOne"
 !define EXE_NAME "VoidOne.exe"
@@ -40,7 +47,7 @@
 
 Name "${APP_NAME} ${VERSION}"
 Caption "${APP_NAME} ${VERSION} Setup"
-OutFile "dist\VoidOne-Setup-x64.exe"
+OutFile "${DIST_DIR}\VoidOne-Setup-x64.exe"
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
 InstallDirRegKey HKLM "${APP_REG_KEY}" "InstallDir"
 RequestExecutionLevel admin
@@ -65,8 +72,8 @@ VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 ${PUBLISHER}"
 VIAddVersionKey "OriginalFilename" "VoidOne-Setup-x64.exe"
 VIAddVersionKey "Comments" "Open-source native PC gaming platform"
 
-!define MUI_ICON "app-icon.ico"
-!define MUI_UNICON "app-icon.ico"
+!define MUI_ICON "${APP_ICON_PATH}"
+!define MUI_UNICON "${APP_ICON_PATH}"
 !define MUI_ABORTWARNING
 !define MUI_COMPONENTSPAGE_SMALLDESC
 !define MUI_COMPONENTSPAGE_TEXT_TOP "Choose the VoidOne shortcuts you want. The application itself is always installed."
@@ -101,7 +108,7 @@ Var CommandLineParameters
 !insertmacro MUI_PAGE_WELCOME
 Page custom SystemCheckPage SystemCheckPageLeave
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipRepairPage
-!insertmacro MUI_PAGE_LICENSE "LICENSE"
+!insertmacro MUI_PAGE_LICENSE "${LICENSE_PATH}"
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipRepairPage
 !insertmacro MUI_PAGE_DIRECTORY
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipRepairPage
@@ -123,7 +130,7 @@ Section "VoidOne" SEC_MAIN
     ${EndIf}
     SetOutPath "${INSTALL_BIN_DIR}"
     SetOverwrite on
-    File /r "package\*"
+    File /r "${PACKAGE_DIR}\*"
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
     WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME}"

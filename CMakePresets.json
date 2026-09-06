@@ -1,7 +1,6 @@
 {
   "version": 6,
   "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
-
   "configurePresets": [
     {
       "name": "base",
@@ -9,35 +8,29 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_CXX_STANDARD": "23",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF"
       }
     },
     {
       "name": "dev",
       "displayName": "Developer (Debug, sanitizers, tests)",
-      "description": "Local development build: fast iteration, ASan/UBSan on, tests enabled.",
+      "description": "Local development build with sanitizers and tests enabled.",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "VOIDONE_BUILD_TESTS": "ON",
         "VOIDONE_ENABLE_SANITIZERS": "ON",
+        "VOIDONE_WARNINGS_AS_ERRORS": "OFF",
         "VOIDONE_ENABLE_LTO": "OFF"
       }
     },
     {
       "name": "release",
       "displayName": "Release (local)",
-      "description": "Optimized local build matching production settings, without CI-only strictness.",
-      "inherits": "base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "VOIDONE_ENABLE_LTO": "ON"
-      }
-    },
-    {
-      "name": "ci-windows",
-      "displayName": "CI (Windows, strict)",
-      "description": "Used by GitHub Actions: warnings-as-errors, LTO, tests required to pass.",
+      "description": "Optimized local release build with tests enabled.",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
@@ -47,25 +40,38 @@
       }
     },
     {
-      "name": "reproducible",
-      "displayName": "Reproducible verification build",
-      "description": "For community members verifying a release binary against source. Requires SOURCE_DATE_EPOCH set in the environment before configuring.",
+      "name": "ci-windows",
+      "displayName": "CI (Windows, strict)",
+      "description": "Windows CI configuration with tests, warnings-as-errors, and LTO enabled.",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "VOIDONE_BUILD_TESTS": "ON",
+        "VOIDONE_WARNINGS_AS_ERRORS": "ON",
+        "VOIDONE_ENABLE_LTO": "ON",
+        "VOIDONE_GENERATE_INSTALLER": "OFF"
+      }
+    },
+    {
+      "name": "reproducible",
+      "displayName": "Reproducible verification build",
+      "description": "Release verification build. SOURCE_DATE_EPOCH must be set before configuring.",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VOIDONE_BUILD_TESTS": "ON",
+        "VOIDONE_WARNINGS_AS_ERRORS": "ON",
         "VOIDONE_ENABLE_LTO": "OFF",
         "VOIDONE_REPRODUCIBLE_BUILD": "ON"
       }
     }
   ],
-
   "buildPresets": [
-    { "name": "dev",          "configurePreset": "dev" },
-    { "name": "release",      "configurePreset": "release" },
-    { "name": "ci-windows",   "configurePreset": "ci-windows" },
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "ci-windows", "configurePreset": "ci-windows" },
     { "name": "reproducible", "configurePreset": "reproducible" }
   ],
-
   "testPresets": [
     {
       "name": "dev",
@@ -74,8 +80,20 @@
       "execution": { "timeout": 120 }
     },
     {
+      "name": "release",
+      "configurePreset": "release",
+      "output": { "outputOnFailure": true },
+      "execution": { "timeout": 120 }
+    },
+    {
       "name": "ci-windows",
       "configurePreset": "ci-windows",
+      "output": { "outputOnFailure": true },
+      "execution": { "timeout": 120 }
+    },
+    {
+      "name": "reproducible",
+      "configurePreset": "reproducible",
       "output": { "outputOnFailure": true },
       "execution": { "timeout": 120 }
     }
