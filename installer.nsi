@@ -64,6 +64,9 @@ VIAddVersionKey "OriginalFilename" "VoidOne-Setup-x64.exe"
 !define MUI_FINISHPAGE_LINK_LOCATION "${WEB_SITE}"
 !define MUI_UNCONFIRMPAGE_TEXT_TOP "VoidOne will be removed from this computer. Personal library data stored outside the installation directory is not intentionally removed."
 
+; NSIS global default; this is a script-level setting, not a Section/Function command.
+ShowUninstDetails show
+
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY
@@ -149,7 +152,6 @@ FunctionEnd
 Function un.onInit
     SetRegView 64
     SetShellVarContext all
-    ShowUninstDetails show
 FunctionEnd
 
 Function un.onUninstSuccess
