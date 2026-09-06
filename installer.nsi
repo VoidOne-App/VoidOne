@@ -32,7 +32,7 @@ InstallDir "$PROGRAMFILES64\${APP_NAME}"
 InstallDirRegKey HKLM "Software\${COMPANY_NAME}\${APP_NAME}" "InstallDir"
 RequestExecutionLevel admin
 Unicode True
-ManifestSupportedOS win10
+ManifestSupportedOS Win10
 
 VIProductVersion "${WINDOWS_VERSION}"
 VIAddVersionKey "ProductName" "${APP_NAME}"
@@ -63,7 +63,6 @@ VIAddVersionKey "OriginalFilename" "VoidOne-Setup-x64.exe"
 !define MUI_FINISHPAGE_LINK "Visit the VoidOne project on GitHub"
 !define MUI_FINISHPAGE_LINK_LOCATION "${WEB_SITE}"
 !define MUI_UNCONFIRMPAGE_TEXT_TOP "VoidOne will be removed from this computer. Personal library data stored outside the installation directory is not intentionally removed."
-!define MUI_UNCONFIRMPAGE_TEXT_CHECKBOX "Remove VoidOne and its Windows integrations"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "LICENSE"
@@ -114,7 +113,7 @@ Section "VoidOne" SEC_MAIN
     WriteRegStr HKCR "Directory\shell\VoidOne\command" "" '"${APP_EXE_PATH}" "--game-path=%1"'
 SectionEnd
 
-Section "Start Menu shortcut" SEC_STARTMENU
+Section /o "Start Menu shortcut" SEC_STARTMENU
     CreateDirectory "${START_MENU_DIR}"
     CreateShortCut "${START_MENU_DIR}\${APP_NAME}.lnk" "${APP_EXE_PATH}" "" "${APP_EXE_PATH}" 0
     CreateShortCut "${START_MENU_DIR}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
