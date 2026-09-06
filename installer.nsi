@@ -229,7 +229,7 @@ repair_no_install_silent:
         IfSilent x64_fail_silent x64_fail_message
 x64_fail_message:
         MessageBox MB_ICONSTOP|MB_OK "VoidOne requires a 64-bit version of Windows 10 or Windows 11."
- x64_fail_silent:
+x64_fail_silent:
         Abort
     ${EndIf}
     ${IfNot} ${AtLeastWin10}
@@ -247,6 +247,8 @@ running_fail_message:
         MessageBox MB_ICONEXCLAMATION|MB_OKCANCEL "VoidOne is currently running.$\r$\n$\r$\nPlease close VoidOne before continuing the installation." IDOK continue IDCANCEL cancel
         Abort
 running_fail_silent:
+        Abort
+cancel:
         Abort
 continue:
     ${EndIf}
