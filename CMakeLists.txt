@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 set(VOIDONE_VERSION_OVERRIDE "0.0.1" CACHE STRING "Override application version (normally supplied by CI/tag)")
 set(VOIDONE_VERSION_INPUT "${VOIDONE_VERSION_OVERRIDE}")
-string(REGEX MATCH "^[0-9]+\.[0-9]+\.[0-9]+" VOIDONE_VERSION_BASE "${VOIDONE_VERSION_INPUT}")
+string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" VOIDONE_VERSION_BASE "${VOIDONE_VERSION_INPUT}")
 if(NOT VOIDONE_VERSION_BASE)
     message(WARNING "Invalid VOIDONE_VERSION_OVERRIDE='${VOIDONE_VERSION_INPUT}'; falling back to 0.0.1")
     set(VOIDONE_VERSION_BASE "0.0.1")
@@ -10,7 +10,7 @@ endif()
 
 project(VoidOne
     VERSION "${VOIDONE_VERSION_BASE}"
-    DESCRIPTION "A modern Qt6/QML PC game launcher"
+    DESCRIPTION "Open-source native PC gaming platform"
     HOMEPAGE_URL "https://github.com/VoidOne-App/VoidOne"
     LANGUAGES CXX C
 )
@@ -20,9 +20,9 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
 endif()
 
 option(VOIDONE_ENABLE_CODE_SIGNING "Sign binaries for Windows (Authenticode)" ON)
-option(VOIDONE_GENERATE_INSTALLER "Generate NSIS installer (Windows)" ON)
+option(VOIDONE_GENERATE_INSTALLER "Enable CPack NSIS installer generation" ON)
 option(VOIDONE_ENABLE_LTO "Enable link-time optimization in Release" ON)
-option(VOIDONE_ENABLE_SANITIZERS "Enable AddressSanitizer in supported Debug builds" OFF)
+option(VOIDONE_ENABLE_SANITIZERS "Enable AddressSanitizer/UBSan in supported Debug builds" OFF)
 option(VOIDONE_BUILD_TESTS "Build and register VoidOne unit tests" OFF)
 option(VOIDONE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 option(VOIDONE_REPRODUCIBLE_BUILD "Enable deterministic compiler/linker settings" OFF)
@@ -126,7 +126,7 @@ if(WIN32)
     set(VOIDONE_RC_PATH "${CMAKE_CURRENT_BINARY_DIR}/voidone.rc")
     if(EXISTS "${APP_ICON_PATH}")
         set(VOIDONE_RC_VERSION "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0")
-        file(WRITE "${VOIDONE_RC_PATH}" "#include <winver.h>\nIDI_ICON1 ICON DISCARDABLE \"${APP_ICON_PATH}\"\nVS_VERSION_INFO VERSIONINFO\n FILEVERSION ${VOIDONE_RC_VERSION}\n PRODUCTVERSION ${VOIDONE_RC_VERSION}\n FILEFLAGSMASK 0x3fL\n FILEFLAGS 0x0L\n FILEOS 0x40004L\n FILETYPE 0x1L\n FILESUBTYPE 0x0L\nBEGIN\n BLOCK \"StringFileInfo\"\n BEGIN\n  BLOCK \"040904b0\"\n  BEGIN\n   VALUE \"CompanyName\", \"VoidOne_app\"\n   VALUE \"FileDescription\", \"${PROJECT_DESCRIPTION}\"\n   VALUE \"FileVersion\", \"${VOIDONE_VERSION_DISPLAY}\"\n   VALUE \"InternalName\", \"VoidOne\"\n   VALUE \"OriginalFilename\", \"VoidOne.exe\"\n   VALUE \"ProductName\", \"VoidOne\"\n   VALUE \"ProductVersion\", \"${VOIDONE_VERSION_DISPLAY}\"\n  END\n END\n BLOCK \"VarFileInfo\"\n BEGIN\n  VALUE \"Translation\", 0x409, 1200\n END\nEND\n")
+        file(WRITE "${VOIDONE_RC_PATH}" "#include <winver.h>\nIDI_ICON1 ICON DISCARDABLE \"${APP_ICON_PATH}\"\nVS_VERSION_INFO VERSIONINFO\n FILEVERSION ${VOIDONE_RC_VERSION}\n PRODUCTVERSION ${VOIDONE_RC_VERSION}\n FILEFLAGSMASK 0x3fL\n FILEFLAGS 0x0L\n FILEOS 0x40004L\n FILETYPE 0x1L\n FILESUBTYPE 0x0L\nBEGIN\n BLOCK \"StringFileInfo\"\n BEGIN\n  BLOCK \"040904b0\"\n  BEGIN\n   VALUE \"CompanyName\", \"VoidOne\"\n   VALUE \"FileDescription\", \"${PROJECT_DESCRIPTION}\"\n   VALUE \"FileVersion\", \"${VOIDONE_VERSION_DISPLAY}\"\n   VALUE \"InternalName\", \"VoidOne\"\n   VALUE \"OriginalFilename\", \"VoidOne.exe\"\n   VALUE \"ProductName\", \"VoidOne\"\n   VALUE \"ProductVersion\", \"${VOIDONE_VERSION_DISPLAY}\"\n  END\n END\n BLOCK \"VarFileInfo\"\n BEGIN\n  VALUE \"Translation\", 0x409, 1200\n END\nEND\n")
         list(APPEND VOIDONE_EXE_EXTRA_SOURCES "${VOIDONE_RC_PATH}")
     endif()
 endif()
@@ -170,9 +170,9 @@ if(WIN32)
 endif()
 
 set(CPACK_PACKAGE_NAME "VoidOne")
-set(CPACK_PACKAGE_VENDOR "VoidOne_app")
+set(CPACK_PACKAGE_VENDOR "VoidOne")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "VoidOne PC Game Launcher (${VOIDONE_VERSION_DISPLAY})")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "VoidOne PC Gaming Platform (${VOIDONE_VERSION_DISPLAY})")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "VoidOne")
 if(WIN32 AND VOIDONE_GENERATE_INSTALLER)
     set(CPACK_GENERATOR "NSIS")
