@@ -6,12 +6,14 @@
 #include <QVector>
 #include "Database.h"
 
-class SteamScannerWorker : public QObject {
+class SteamScannerWorker : public QObject
+{
     Q_OBJECT
 public slots:
     void doScan();
+
 signals:
-    void scanFinished(const QVector<GameRecord>& games);
+    void scanFinished(const QVector<GameRecord> &games);
 };
 
 class SteamScanner : public QObject
@@ -24,14 +26,16 @@ public:
     Q_INVOKABLE void startAsyncScan();
 
 signals:
-    void scanCompleted(int foundCount);
+    void scanCompleted(int count);
+    void scanFailed(const QString &message);
 
 private slots:
-    void handleScanFinished(const QVector<GameRecord>& games);
+    void handleScanFinished(const QVector<GameRecord> &games);
 
 private:
     QThread workerThread;
     SteamScannerWorker *worker = nullptr;
+    bool m_scanInProgress = false;
 };
 
 #endif // STEAMSCANNER_H
