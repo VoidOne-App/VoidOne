@@ -31,6 +31,8 @@
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 !define APP_REG_KEY "Software\${COMPANY_NAME}\${APP_NAME}"
 !define INSTALLER_MUTEX_NAME "Global\VoidOneInstaller-{7B8A4C2F-2D57-4E6B-9B4B-VOIDONE2026}"
+!define VC_REDIST_URL "https://aka.ms/vc14/vc_redist.x64.exe"
+!define VC_REDIST_FILE "$PLUGINSDIR\vc_redist.x64.exe"
 
 !ifndef NSIS_PTR_SIZE & SYSTYPE_PTR
   !define SYSTYPE_PTR i
@@ -80,11 +82,11 @@ VIAddVersionKey "Comments" "Open-source native PC gaming platform"
 !define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_TITLE "Installation options"
 !define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_INFO "Select an option to see what it does."
 !define MUI_WELCOMEPAGE_TITLE "Welcome to VoidOne"
-!define MUI_WELCOMEPAGE_TEXT "Install VoidOne ${VERSION} on your Windows PC.$\r$\n$\r$\nA native, open-source PC gaming platform built around your games — not around a store.$\r$\n$\r$\nThe installer will validate your system, preserve an existing installation path when upgrading, register VoidOne with Windows, and give you control over optional shortcuts."
+!define MUI_WELCOMEPAGE_TEXT "Install VoidOne ${VERSION} on your Windows PC.$\r$\n$\r$\nA native, open-source PC gaming platform built around your games — not around a store.$\r$\n$\r$\nThe installer will validate your system, install or repair the required Microsoft Visual C++ runtime when needed, preserve an existing installation path when upgrading, register VoidOne with Windows, and give you control over optional shortcuts."
 !define MUI_DIRECTORYPAGE_TEXT_TOP "Choose where VoidOne should be installed. Your existing VoidOne installation directory will be reused automatically when possible."
 !define MUI_DIRECTORYPAGE_TEXT_DESTINATION "Installation folder"
 !define MUI_INSTFILESPAGE_HEADER "Installing VoidOne"
-!define MUI_INSTFILESPAGE_TEXT "Please wait while VoidOne is installed. Windows integration, shortcuts, file associations, and the VoidOne protocol are being configured."
+!define MUI_INSTFILESPAGE_TEXT "Please wait while VoidOne is installed. Required Microsoft Visual C++ runtime components, Windows integration, shortcuts, file associations, and the VoidOne protocol are being configured."
 !define MUI_FINISHPAGE_TITLE "VoidOne is ready"
 !define MUI_FINISHPAGE_TEXT "VoidOne ${VERSION} has been installed successfully.$\r$\n$\r$\nLaunch VoidOne now, or close this installer and start it later from Windows."
 !define MUI_FINISHPAGE_RUN "${APP_EXE_PATH}"
@@ -128,6 +130,9 @@ Section "VoidOne" SEC_MAIN
     ${Else}
         DetailPrint "Installing VoidOne ${VERSION}."
     ${EndIf}
+
+    Call EnsureVCRuntime
+
     SetOutPath "${INSTALL_BIN_DIR}"
     SetOverwrite on
     File /r "${PACKAGE_DIR}\*"
@@ -193,6 +198,97 @@ mutex_abort:
     Abort
 mutex_ready:
 !macroend
+
+Function EnsureVCRuntime
+    ; VoidOne is x64. Check the actual runtime DLLs first so a partially
+    ; installed/corrupted VC++ runtime is repaired instead of being skipped.
+    ${If} ${FileExists} "$SYSDIR\MSVCP140.dll"
+    ${AndIf} ${FileExists} "$SYSDIR\VCRUNTIME140.dll"
+    ${AndIf} ${FileExists} "$SYSDIR\VCRUNTIME140_1.dll"
+        DetailPrint "Microsoft Visual C++ runtime is already available."
+        Return
+    ${EndIf}
+
+    DetailPrint "Microsoft Visual C++ runtime is missing or incomplete."
+    DetailPrint "Downloading the latest supported x64 Redistributable from Microsoft."
+
+    ClearErrors
+    ReadRegStr $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Version"
+    ${If} $0 != ""
+        StrCpy $1 "/repair /quiet /norestart"
+        DetailPrint "Existing VC++ runtime registration found; repair mode will be used."
+    ${Else}
+        StrCpy $1 "/install /quiet /norestart"
+        DetailPrint "No VC++ runtime registration found; install mode will be used."
+    ${EndIf}
+
+    ClearErrors
+    ExecWait '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri ''${VC_REDIST_URL}'' -OutFile ''${VC_REDIST_FILE}''"' $2
+    ${If} $2 != 0
+        DetailPrint "VC++ Redistributable download failed with exit code $2."
+        IfSilent vc_download_failed_silent vc_download_failed_message
+vc_download_failed_message:
+        MessageBox MB_ICONSTOP|MB_RETRYCANCEL "VoidOne needs the Microsoft Visual C++ runtime to run.$\r$\n$\r$\nThe runtime could not be downloaded. Please check your internet connection and click Retry, or cancel the installation." IDRETRY vc_retry_download IDCANCEL vc_download_abort
+        Goto vc_retry_download
+vc_download_failed_silent:
+        Abort
+vc_retry_download:
+        Delete "${VC_REDIST_FILE}"
+        ClearErrors
+        ExecWait '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri ''${VC_REDIST_URL}'' -OutFile ''${VC_REDIST_FILE}''"' $2
+        ${If} $2 != 0
+            Goto vc_download_abort
+        ${EndIf}
+    ${EndIf}
+
+    ${IfNot} ${FileExists} "${VC_REDIST_FILE}"
+        Goto vc_download_abort
+    ${EndIf}
+
+    DetailPrint "Installing Microsoft Visual C++ runtime."
+    ExecWait '"${VC_REDIST_FILE}" $1' $3
+    Delete "${VC_REDIST_FILE}"
+
+    ; 0 = success, 3010 = success with reboot required.
+    ${If} $3 != 0
+    ${AndIf} $3 != 3010
+        DetailPrint "VC++ Redistributable installation failed with exit code $3."
+        IfSilent vc_install_failed_silent vc_install_failed_message
+vc_install_failed_message:
+        MessageBox MB_ICONSTOP|MB_OK "VoidOne could not install the Microsoft Visual C++ runtime (exit code $3). The installation cannot continue."
+vc_install_failed_silent:
+        Abort
+    ${EndIf}
+
+    ${IfNot} ${FileExists} "$SYSDIR\MSVCP140.dll"
+        Goto vc_verify_failed
+    ${EndIf}
+    ${IfNot} ${FileExists} "$SYSDIR\VCRUNTIME140.dll"
+        Goto vc_verify_failed
+    ${EndIf}
+    ${IfNot} ${FileExists} "$SYSDIR\VCRUNTIME140_1.dll"
+        Goto vc_verify_failed
+    ${EndIf}
+
+    DetailPrint "Microsoft Visual C++ runtime verified successfully."
+    Return
+
+vc_verify_failed:
+    DetailPrint "VC++ Redistributable completed, but required runtime DLLs are still missing."
+    IfSilent vc_verify_failed_silent vc_verify_failed_message
+vc_verify_failed_message:
+    MessageBox MB_ICONSTOP|MB_OK "VoidOne could not verify the Microsoft Visual C++ runtime after installation. Please restart Windows and run the installer again."
+vc_verify_failed_silent:
+    Abort
+
+vc_download_abort:
+    Delete "${VC_REDIST_FILE}"
+    IfSilent vc_download_abort_silent vc_download_abort_message
+vc_download_abort_message:
+    MessageBox MB_ICONSTOP|MB_OK "VoidOne requires the Microsoft Visual C++ runtime. The installer cannot continue without downloading it from Microsoft."
+vc_download_abort_silent:
+    Abort
+FunctionEnd
 
 Function .onInit
     !insertmacro SingleInstanceMutex
@@ -359,10 +455,10 @@ Section "Uninstall"
     RMDir /r "$INSTDIR"
 SectionEnd
 
-LangString DESC_SEC_MAIN ${LANG_ENGLISH} "Required VoidOne application files, Qt runtime, plugins, and dependencies."
+LangString DESC_SEC_MAIN ${LANG_ENGLISH} "Required VoidOne application files, Qt runtime, plugins, dependencies, and Microsoft Visual C++ runtime bootstrap."
 LangString DESC_SEC_STARTMENU ${LANG_ENGLISH} "Create a Start Menu folder with launch and uninstall shortcuts."
 LangString DESC_SEC_DESKTOP ${LANG_ENGLISH} "Create a shortcut to VoidOne on the Windows desktop."
-LangString DESC_SEC_MAIN ${LANG_FARSI} "فایل‌های اصلی VoidOne، محیط Qt، افزونه‌ها و وابستگی‌های موردنیاز."
+LangString DESC_SEC_MAIN ${LANG_FARSI} "فایل‌های اصلی VoidOne، محیط Qt، افزونه‌ها، وابستگی‌ها و نصب خودکار Microsoft Visual C++ Runtime."
 LangString DESC_SEC_STARTMENU ${LANG_FARSI} "ساخت پوشه‌ای در منوی Start برای اجرای VoidOne و حذف نصب."
 LangString DESC_SEC_DESKTOP ${LANG_FARSI} "ساخت میانبر VoidOne روی دسکتاپ."
 
