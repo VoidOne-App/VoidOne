@@ -251,7 +251,7 @@ Function EnsureVCRuntime
     ${Else}
         DetailPrint "Bundled VC++ Redistributable payload is unavailable; downloading from Microsoft."
         ClearErrors
-        ExecWait '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri ''${VC_REDIST_URL}'' -OutFile ''${VC_REDIST_FILE}''"' $2
+        ExecWait `"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri ''${VC_REDIST_URL}'' -OutFile ''${VC_REDIST_FILE}''"` $2
         ${If} $2 != 0
             DetailPrint "VC++ Redistributable download failed with exit code $2."
             IfSilent vc_download_failed_silent vc_download_failed_message
@@ -263,7 +263,7 @@ vc_download_failed_silent:
 vc_retry_download:
             Delete "${VC_REDIST_FILE}"
             ClearErrors
-            ExecWait '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri ''${VC_REDIST_URL}'' -OutFile ''${VC_REDIST_FILE}''"' $2
+            ExecWait `"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri ''${VC_REDIST_URL}'' -OutFile ''${VC_REDIST_FILE}''"` $2
             ${If} $2 != 0
                 Goto vc_download_abort
             ${EndIf}
