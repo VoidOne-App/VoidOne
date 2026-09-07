@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 4.4.3)
 
 set(VOIDONE_VERSION_OVERRIDE "0.0.1" CACHE STRING "Override application version (normally supplied by CI/tag)")
 set(VOIDONE_VERSION_INPUT "${VOIDONE_VERSION_OVERRIDE}")
@@ -73,11 +73,11 @@ set(VOIDONE_VERSION_DISPLAY "${VOIDONE_VERSION_INPUT}")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/VoidOneVersion.h.in"
                "${VOIDONE_GENERATED_DIR}/VoidOneVersion.h" @ONLY)
 
-find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Quick Sql Network)
+find_package(Qt6 6.11.2 REQUIRED COMPONENTS Core Gui Quick Sql Network)
 if(VOIDONE_BUILD_TESTS)
-    find_package(Qt6 6.11 REQUIRED COMPONENTS Test)
+    find_package(Qt6 6.11.2 REQUIRED COMPONENTS Test)
 endif()
-qt_standard_project_setup(REQUIRES 6.11)
+qt_standard_project_setup(REQUIRES 6.11.2)
 
 function(voidone_apply_compile_policy target)
     if(MSVC)

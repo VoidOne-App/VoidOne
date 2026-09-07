@@ -1,0 +1,38 @@
+name: Fix NSIS ExecWait quoting
+
+on:
+  push:
+    branches:
+      - fix/windows-runtime-dependency
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Patch installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = 'packaging\windows\installer.nsi'
+          $content = Get-Content -Raw -LiteralPath $path
+          $old = 'ExecWait ''"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri ''''${VC_REDIST_URL}'''' -OutFile ''''${VC_REDIST_FILE}''''"'' $2'
+          $new = 'ExecWait `"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri ''''${VC_REDIST_URL}'''' -OutFile ''''${VC_REDIST_FILE}''''"` $2'
+          $count = ([regex]::Matches($content, [regex]::Escape($old))).Count
+          if ($count -ne 2) { throw "Expected exactly 2 NSIS PowerShell ExecWait lines, found $count." }
+          $content = $content.Replace($old, $new)
+          Set-Content -LiteralPath $path -Value $content -Encoding utf8 -NoNewline
+
+      - name: Commit installer fix
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: packaging/windows/installer.nsi
+          message: 'fix(windows): correct NSIS PowerShell ExecWait quoting'
