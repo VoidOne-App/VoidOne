@@ -40,7 +40,6 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $bootstrapper = Join-Path $env:RUNNER_TEMP 'vs_buildtools.exe'
-          $installPath = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\2026\BuildTools'
 
           Invoke-WebRequest -UseBasicParsing -Uri 'https://aka.ms/vs/stable/vs_buildtools.exe' -OutFile $bootstrapper
           if (-not (Test-Path $bootstrapper -PathType Leaf)) {
@@ -52,7 +51,6 @@ jobs:
             '--wait',
             '--norestart',
             '--nocache',
-            '--installPath', $installPath,
             '--add', 'Microsoft.VisualStudio.Workload.VCTools',
             '--includeRecommended'
           )
@@ -64,17 +62,78 @@ jobs:
 
           Remove-Item $bootstrapper -Force -ErrorAction SilentlyContinue
 
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          if (-not (Test-Path $vswhere -PathType Leaf)) {
+            throw "vswhere.exe was not found at: $vswhere"
+          }
+
+          $installPath = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($installPath)) {
+            throw 'Visual Studio 2026 Build Tools installation could not be located with vswhere.'
+          }
+
+          $installPath = $installPath.Trim()
           $vsDevCmd = Join-Path $installPath 'Common7\Tools\VsDevCmd.bat'
           if (-not (Test-Path $vsDevCmd -PathType Leaf)) {
-            throw "Visual Studio 2026 VsDevCmd.bat was not found at: $vsDevCmd"
+            throw "VsDevCmd.bat was not found in the Visual Studio installation: $vsDevCmd"
           }
 
           "VOIDONE_VS2026_PATH=$installPath" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Visual Studio installation: $installPath"
+          Write-Host "Developer command file: $vsDevCmd"
 
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1.13.0
-        with:
-          arch: x64
+      - name: Setup MSVC 2026 environment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vsDevCmd = Join-Path $env:VOIDONE_VS2026_PATH 'Common7\Tools\VsDevCmd.bat'
+          if (-not (Test-Path $vsDevCmd -PathType Leaf)) {
+            throw "VsDevCmd.bat was not found: $vsDevCmd"
+          }
+
+          $output = & cmd.exe /d /s /c "`"$vsDevCmd`" -arch=amd64 && set" 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            $output | Write-Host
+            throw "VsDevCmd.bat failed with exit code $LASTEXITCODE."
+          }
+
+          $environmentNames = @(
+            'PATH',
+            'INCLUDE',
+            'LIB',
+            'LIBPATH',
+            'VCToolsInstallDir',
+            'VCINSTALLDIR',
+            'VCToolsVersion',
+            'WindowsSdkDir',
+            'WindowsSDKVersion',
+            'UniversalCRTSdkDir',
+            'UCRTVersion',
+            'VSCMD_ARG_TGT_ARCH',
+            'VSCMD_VER'
+          )
+
+          foreach ($line in $output) {
+            $text = [string]$line
+            $separator = $text.IndexOf('=')
+            if ($separator -le 0) { continue }
+
+            $name = $text.Substring(0, $separator)
+            if ($environmentNames -contains $name) {
+              $value = $text.Substring($separator + 1)
+              "$name=$value" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+            }
+          }
+
+          if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
+            $env:Path = (($output | Where-Object { $_ -like 'PATH=*' } | Select-Object -First 1) -replace '^PATH=','')
+          }
+
+          $cl = Get-Command cl.exe -ErrorAction SilentlyContinue
+          if (-not $cl) {
+            throw 'MSVC cl.exe was not exposed after initializing VsDevCmd.bat.'
+          }
+          Write-Host "MSVC compiler path: $($cl.Source)"
 
       - name: Verify MSVC toolchain
         shell: pwsh
@@ -85,6 +144,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'MSVC cl.exe could not be executed.' }
           if (($versionOutput -join "`n") -notmatch 'Version 19\.51\.') {
             throw "VoidOne requires the stable MSVC 14.51 toolset (compiler 19.51.x), but the active compiler was: $($versionOutput -join ' ')"
+          }
+          if ($env:VSCMD_ARG_TGT_ARCH -ne 'x64') {
+            throw "VoidOne requires an x64 MSVC environment, but VSCMD_ARG_TGT_ARCH is '$env:VSCMD_ARG_TGT_ARCH'."
           }
 
       - name: Install Qt
