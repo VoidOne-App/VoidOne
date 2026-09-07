@@ -18,8 +18,6 @@ QString normalizedPath(const QString &input)
     if (absolute.isEmpty())
         return {};
 
-    // canonicalFilePath() is empty for a non-existent path. Resolve the
-    // nearest existing ancestor and append the missing suffix instead.
     const QString canonical = info.canonicalFilePath();
     if (!canonical.isEmpty())
         return QDir::cleanPath(canonical);
@@ -152,18 +150,52 @@ bool SaveBackupManager::restoreBackup(const QString &backupFilePath, const QStri
         return false;
     }
 
-    QDir targetDir(targetSaveDirPath);
-    if (!targetDir.exists() && !targetDir.mkpath(".")) {
-        emit backupCompleted(false, "Target save directory could not be created. / پوشه مقصد ساخته نشد.");
+    const QFileInfo targetInfo(targetSaveDirPath);
+    QDir parentDir(targetInfo.absolutePath());
+    if (!parentDir.exists() && !parentDir.mkpath(".")) {
+        emit backupCompleted(false, "Target parent directory could not be created. / پوشه والد مقصد ساخته نشد.");
         return false;
     }
 
-    const bool success = copyRecursively(backupFilePath, targetSaveDirPath);
-    emit backupCompleted(
-        success,
-        success ? "Backup restored successfully! / بازگردانی بکاپ با موفقیت انجام شد!"
-                : "Failed to restore backup. / خطا در بازگردانی بکاپ.");
-    return success;
+    const QString stagingPath = parentDir.filePath(
+        targetInfo.fileName() + QStringLiteral(".voidone-restore-%1")
+            .arg(QDateTime::currentMSecsSinceEpoch()));
+
+    if (QDir(stagingPath).exists() && !QDir(stagingPath).removeRecursively()) {
+        emit backupCompleted(false, "Restore staging directory could not be prepared. / فضای موقت ریستور آماده نشد.");
+        return false;
+    }
+
+    if (!copyRecursively(backupFilePath, stagingPath)) {
+        QDir(stagingPath).removeRecursively();
+        emit backupCompleted(false, "Failed to stage backup restore. / آماده‌سازی ریستور ناموفق بود.");
+        return false;
+    }
+
+    const bool hadExistingTarget = QDir(targetSaveDirPath).exists();
+    const QString rollbackPath = parentDir.filePath(
+        targetInfo.fileName() + QStringLiteral(".voidone-rollback-%1")
+            .arg(QDateTime::currentMSecsSinceEpoch()));
+
+    if (hadExistingTarget && !QDir().rename(targetSaveDirPath, rollbackPath)) {
+        QDir(stagingPath).removeRecursively();
+        emit backupCompleted(false, "Existing save directory could not be staged for replacement. / سیو فعلی قابل جابه‌جایی نبود.");
+        return false;
+    }
+
+    if (!QDir().rename(stagingPath, targetSaveDirPath)) {
+        if (hadExistingTarget)
+            QDir().rename(rollbackPath, targetSaveDirPath);
+        QDir(stagingPath).removeRecursively();
+        emit backupCompleted(false, "Backup could not be activated. / بکاپ قابل فعال‌سازی نبود.");
+        return false;
+    }
+
+    if (hadExistingTarget)
+        QDir(rollbackPath).removeRecursively();
+
+    emit backupCompleted(true, "Backup restored successfully! / بازگردانی بکاپ با موفقیت انجام شد!");
+    return true;
 }
 
 void SaveBackupManager::setAutoSaveEnabled(bool enabled)
@@ -204,13 +236,13 @@ void SaveBackupManager::setMaxBackups(int count)
 
 void SaveBackupManager::configureAutoSave(const QString &saveDirPath, const QString &backupDestinationPath)
 {
-    m_targetSaveDir = saveDirPath;
-    m_destinationDir = backupDestinationPath;
+    m_targetSaveDir = saveDirPath.trimmed();
+    m_destinationDir = backupDestinationPath.trimmed();
 }
 
 void SaveBackupManager::performAutoSave()
 {
-    if (m_targetSaveDir.isEmpty() || m_destinationDir.isEmpty())
+    if (!m_autoSaveEnabled || m_targetSaveDir.isEmpty() || m_destinationDir.isEmpty())
         return;
     createBackup(m_targetSaveDir, m_destinationDir);
 }
