@@ -14,6 +14,7 @@ permissions:
 env:
   QT_VERSION: '6.11.2'
   QT_ARCH: win64_msvc2022_64
+  CMAKE_VERSION: '4.4.3'
   APP_NAME: VoidOne
 
 jobs:
@@ -159,6 +160,33 @@ jobs:
           setup-python: false
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git'
 
+      - name: Install CMake
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:CMAKE_VERSION
+          $archive = "cmake-$version-windows-x86_64.zip"
+          $url = "https://github.com/Kitware/CMake/releases/download/v$version/$archive"
+          $zip = Join-Path $env:RUNNER_TEMP $archive
+          $destination = Join-Path $env:RUNNER_TEMP "cmake-$version"
+
+          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip
+          if (-not (Test-Path $zip -PathType Leaf)) {
+            throw "CMake archive was not downloaded: $zip"
+          }
+
+          Remove-Item $destination -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -Path $zip -DestinationPath $env:RUNNER_TEMP -Force
+
+          $cmakeRoot = Join-Path $env:RUNNER_TEMP "cmake-$version-windows-x86_64"
+          $cmakeBin = Join-Path $cmakeRoot 'bin'
+          if (-not (Test-Path (Join-Path $cmakeBin 'cmake.exe') -PathType Leaf)) {
+            throw "CMake $version executable was not found at: $cmakeBin"
+          }
+
+          $cmakeBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $cmakeBin 'cmake.exe') --version
+
       - name: Install build tools
         shell: pwsh
         run: |
@@ -178,6 +206,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "NSIS version check failed: $LASTEXITCODE" }
           ninja --version
           cmake --version
+
+      - name: Verify build toolchain
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cmakeOutput = & cmake --version 2>&1
+          $cmakeOutput | Write-Host
+          if ($LASTEXITCODE -ne 0) { throw 'CMake could not be executed.' }
+          if (($cmakeOutput -join "`n") -notmatch 'cmake version 4\.4\.3') {
+            throw "VoidOne requires CMake 4.4.3, but the active CMake was: $($cmakeOutput -join ' ')"
+          }
+
+          $ninjaVersion = & ninja --version
+          Write-Host "Ninja: $ninjaVersion"
+
+          $nsisVersion = & makensis /VERSION 2>&1
+          $nsisVersion | Write-Host
 
       # =====================================================================
       # Stage 3 — Build metadata
@@ -371,43 +416,44 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64) -or [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) {
-            Write-Host 'Signing secrets are not configured. Skipping code signing.'
+            Write-Host 'Windows signing certificate is not configured; skipping signing.'
             exit 0
           }
 
-          $timestamp = $env:SIGNING_TIMESTAMP_URL
-          if ([string]::IsNullOrWhiteSpace($timestamp)) { $timestamp = 'http://timestamp.digicert.com' }
+          $certificate = Join-Path $env:RUNNER_TEMP 'windows-signing.pfx'
+          [IO.File]::WriteAllBytes($certificate, [Convert]::FromBase64String($env:SIGNING_CERTIFICATE_BASE64))
 
-          $pfx = Join-Path $env:RUNNER_TEMP 'voidone-signing.pfx'
-          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGNING_CERTIFICATE_BASE64))
-          $password = ConvertTo-SecureString $env:SIGNING_CERTIFICATE_PASSWORD -AsPlainText -Force
-          $cert = Import-PfxCertificate -FilePath $pfx -Password $password -CertStoreLocation Cert:\CurrentUser\My
-          if (-not $cert) { throw 'Failed to import signing certificate.' }
+          $targets = @(
+            'package\VoidOne.exe',
+            'dist\VoidOne-Setup-x64.exe'
+          )
 
-          foreach ($target in @('package\VoidOne.exe','dist\VoidOne-Setup-x64.exe')) {
-            & signtool sign /sha1 $cert.Thumbprint /fd SHA256 /tr $timestamp /td SHA256 $target
-            if ($LASTEXITCODE -ne 0) { throw "Signing failed for ${target}: $LASTEXITCODE" }
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter 'signtool.exe' -File |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signtool) { throw 'signtool.exe was not found.' }
 
-            & signtool verify /pa /all $target
-            if ($LASTEXITCODE -ne 0) { throw "Signature verification failed for ${target}: $LASTEXITCODE" }
+          foreach ($target in $targets) {
+            & $signtool.FullName sign /f $certificate /p $env:SIGNING_CERTIFICATE_PASSWORD /fd SHA256 /tr $env:SIGNING_TIMESTAMP_URL /td SHA256 $target
+            if ($LASTEXITCODE -ne 0) { throw "Signing failed for $target: $LASTEXITCODE" }
           }
 
-          Remove-Item $pfx -Force -ErrorAction SilentlyContinue
+          Remove-Item $certificate -Force -ErrorAction SilentlyContinue
 
-      # =====================================================================
-      # Stage 9 — Distribution
-      # =====================================================================
       - name: Build portable ZIP
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $zip = Join-Path $env:GITHUB_WORKSPACE 'dist\VoidOne-Portable-x64.zip'
+          $zip = 'dist\VoidOne-Portable-x64.zip'
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path 'package\*' -DestinationPath $zip -CompressionLevel Optimal
           if (-not (Test-Path $zip -PathType Leaf)) {
             throw "Portable ZIP was not created: $zip"
           }
 
+      # =====================================================================
+      # Stage 9 — Artifacts + release
+      # =====================================================================
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7.0.1
         with:
@@ -418,76 +464,35 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      # =====================================================================
-      # Stage 10 — Release publication
-      # =====================================================================
-      - name: Publish GitHub Release
+      - name: Create GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $tag = '${{ github.ref_name }}'
-          $title = "VoidOne $tag"
-          gh release create $tag `
-            'dist/VoidOne-Setup-x64.exe' `
-            'dist/VoidOne-Portable-x64.zip' `
-            --title $title `
-            --generate-notes `
-            --verify-tag
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/VoidOne-Setup-x64.exe
+            dist/VoidOne-Portable-x64.zip
 
       # =====================================================================
-      # Stage 11 — Notifications
+      # Stage 10 — Notifications
       # =====================================================================
       - name: Discord notification
         if: always() && (job.status != 'success' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
         shell: pwsh
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:DISCORD_WEBHOOK)) { exit 0 }
-
-          $status = '${{ job.status }}'
-          $event = '${{ github.event_name }}'
-          $ref = '${{ github.ref_name }}'
-          $sha = '${{ github.sha }}'.Substring(0,7)
-          $repo = '${{ github.repository }}'
-          $runUrl = "https://github.com/$repo/actions/runs/${{ github.run_id }}"
-
-          switch ($status) {
-            'success' {
-              $title = '✅ VoidOne CI — Build Successful'
-              $description = 'Windows build, tests, and packaging completed successfully.'
-            }
-            'failure' {
-              $title = '❌ VoidOne CI — Build Failed'
-              $description = 'The CI pipeline failed. Check the workflow logs for details.'
-            }
-            'cancelled' {
-              $title = '⚠️ VoidOne CI — Build Cancelled'
-              $description = 'The CI run was cancelled before completion.'
-            }
-            default {
-              $title = 'ℹ️ VoidOne CI — Build Update'
-              $description = "CI finished with status: $status"
-            }
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:DISCORD_WEBHOOK_URL)) {
+            Write-Host 'Discord webhook is not configured; skipping notification.'
+            exit 0
           }
 
+          $status = if ($env:JOB_STATUS -eq 'success') { 'success' } else { 'failure' }
           $payload = @{
-            username = 'VoidOne CI'
-            embeds = @(@{
-              title = $title
-              description = $description
-              fields = @(
-                @{ name='Branch / Tag'; value=('`'+$ref+'`'); inline=$true }
-                @{ name='Commit'; value=('`'+$sha+'`'); inline=$true }
-                @{ name='Event'; value=('`'+$event+'`'); inline=$true }
-              )
-              url = $runUrl
-              footer = @{ text='VoidOne • GitHub Actions' }
-              timestamp = [DateTime]::UtcNow.ToString('o')
-            })
-          } | ConvertTo-Json -Depth 6
+            content = "VoidOne CI: $status — $env:GITHUB_WORKFLOW #$env:GITHUB_RUN_NUMBER — $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          } | ConvertTo-Json -Compress
 
-          Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK -Method Post -ContentType 'application/json' -Body $payload
+          Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK_URL -Method Post -ContentType 'application/json' -Body $payload
+        env:
+          JOB_STATUS: ${{ job.status }}
