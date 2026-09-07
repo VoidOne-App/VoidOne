@@ -1,0 +1,1262 @@
+name: VoidOne Full System QA - Torture Lab
+
+on:
+  pull_request:
+    branches: [main]
+
+  push:
+    branches:
+      - main
+      - "release/*"
+    tags:
+      - "v*"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  APP_NAME: VoidOne
+  QT_VERSION: "6.11.2"
+  QT_ARCH: win64_msvc2022_64
+  QA_ROOT: "${{ github.workspace }}\\qa"
+  PACKAGE_ROOT: "${{ github.workspace }}\\qa\\package"
+
+jobs:
+
+  # ======================================================================
+  # SYSTEM DISCOVERY
+  # ======================================================================
+
+  discover:
+    name: System Discovery
+    runs-on: windows-2025
+    timeout-minutes: 20
+
+    outputs:
+      cpu_count: ${{ steps.discovery.outputs.cpu_count }}
+      memory_gb: ${{ steps.discovery.outputs.memory_gb }}
+      gpu: ${{ steps.discovery.outputs.gpu }}
+
+    steps:
+
+      - name: Create QA workspace
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force `
+            "$env:GITHUB_WORKSPACE\qa\artifacts" | Out-Null
+
+      - name: Discover system
+        id: discovery
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+
+          $cpu = Get-CimInstance Win32_Processor
+          $computer = Get-CimInstance Win32_ComputerSystem
+          $gpu = Get-CimInstance Win32_VideoController
+          $os = Get-CimInstance Win32_OperatingSystem
+
+          $memoryGB = [Math]::Round(
+            $computer.TotalPhysicalMemory / 1GB,
+            2
+          )
+
+          Write-Host "CPU:"
+          $cpu | Format-List Name,NumberOfCores,NumberOfLogicalProcessors
+
+          Write-Host "Memory: $memoryGB GB"
+
+          Write-Host "GPU:"
+          $gpu |
+            Format-List Name,DriverVersion,DriverDate,AdapterRAM
+
+          Write-Host "OS:"
+          $os |
+            Format-List Caption,Version,BuildNumber,OSArchitecture
+
+          "cpu_count=$($cpu.NumberOfLogicalProcessors)" |
+            Out-File $env:GITHUB_OUTPUT -Append
+
+          "memory_gb=$memoryGB" |
+            Out-File $env:GITHUB_OUTPUT -Append
+
+          "gpu=$($gpu.Name -join ', ')" |
+            Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Full hardware inventory
+        shell: pwsh
+        run: |
+          systeminfo |
+            Out-File qa\artifacts\systeminfo.txt -Encoding utf8
+
+          Get-ComputerInfo |
+            Out-File qa\artifacts\computerinfo.txt -Encoding utf8
+
+          Get-CimInstance Win32_Processor |
+            Format-List * |
+            Out-File qa\artifacts\cpu.txt -Encoding utf8
+
+          Get-CimInstance Win32_PhysicalMemory |
+            Format-List * |
+            Out-File qa\artifacts\ram.txt -Encoding utf8
+
+          Get-CimInstance Win32_DiskDrive |
+            Format-List * |
+            Out-File qa\artifacts\disks.txt -Encoding utf8
+
+          Get-CimInstance Win32_LogicalDisk |
+            Format-List * |
+            Out-File qa\artifacts\logical-disks.txt -Encoding utf8
+
+          Get-CimInstance Win32_VideoController |
+            Format-List * |
+            Out-File qa\artifacts\gpu.txt -Encoding utf8
+
+          Get-CimInstance Win32_NetworkAdapter |
+            Format-List * |
+            Out-File qa\artifacts\network-adapters.txt -Encoding utf8
+
+          Get-CimInstance Win32_SoundDevice |
+            Format-List * |
+            Out-File qa\artifacts\audio.txt -Encoding utf8
+
+          Get-CimInstance Win32_PnPEntity |
+            Format-List Name,Status,PNPDeviceID |
+            Out-File qa\artifacts\devices.txt -Encoding utf8
+
+          dxdiag /t "$PWD\qa\artifacts\dxdiag.txt"
+
+      - name: Upload discovery
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: system-discovery-${{ github.run_id }}
+          path: qa/artifacts
+          retention-days: 14
+
+
+  # ======================================================================
+  # BUILD
+  # ======================================================================
+
+  build:
+    name: Build VoidOne
+    runs-on: windows-2025
+    timeout-minutes: 40
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install Visual Studio Build Tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $installer = "$env:RUNNER_TEMP\vs_buildtools.exe"
+
+          Invoke-WebRequest `
+            -Uri "https://aka.ms/vs/stable/vs_buildtools.exe" `
+            -OutFile $installer
+
+          $args = @(
+            "--quiet",
+            "--wait",
+            "--norestart",
+            "--nocache",
+            "--add",
+            "Microsoft.VisualStudio.Workload.VCTools",
+            "--includeRecommended"
+          )
+
+          $p = Start-Process `
+            $installer `
+            -ArgumentList $args `
+            -Wait `
+            -PassThru
+
+          if ($p.ExitCode -notin @(0,3010)) {
+            throw "Visual Studio installation failed: $($p.ExitCode)"
+          }
+
+      - name: Initialize MSVC
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $vswhere =
+            "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+
+          $installPath =
+            & $vswhere `
+              -latest `
+              -products "*" `
+              -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+              -property installationPath
+
+          if ([string]::IsNullOrWhiteSpace($installPath)) {
+            throw "MSVC installation was not found."
+          }
+
+          $vsDevCmd =
+            Join-Path `
+              $installPath.Trim() `
+              "Common7\Tools\VsDevCmd.bat"
+
+          $output =
+            & cmd.exe /d /s /c `
+              "`"$vsDevCmd`" -arch=amd64 && set"
+
+          foreach ($line in $output) {
+            if ($line -match "^([^=]+)=(.*)$") {
+              $name = $matches[1]
+              $value = $matches[2]
+
+              if ($name -in @(
+                "PATH",
+                "INCLUDE",
+                "LIB",
+                "LIBPATH",
+                "VCToolsInstallDir",
+                "VCToolsVersion",
+                "VCToolsRedistDir",
+                "WindowsSdkDir",
+                "WindowsSDKVersion",
+                "UniversalCRTSdkDir"
+              )) {
+                "$name=$value" |
+                  Out-File $env:GITHUB_ENV -Append
+              }
+            }
+          }
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: ${{ env.QT_VERSION }}
+          target: desktop
+          arch: ${{ env.QT_ARCH }}
+          cache: true
+          setup-python: false
+          aqtsource: "git+https://github.com/miurahr/aqtinstall.git"
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . `
+            -B build `
+            -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DVOIDONE_BUILD_TESTS=ON `
+            -DVOIDONE_GENERATE_INSTALLER=OFF
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build `
+            --config Release `
+            --parallel
+
+      - name: CTest
+        shell: pwsh
+        run: |
+          ctest `
+            --test-dir build `
+            -C Release `
+            --output-on-failure `
+            --timeout 300 `
+            --verbose
+
+      - name: Stage application
+        shell: pwsh
+        run: |
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            qa\package | Out-Null
+
+          $exe = Get-ChildItem `
+            build `
+            -Recurse `
+            -Filter VoidOne.exe `
+            -File |
+            Where-Object {
+              $_.FullName -notmatch "\\CMakeFiles\\"
+            } |
+            Select-Object -First 1
+
+          if (-not $exe) {
+            throw "VoidOne.exe was not produced."
+          }
+
+          Copy-Item `
+            $exe.FullName `
+            qa\package\VoidOne.exe
+
+          windeployqt `
+            --release `
+            --compiler-runtime `
+            --no-translations `
+            --qmldir src\ui\qml `
+            qa\package\VoidOne.exe
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: voidone-qa-package-${{ github.run_id }}
+          path: qa/package
+          retention-days: 14
+
+
+  # ======================================================================
+  # FILESYSTEM TORTURE
+  # ======================================================================
+
+  filesystem:
+    name: Filesystem Torture
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 20
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Filesystem matrix
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $root =
+            Join-Path `
+              $env:RUNNER_TEMP `
+              "VoidOne-FS-QA"
+
+          Remove-Item `
+            $root `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            $root | Out-Null
+
+          # Normal files
+
+          1..500 | ForEach-Object {
+            "VoidOne test $_" |
+              Set-Content `
+                "$root\file-$_.txt" `
+                -Encoding utf8
+          }
+
+          # Unicode
+
+          $unicode =
+            Join-Path `
+              $root `
+              "فارسی-日本語-中文-한국어"
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            $unicode | Out-Null
+
+          "Unicode" |
+            Set-Content `
+              "$unicode\تست.txt" `
+              -Encoding utf8
+
+          # Spaces
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            "$root\directory with spaces" |
+            Out-Null
+
+          # Nested directories
+
+          $current = $root
+
+          1..25 | ForEach-Object {
+            $current =
+              Join-Path `
+                $current `
+                "level-$($_)"
+
+            New-Item `
+              -ItemType Directory `
+              -Force `
+              $current |
+              Out-Null
+          }
+
+          "Deep path" |
+            Set-Content `
+              "$current\deep.txt" `
+              -Encoding utf8
+
+          # Copy
+
+          Copy-Item `
+            $root `
+            "$root-copy" `
+            -Recurse
+
+          if (-not (Test-Path "$root-copy\file-500.txt")) {
+            throw "Recursive copy failed."
+          }
+
+          # Move
+
+          Move-Item `
+            "$root-copy\file-500.txt" `
+            "$root-copy\moved.txt"
+
+          if (-not (Test-Path "$root-copy\moved.txt")) {
+            throw "Move failed."
+          }
+
+          # Delete
+
+          Remove-Item `
+            "$root-copy\moved.txt" `
+            -Force
+
+          if (Test-Path "$root-copy\moved.txt") {
+            throw "Delete failed."
+          }
+
+          Remove-Item `
+            $root `
+            -Recurse `
+            -Force
+
+          Remove-Item `
+            "$root-copy" `
+            -Recurse `
+            -Force
+
+
+  # ======================================================================
+  # MEMORY / CPU STRESS
+  # ======================================================================
+
+  stress:
+    name: CPU Memory Stress
+    runs-on: windows-2025
+    timeout-minutes: 25
+
+    steps:
+
+      - name: CPU stress
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $jobs = @()
+
+          for ($i = 0; $i -lt 8; $i++) {
+            $jobs += Start-Job {
+              $x = 0
+
+              for ($j = 0; $j -lt 5000000; $j++) {
+                $x = (($x + $j) * 17) % 1000003
+              }
+
+              return $x
+            }
+          }
+
+          Wait-Job $jobs | Out-Null
+
+          foreach ($job in $jobs) {
+            if ($job.State -ne "Completed") {
+              throw "CPU stress worker failed."
+            }
+          }
+
+          Receive-Job $jobs | Out-Null
+          Remove-Job $jobs -Force
+
+      - name: Memory stress
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $buffers = New-Object System.Collections.Generic.List[byte[]]
+
+          try {
+
+            1..64 | ForEach-Object {
+              $buffer = New-Object byte[] (1MB)
+
+              $buffer[0] = 0x55
+              $buffer[$buffer.Length - 1] = 0xAA
+
+              $buffers.Add($buffer)
+            }
+
+            foreach ($buffer in $buffers) {
+
+              if ($buffer[0] -ne 0x55) {
+                throw "Memory integrity check failed."
+              }
+
+              if ($buffer[$buffer.Length - 1] -ne 0xAA) {
+                throw "Memory integrity check failed."
+              }
+            }
+
+          }
+          finally {
+
+            $buffers.Clear()
+
+            [GC]::Collect()
+            [GC]::WaitForPendingFinalizers()
+          }
+
+
+  # ======================================================================
+  # GRAPHICS MATRIX
+  # ======================================================================
+
+  graphics:
+    name: Graphics QA (${{ matrix.backend }})
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 25
+
+    strategy:
+      fail-fast: false
+      matrix:
+        backend:
+          - default
+          - software
+          - d3d11
+          - opengl
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download package
+        uses: actions/download-artifact@v8
+        with:
+          name: voidone-qa-package-${{ github.run_id }}
+          path: qa/package
+
+      - name: Configure graphics backend
+        shell: pwsh
+        run: |
+
+          switch ("${{ matrix.backend }}") {
+
+            "software" {
+              "QT_QUICK_BACKEND=software" |
+                Out-File $env:GITHUB_ENV -Append
+            }
+
+            "d3d11" {
+              "QSG_RHI_BACKEND=d3d11" |
+                Out-File $env:GITHUB_ENV -Append
+            }
+
+            "opengl" {
+              "QSG_RHI_BACKEND=opengl" |
+                Out-File $env:GITHUB_ENV -Append
+            }
+
+            default {
+              Write-Host "Default RHI."
+            }
+          }
+
+      - name: QML import validation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $qml = Get-ChildItem `
+            src\ui\qml `
+            -Recurse `
+            -Filter *.qml
+
+          if (-not $qml) {
+            throw "No QML files found."
+          }
+
+          foreach ($file in $qml) {
+
+            if ($file.Length -eq 0) {
+              throw "Empty QML file: $($file.FullName)"
+            }
+
+          }
+
+      - name: Graphics startup test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            qa\artifacts | Out-Null
+
+          $exe =
+            "$env:GITHUB_WORKSPACE\qa\package\VoidOne.exe"
+
+          $stdout =
+            "$env:GITHUB_WORKSPACE\qa\artifacts\stdout.log"
+
+          $stderr =
+            "$env:GITHUB_WORKSPACE\qa\artifacts\stderr.log"
+
+          $p = Start-Process `
+            $exe `
+            -WorkingDirectory `
+              "$env:GITHUB_WORKSPACE\qa\package" `
+            -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr `
+            -PassThru
+
+          Start-Sleep -Seconds 8
+
+          if ($p.HasExited) {
+
+            Write-Host `
+              "VoidOne exited: $($p.ExitCode)"
+
+            if ($p.ExitCode -ne 0) {
+              throw `
+                "Graphics backend ${{ matrix.backend }} caused startup failure."
+            }
+
+          }
+          else {
+
+            Write-Host `
+              "VoidOne survived graphics startup."
+
+            Stop-Process `
+              $p.Id `
+              -Force `
+              -ErrorAction SilentlyContinue
+          }
+
+      - name: Upload graphics diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: graphics-${{ matrix.backend }}-${{ github.run_id }}
+          path: qa/artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
+
+  # ======================================================================
+  # APPLICATION STABILITY
+  # ======================================================================
+
+  runtime:
+    name: Application Stability
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 30
+
+    steps:
+
+      - name: Download package
+        uses: actions/download-artifact@v8
+        with:
+          name: voidone-qa-package-${{ github.run_id }}
+          path: qa/package
+
+      - name: Repeated startup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $exe =
+            "$env:GITHUB_WORKSPACE\qa\package\VoidOne.exe"
+
+          10 | ForEach-Object {
+
+            Write-Host `
+              "Startup test $_ / 10"
+
+            $p = Start-Process `
+              $exe `
+              -WorkingDirectory `
+                "$env:GITHUB_WORKSPACE\qa\package" `
+              -PassThru
+
+            Start-Sleep -Seconds 3
+
+            if ($p.HasExited -and $p.ExitCode -ne 0) {
+              throw `
+                "Startup iteration $_ failed: $($p.ExitCode)"
+            }
+
+            if (-not $p.HasExited) {
+              Stop-Process `
+                $p.Id `
+                -Force `
+                -ErrorAction SilentlyContinue
+            }
+          }
+
+      - name: Process resource monitoring
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $exe =
+            "$env:GITHUB_WORKSPACE\qa\package\VoidOne.exe"
+
+          $p = Start-Process `
+            $exe `
+            -WorkingDirectory `
+              "$env:GITHUB_WORKSPACE\qa\package" `
+            -PassThru
+
+          $samples = @()
+
+          try {
+
+            1..15 | ForEach-Object {
+
+              Start-Sleep -Seconds 1
+
+              if ($p.HasExited) {
+                throw "VoidOne exited during monitoring."
+              }
+
+              $p.Refresh()
+
+              $samples += [PSCustomObject]@{
+                Time = Get-Date
+                WorkingSetMB =
+                  [Math]::Round(
+                    $p.WorkingSet64 / 1MB,
+                    2
+                  )
+                PrivateMemoryMB =
+                  [Math]::Round(
+                    $p.PrivateMemorySize64 / 1MB,
+                    2
+                  )
+                Threads = $p.Threads.Count
+                Handles = $p.HandleCount
+                CPUSeconds =
+                  [Math]::Round(
+                    $p.TotalProcessorTime.TotalSeconds,
+                    2
+                  )
+              }
+            }
+
+          }
+          finally {
+
+            if (-not $p.HasExited) {
+              Stop-Process `
+                $p.Id `
+                -Force `
+                -ErrorAction SilentlyContinue
+            }
+
+          }
+
+          $samples |
+            Export-Csv `
+              qa-runtime.csv `
+              -NoTypeInformation
+
+      - name: Upload runtime telemetry
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: runtime-telemetry-${{ github.run_id }}
+          path: qa-runtime.csv
+          if-no-files-found: warn
+
+
+  # ======================================================================
+  # DATABASE / CORRUPTION / RECOVERY
+  # ======================================================================
+
+  database:
+    name: Database Recovery QA
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 25
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run database tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          ctest `
+            --test-dir build `
+            -C Release `
+            -R "database|Database|sqlite|SQLite" `
+            --output-on-failure `
+            --verbose
+
+      - name: SQLite availability
+        shell: pwsh
+        run: |
+          $sqlite =
+            Get-ChildItem `
+              build `
+              -Recurse `
+              -Filter qsqlite.dll `
+              -File |
+              Select-Object -First 1
+
+          if (-not $sqlite) {
+            Write-Warning `
+              "qsqlite.dll was not found in build tree."
+          }
+
+
+  # ======================================================================
+  # NETWORK
+  # ======================================================================
+
+  network:
+    name: Network Resilience QA
+    runs-on: windows-2025
+    timeout-minutes: 15
+
+    steps:
+
+      - name: DNS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Resolve-DnsName `
+            github.com `
+            -ErrorAction Stop
+
+      - name: HTTPS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $response =
+            Invoke-WebRequest `
+              -Uri "https://github.com" `
+              -UseBasicParsing `
+              -TimeoutSec 20
+
+          if ($response.StatusCode -lt 200 -or
+              $response.StatusCode -ge 400) {
+            throw `
+              "HTTPS connectivity failed."
+          }
+
+      - name: Network inventory
+        shell: pwsh
+        run: |
+          Get-NetAdapter |
+            Format-Table `
+              Name,Status,LinkSpeed,MacAddress |
+            Out-File `
+              network.txt `
+              -Encoding utf8
+
+          Get-NetIPConfiguration |
+            Out-File `
+              network-config.txt `
+              -Encoding utf8
+
+
+  # ======================================================================
+  # WINDOWS PERMISSIONS / REGISTRY
+  # ======================================================================
+
+  windows:
+    name: Windows API / Registry QA
+    runs-on: windows-2025
+    timeout-minutes: 15
+
+    steps:
+
+      - name: Registry test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $key =
+            "HKCU:\Software\VoidOne-QA"
+
+          Remove-Item `
+            $key `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          New-Item `
+            $key `
+            -Force | Out-Null
+
+          Set-ItemProperty `
+            $key `
+            -Name "TestValue" `
+            -Value "VoidOne"
+
+          $value =
+            (Get-ItemProperty `
+              $key).TestValue
+
+          if ($value -ne "VoidOne") {
+            throw "Registry read/write failed."
+          }
+
+          Remove-Item `
+            $key `
+            -Recurse `
+            -Force
+
+      - name: Environment validation
+        shell: pwsh
+        run: |
+          $required = @(
+            "TEMP",
+            "TMP",
+            "APPDATA",
+            "LOCALAPPDATA",
+            "USERPROFILE"
+          )
+
+          foreach ($name in $required) {
+
+            $value =
+              [Environment]::GetEnvironmentVariable($name)
+
+            if ([string]::IsNullOrWhiteSpace($value)) {
+              throw "Missing environment variable: $name"
+            }
+
+            Write-Host "$name=$value"
+          }
+
+
+  # ======================================================================
+  # VC++ RUNTIME
+  # ======================================================================
+
+  runtime-dependencies:
+    name: Runtime Dependency QA
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 15
+
+    steps:
+
+      - name: Download package
+        uses: actions/download-artifact@v8
+        with:
+          name: voidone-qa-package-${{ github.run_id }}
+          path: qa/package
+
+      - name: Validate Qt runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $required = @(
+            "VoidOne.exe",
+            "Qt6Core.dll",
+            "Qt6Gui.dll",
+            "Qt6Qml.dll",
+            "Qt6Quick.dll",
+            "platforms\qwindows.dll"
+          )
+
+          foreach ($file in $required) {
+
+            $path =
+              Join-Path `
+                "$env:GITHUB_WORKSPACE\qa\package" `
+                $file
+
+            if (-not (Test-Path $path -PathType Leaf)) {
+              throw "Missing runtime dependency: $file"
+            }
+          }
+
+      - name: Validate VC++ runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $required = @(
+            "msvcp140.dll",
+            "vcruntime140.dll",
+            "vcruntime140_1.dll"
+          )
+
+          foreach ($dll in $required) {
+
+            $path =
+              Join-Path `
+                "$env:GITHUB_WORKSPACE\qa\package" `
+                $dll
+
+            if (-not (Test-Path $path -PathType Leaf)) {
+              throw "Missing VC++ runtime: $dll"
+            }
+          }
+
+
+  # ======================================================================
+  # BACKUP / RESTORE
+  # ======================================================================
+
+  backup:
+    name: Backup Restore Torture
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 20
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run backup tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          ctest `
+            --test-dir build `
+            -C Release `
+            -R "backup|Backup" `
+            --output-on-failure `
+            --verbose
+
+      - name: Filesystem backup simulation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $root =
+            "$env:RUNNER_TEMP\VoidOne-Backup-Torture"
+
+          Remove-Item `
+            $root `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          New-Item `
+            "$root\source\data" `
+            -ItemType Directory `
+            -Force | Out-Null
+
+          New-Item `
+            "$root\source\config" `
+            -ItemType Directory `
+            -Force | Out-Null
+
+          1..1000 | ForEach-Object {
+
+            "Data $_" |
+              Set-Content `
+                "$root\source\data\file-$_.dat" `
+                -Encoding utf8
+          }
+
+          "VoidOne config" |
+            Set-Content `
+              "$root\source\config\settings.ini" `
+              -Encoding utf8
+
+          Copy-Item `
+            "$root\source" `
+            "$root\backup" `
+            -Recurse
+
+          Remove-Item `
+            "$root\source" `
+            -Recurse `
+            -Force
+
+          Copy-Item `
+            "$root\backup" `
+            "$root\restored" `
+            -Recurse
+
+          $count =
+            (Get-ChildItem `
+              "$root\restored" `
+              -Recurse `
+              -File).Count
+
+          if ($count -ne 1001) {
+            throw `
+              "Backup simulation lost data. Expected 1001 files, got $count."
+          }
+
+          Remove-Item `
+            $root `
+            -Recurse `
+            -Force
+
+
+  # ======================================================================
+  # STEAM / GAME DISCOVERY
+  # ======================================================================
+
+  steam:
+    name: Steam Discovery QA
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 20
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Synthetic Steam environment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $root =
+            "$env:RUNNER_TEMP\VoidOne-Steam-QA"
+
+          Remove-Item `
+            $root `
+            -Recurse `
+            -Force `
+            -ErrorAction SilentlyContinue
+
+          New-Item `
+            "$root\steamapps" `
+            -ItemType Directory `
+            -Force | Out-Null
+
+          $manifest = @"
+          "AppState"
+          {
+              "appid"      "999999"
+              "name"       "VoidOne QA Game"
+              "installdir" "VoidOneQAGame"
+              "StateFlags" "4"
+          }
+          "@
+
+          $manifest |
+            Set-Content `
+              "$root\steamapps\appmanifest_999999.acf" `
+              -Encoding utf8
+
+          New-Item `
+            "$root\steamapps\common\VoidOneQAGame" `
+            -ItemType Directory `
+            -Force | Out-Null
+
+          # Parser-level validation through generated fixture.
+          if (-not (
+            Select-String `
+              -Path "$root\steamapps\appmanifest_999999.acf" `
+              -Pattern '"appid"'
+          )) {
+            throw "Synthetic Steam manifest generation failed."
+          }
+
+          Remove-Item `
+            $root `
+            -Recurse `
+            -Force
+
+
+  # ======================================================================
+  # QML STATIC SANITY
+  # ======================================================================
+
+  qml:
+    name: QML Integrity QA
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 20
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Scan QML
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $files =
+            Get-ChildItem `
+              src\ui\qml `
+              -Recurse `
+              -Filter *.qml
+
+          if (-not $files) {
+            throw "No QML files found."
+          }
+
+          foreach ($file in $files) {
+
+            $text =
+              Get-Content `
+                $file.FullName `
+                -Raw
+
+            if ([string]::IsNullOrWhiteSpace($text)) {
+              throw "Empty QML file: $($file.FullName)"
+            }
+
+            $opens =
+              ([regex]::Matches(
+                $text,
+                "\{"
+              )).Count
+
+            $closes =
+              ([regex]::Matches(
+                $text,
+                "\}"
+              )).Count
+
+            if ($opens -ne $closes) {
+              throw `
+                "Unbalanced braces in $($file.FullName): $opens vs $closes"
+            }
+          }
+
+      - name: Detect suspicious placeholders
+        shell: pwsh
+        run: |
+          $matches =
+            Get-ChildItem `
