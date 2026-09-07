@@ -45,7 +45,20 @@ void GameModel::loadGamesFromDatabase() {
 }
 
 bool GameModel::addNewGame(const QString &name, const QString &exePath, const QString &iconPath) {
-    GameRecord game{-1, name, exePath, iconPath, "Custom"};
+    const QString trimmedName = name.trimmed();
+    const QString trimmedExePath = exePath.trimmed();
+    if (trimmedName.isEmpty() || trimmedExePath.isEmpty()) {
+        qWarning() << "[VoidOne] Refusing to add game with an empty name or executable path.";
+        return false;
+    }
+
+    const QFileInfo exeInfo(trimmedExePath);
+    if (!exeInfo.isFile()) {
+        qWarning() << "[VoidOne] Refusing to add missing executable:" << trimmedExePath;
+        return false;
+    }
+
+    GameRecord game{-1, trimmedName, exeInfo.absoluteFilePath(), iconPath.trimmed(), "Custom"};
     if (Database::addGame(game)) {
         loadGamesFromDatabase();
         return true;
@@ -66,30 +79,37 @@ bool GameModel::deleteGame(int id, int index) {
 }
 
 void GameModel::launchGame(const QString &exePath) {
-    if (exePath.isEmpty()) {
+    const QString trimmedPath = exePath.trimmed();
+    if (trimmedPath.isEmpty()) {
+        qWarning() << "[VoidOne] Refusing to launch an empty game path.";
         return;
     }
 
-    const QFileInfo targetInfo(exePath);
+    const QFileInfo targetInfo(trimmedPath);
+    if (!targetInfo.exists()) {
+        qWarning() << "[VoidOne] Game path does not exist:" << trimmedPath;
+        return;
+    }
+
     const QString workingDirectory = targetInfo.isDir()
         ? targetInfo.absoluteFilePath()
         : targetInfo.absolutePath();
 
-    QString program = exePath;
+    QString program = trimmedPath;
     QStringList arguments;
 
     if (targetInfo.isDir()) {
 #if defined(Q_OS_WIN)
-        qWarning() << "[VoidOne] Cannot launch a directory on Windows:" << exePath;
+        qWarning() << "[VoidOne] Cannot launch a directory on Windows:" << trimmedPath;
         return;
 #else
         program = QStringLiteral("xdg-open");
-        arguments << exePath;
+        arguments << trimmedPath;
 #endif
     }
 
     if (!QProcess::startDetached(program, arguments, workingDirectory)) {
-        qWarning() << "[VoidOne] Failed to launch game path:" << exePath;
+        qWarning() << "[VoidOne] Failed to launch game path:" << trimmedPath;
     }
 }
 
