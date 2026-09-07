@@ -74,9 +74,8 @@ void enterpriseMessageHandler(QtMsgType type, const QMessageLogContext &context,
         stream.flush();
     }
 
-    if (type == QtFatalMsg) {
+    if (type == QtFatalMsg)
         std::abort();
-    }
 }
 
 bool initializeEnterpriseLogging()
@@ -109,38 +108,27 @@ void writeWindowsCrashRecord(const LPEXCEPTION_POINTERS exceptionInfo)
     if (FAILED(StringCchPrintfW(filePath, MAX_PATH, L"%sVoidOne-crash.log", tempPath)))
         return;
 
-    HANDLE file = CreateFileW(
-        filePath,
-        FILE_APPEND_DATA,
-        FILE_SHARE_READ | FILE_SHARE_WRITE,
-        nullptr,
-        OPEN_ALWAYS,
-        FILE_ATTRIBUTE_NORMAL,
-        nullptr);
+    HANDLE file = CreateFileW(filePath, FILE_APPEND_DATA,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                              OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (file == INVALID_HANDLE_VALUE)
         return;
 
     const DWORD code = exceptionInfo && exceptionInfo->ExceptionRecord
-        ? exceptionInfo->ExceptionRecord->ExceptionCode
-        : 0;
+        ? exceptionInfo->ExceptionRecord->ExceptionCode : 0;
     const ULONG_PTR address = exceptionInfo && exceptionInfo->ExceptionRecord
-        ? reinterpret_cast<ULONG_PTR>(exceptionInfo->ExceptionRecord->ExceptionAddress)
-        : 0;
+        ? reinterpret_cast<ULONG_PTR>(exceptionInfo->ExceptionRecord->ExceptionAddress) : 0;
 
     char buffer[512] = {};
     const int written = _snprintf_s(
-        buffer,
-        sizeof(buffer),
-        _TRUNCATE,
+        buffer, sizeof(buffer), _TRUNCATE,
         "VoidOne fatal Windows exception\r\nExceptionCode=0x%08lX\r\nExceptionAddress=0x%p\r\n\r\n",
-        static_cast<unsigned long>(code),
-        reinterpret_cast<void *>(address));
+        static_cast<unsigned long>(code), reinterpret_cast<void *>(address));
 
     if (written > 0) {
         DWORD bytesWritten = 0;
         WriteFile(file, buffer, static_cast<DWORD>(written), &bytesWritten, nullptr);
     }
-
     CloseHandle(file);
 }
 
@@ -156,9 +144,7 @@ void registerWindowsCrashHandler()
 }
 #endif
 
-// Signal handlers run in an extremely restricted execution context. Do not
-// touch Qt, heap allocation, mutexes, QFile, QDebug, or other non-signal-safe
-// facilities here. Crash reporting/log flushing belongs outside the handler.
+#if !defined(Q_OS_WIN)
 void fatalSignalHandler(int signalNumber)
 {
     std::_Exit(128 + signalNumber);
@@ -171,14 +157,16 @@ void registerEnterpriseSignalHandlers()
     std::signal(SIGFPE, fatalSignalHandler);
     std::signal(SIGILL, fatalSignalHandler);
 }
+#endif
 
 } // namespace
 
 int main(int argc, char *argv[])
 {
-    registerEnterpriseSignalHandlers();
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
     registerWindowsCrashHandler();
+#else
+    registerEnterpriseSignalHandlers();
 #endif
 
     QGuiApplication app(argc, argv);
@@ -192,8 +180,7 @@ int main(int argc, char *argv[])
     parser.setApplicationDescription("VoidOne — High-Performance PC Game Launcher.");
     parser.addHelpOption();
     parser.addVersionOption();
-    parser.addOption(QCommandLineOption(
-        {"d", "diagnostics"},
+    parser.addOption(QCommandLineOption({"d", "diagnostics"},
         "Run system telemetry and diagnostic suite on startup."));
     parser.process(app);
 
@@ -238,15 +225,11 @@ int main(int argc, char *argv[])
         rootContext->setContextProperty("steamScanner", &steamScanner);
         rootContext->setContextProperty("trManager", &trManager);
 
-        QObject::connect(
-            &engine,
-            &QQmlApplicationEngine::objectCreationFailed,
-            &app,
-            []() {
-                qCritical() << "[UI-FATAL] Root QML component creation failed.";
-                QCoreApplication::exit(-1);
-            },
-            Qt::QueuedConnection);
+        QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
+                         &app, []() {
+            qCritical() << "[UI-FATAL] Root QML component creation failed.";
+            QCoreApplication::exit(-1);
+        }, Qt::QueuedConnection);
 
         QObject::connect(&app, &QCoreApplication::aboutToQuit, []() {
             qInfo() << "[Lifecycle] Shutdown sequence initiated.";
