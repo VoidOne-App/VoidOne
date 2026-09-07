@@ -25,6 +25,7 @@
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <strsafe.h>
 #endif
 
 #include "VoidOneVersion.h"
