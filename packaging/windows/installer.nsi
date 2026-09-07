@@ -34,6 +34,20 @@
 !define VC_REDIST_URL "https://aka.ms/vc14/vc_redist.x64.exe"
 !define VC_REDIST_FILE "$PLUGINSDIR\vc_redist.x64.exe"
 
+; The official Microsoft VC++ Redistributable is embedded into the installer
+; at build time. A caller may provide /DVC_REDIST_SOURCE=<path> to reuse a
+; pre-downloaded copy; otherwise NSIS fetches the latest Microsoft package into
+; a temporary compiler file and embeds it in the generated installer.
+!ifndef VC_REDIST_SOURCE
+  !tempfile VC_REDIST_SOURCE
+  !system '"%WINDIR%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$ErrorActionPreference=''Stop''; Invoke-WebRequest -UseBasicParsing -Uri ''${VC_REDIST_URL}'' -OutFile ''${VC_REDIST_SOURCE}''"' = 0
+  !define VC_REDIST_SOURCE_TEMP
+!endif
+!if /FileExists "${VC_REDIST_SOURCE}"
+!else
+  !error "VC++ Redistributable source is missing. Set VC_REDIST_SOURCE or allow the build to download the official Microsoft package."
+!endif
+
 !ifndef NSIS_PTR_SIZE & SYSTYPE_PTR
   !define SYSTYPE_PTR i
 !else
@@ -123,6 +137,15 @@ Page custom SystemCheckPage SystemCheckPageLeave
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Farsi"
 
+; Hidden payload section: the Microsoft redistributable is shipped inside the
+; VoidOne installer so a target machine does not need internet access to get
+; the runtime dependency.
+Section -VCRuntimePayload
+    SectionIn RO
+    SetOutPath "$PLUGINSDIR"
+    File /oname=vc_redist.x64.exe "${VC_REDIST_SOURCE}"
+SectionEnd
+
 Section "VoidOne" SEC_MAIN
     SectionIn RO
     ${If} $RepairMode == "1"
@@ -210,7 +233,6 @@ Function EnsureVCRuntime
     ${EndIf}
 
     DetailPrint "Microsoft Visual C++ runtime is missing or incomplete."
-    DetailPrint "Downloading the latest supported x64 Redistributable from Microsoft."
 
     ClearErrors
     ReadRegStr $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Version"
@@ -222,22 +244,29 @@ Function EnsureVCRuntime
         DetailPrint "No VC++ runtime registration found; install mode will be used."
     ${EndIf}
 
-    ClearErrors
-    ExecWait '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri ''${VC_REDIST_URL}'' -OutFile ''${VC_REDIST_FILE}''"' $2
-    ${If} $2 != 0
-        DetailPrint "VC++ Redistributable download failed with exit code $2."
-        IfSilent vc_download_failed_silent vc_download_failed_message
-vc_download_failed_message:
-        MessageBox MB_ICONSTOP|MB_RETRYCANCEL "VoidOne needs the Microsoft Visual C++ runtime to run.$\r$\n$\r$\nThe runtime could not be downloaded. Please check your internet connection and click Retry, or cancel the installation." IDRETRY vc_retry_download IDCANCEL vc_download_abort
-        Goto vc_retry_download
-vc_download_failed_silent:
-        Abort
-vc_retry_download:
-        Delete "${VC_REDIST_FILE}"
+    ; The redistributable is bundled into the installer. The online download
+    ; below remains as a defensive fallback for externally customized builds.
+    ${If} ${FileExists} "${VC_REDIST_FILE}"
+        DetailPrint "Using the bundled Microsoft Visual C++ x64 Redistributable."
+    ${Else}
+        DetailPrint "Bundled VC++ Redistributable payload is unavailable; downloading from Microsoft."
         ClearErrors
         ExecWait '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri ''${VC_REDIST_URL}'' -OutFile ''${VC_REDIST_FILE}''"' $2
         ${If} $2 != 0
-            Goto vc_download_abort
+            DetailPrint "VC++ Redistributable download failed with exit code $2."
+            IfSilent vc_download_failed_silent vc_download_failed_message
+vc_download_failed_message:
+            MessageBox MB_ICONSTOP|MB_RETRYCANCEL "VoidOne needs the Microsoft Visual C++ runtime to run.$\r$\n$\r$\nThe bundled runtime could not be used and the fallback download failed. Please check your internet connection and click Retry, or cancel the installation." IDRETRY vc_retry_download IDCANCEL vc_download_abort
+            Goto vc_retry_download
+vc_download_failed_silent:
+            Abort
+vc_retry_download:
+            Delete "${VC_REDIST_FILE}"
+            ClearErrors
+            ExecWait '"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing -Uri ''${VC_REDIST_URL}'' -OutFile ''${VC_REDIST_FILE}''"' $2
+            ${If} $2 != 0
+                Goto vc_download_abort
+            ${EndIf}
         ${EndIf}
     ${EndIf}
 
@@ -285,7 +314,7 @@ vc_download_abort:
     Delete "${VC_REDIST_FILE}"
     IfSilent vc_download_abort_silent vc_download_abort_message
 vc_download_abort_message:
-    MessageBox MB_ICONSTOP|MB_OK "VoidOne requires the Microsoft Visual C++ runtime. The installer cannot continue without downloading it from Microsoft."
+    MessageBox MB_ICONSTOP|MB_OK "VoidOne requires the Microsoft Visual C++ runtime. The installer cannot continue without the required runtime payload."
 vc_download_abort_silent:
     Abort
 FunctionEnd
@@ -467,3 +496,8 @@ LangString DESC_SEC_DESKTOP ${LANG_FARSI} "ساخت میانبر VoidOne روی 
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_STARTMENU} $(DESC_SEC_STARTMENU)
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DESKTOP} $(DESC_SEC_DESKTOP)
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
+
+!ifdef VC_REDIST_SOURCE_TEMP
+  !delfile "${VC_REDIST_SOURCE}"
+  !undef VC_REDIST_SOURCE_TEMP
+!endif
