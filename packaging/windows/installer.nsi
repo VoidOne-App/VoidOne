@@ -34,6 +34,13 @@
 !define VC_REDIST_URL "https://aka.ms/vc14/vc_redist.x64.exe"
 !define VC_REDIST_FILE "$PLUGINSDIR\vc_redist.x64.exe"
 
+; Minimum VC++ runtime required by the current MSVC toolchain.
+; The v14 Redistributable is cumulative, so equal or newer versions are valid.
+!define VC_RUNTIME_MIN_MAJOR 14
+!define VC_RUNTIME_MIN_MINOR 51
+!define VC_RUNTIME_MIN_BUILD 36247
+!define VC_RUNTIME_MIN_REVISION 0
+
 ; The official Microsoft VC++ Redistributable is embedded into the installer
 ; at build time. A caller may provide /DVC_REDIST_SOURCE=<path> to reuse a
 ; pre-downloaded copy; otherwise NSIS fetches the latest Microsoft package into
@@ -137,9 +144,6 @@ Page custom SystemCheckPage SystemCheckPageLeave
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Farsi"
 
-; Hidden payload section: the Microsoft redistributable is shipped inside the
-; VoidOne installer so a target machine does not need internet access to get
-; the runtime dependency.
 Section -VCRuntimePayload
     SectionIn RO
     SetOutPath "$PLUGINSDIR"
@@ -223,29 +227,64 @@ mutex_ready:
 !macroend
 
 Function EnsureVCRuntime
-    ; VoidOne is x64. Check the actual runtime DLLs first so a partially
-    ; installed/corrupted VC++ runtime is repaired instead of being skipped.
+    ; Microsoft recommends checking the installed v14 runtime version before
+    ; launching the redistributable. The package is cumulative, so an equal or
+    ; newer x64 runtime is sufficient and must be skipped instead of returning
+    ; the redist's "another version is installed" error.
+    SetRegView 64
+    ClearErrors
+    ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Major"
+    ReadRegDWORD $1 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Minor"
+    ReadRegDWORD $2 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Bld"
+    ReadRegDWORD $3 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Rbld"
+
+    ; First prefer a complete runtime already present on the machine.
     ${If} ${FileExists} "$SYSDIR\MSVCP140.dll"
     ${AndIf} ${FileExists} "$SYSDIR\VCRUNTIME140.dll"
     ${AndIf} ${FileExists} "$SYSDIR\VCRUNTIME140_1.dll"
-        DetailPrint "Microsoft Visual C++ runtime is already available."
+        DetailPrint "Microsoft Visual C++ x64 runtime is already installed and its required DLLs are present. Skipping Redistributable setup."
         Return
     ${EndIf}
 
-    DetailPrint "Microsoft Visual C++ runtime is missing or incomplete."
-
-    ClearErrors
-    ReadRegStr $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Version"
-    ${If} $0 != ""
-        StrCpy $1 "/repair /quiet /norestart"
-        DetailPrint "Existing VC++ runtime registration found; repair mode will be used."
-    ${Else}
-        StrCpy $1 "/install /quiet /norestart"
-        DetailPrint "No VC++ runtime registration found; install mode will be used."
+    ; If the registration exists and is at least the toolchain minimum, do not
+    ; call the redist blindly. A registered runtime with missing DLLs is repaired
+    ; below; a newer runtime is never downgraded.
+    ${If} $0 > ${VC_RUNTIME_MIN_MAJOR}
+        Goto vc_runtime_sufficient
+    ${EndIf}
+    ${If} $0 == ${VC_RUNTIME_MIN_MAJOR}
+    ${AndIf} $1 > ${VC_RUNTIME_MIN_MINOR}
+        Goto vc_runtime_sufficient
+    ${EndIf}
+    ${If} $0 == ${VC_RUNTIME_MIN_MAJOR}
+    ${AndIf} $1 == ${VC_RUNTIME_MIN_MINOR}
+    ${AndIf} $2 > ${VC_RUNTIME_MIN_BUILD}
+        Goto vc_runtime_sufficient
+    ${EndIf}
+    ${If} $0 == ${VC_RUNTIME_MIN_MAJOR}
+    ${AndIf} $1 == ${VC_RUNTIME_MIN_MINOR}
+    ${AndIf} $2 == ${VC_RUNTIME_MIN_BUILD}
+    ${AndIf} $3 >= ${VC_RUNTIME_MIN_REVISION}
+        Goto vc_runtime_sufficient
     ${EndIf}
 
-    ; The redistributable is bundled into the installer. The online download
-    ; below remains as a defensive fallback for externally customized builds.
+    DetailPrint "Microsoft Visual C++ x64 runtime is missing or below the required version."
+    StrCpy $1 "/install /quiet /norestart"
+
+    ${If} $0 != ""
+        StrCpy $1 "/repair /quiet /norestart"
+        DetailPrint "An older/incomplete VC++ runtime registration was found; repair mode will be used."
+    ${Else}
+        DetailPrint "No VC++ x64 runtime registration found; install mode will be used."
+    ${EndIf}
+
+    Goto vc_runtime_install
+
+vc_runtime_sufficient:
+    DetailPrint "Installed Microsoft Visual C++ x64 runtime is new enough for VoidOne. Skipping Redistributable setup."
+    Return
+
+vc_runtime_install:
     ${If} ${FileExists} "${VC_REDIST_FILE}"
         DetailPrint "Using the bundled Microsoft Visual C++ x64 Redistributable."
     ${Else}
@@ -278,9 +317,12 @@ vc_retry_download:
     ExecWait '"${VC_REDIST_FILE}" $1' $3
     Delete "${VC_REDIST_FILE}"
 
-    ; 0 = success, 3010 = success with reboot required.
+    ; 0 = success, 3010 = success with reboot required. 1638 means another
+    ; version is already installed; treat it as non-fatal and verify the runtime
+    ; rather than failing the whole VoidOne installation.
     ${If} $3 != 0
     ${AndIf} $3 != 3010
+    ${AndIf} $3 != 1638
         DetailPrint "VC++ Redistributable installation failed with exit code $3."
         IfSilent vc_install_failed_silent vc_install_failed_message
 vc_install_failed_message:
@@ -321,7 +363,6 @@ FunctionEnd
 
 Function .onInit
     !insertmacro SingleInstanceMutex
-
     SetRegView 64
     SetShellVarContext all
 
