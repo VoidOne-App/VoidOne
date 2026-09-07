@@ -24,9 +24,6 @@ jobs:
     timeout-minutes: 40
 
     steps:
-      # =====================================================================
-      # Stage 1 — Source
-      # =====================================================================
       - name: Checkout source
         uses: actions/checkout@v7
         with:
@@ -34,107 +31,54 @@ jobs:
           fetch-depth: 1
 
       # =====================================================================
-      # Stage 2 — Toolchain
+      # Stage 1 — Modern Windows toolchain
       # =====================================================================
       - name: Install Visual Studio 2026 Build Tools
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $bootstrapper = Join-Path $env:RUNNER_TEMP 'vs_buildtools.exe'
-
           Invoke-WebRequest -UseBasicParsing -Uri 'https://aka.ms/vs/stable/vs_buildtools.exe' -OutFile $bootstrapper
-          if (-not (Test-Path $bootstrapper -PathType Leaf)) {
-            throw 'Visual Studio 2026 Build Tools bootstrapper was not downloaded.'
-          }
 
-          $arguments = @(
-            '--quiet',
-            '--wait',
-            '--norestart',
-            '--nocache',
-            '--add', 'Microsoft.VisualStudio.Workload.VCTools',
-            '--includeRecommended'
-          )
-
+          $arguments = @('--quiet','--wait','--norestart','--nocache','--add','Microsoft.VisualStudio.Workload.VCTools','--includeRecommended')
           $process = Start-Process -FilePath $bootstrapper -ArgumentList $arguments -Wait -PassThru
           if ($process.ExitCode -notin @(0,3010)) {
             throw "Visual Studio 2026 Build Tools installation failed with exit code $($process.ExitCode)."
           }
 
-          Remove-Item $bootstrapper -Force -ErrorAction SilentlyContinue
-
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-          if (-not (Test-Path $vswhere -PathType Leaf)) {
-            throw "vswhere.exe was not found at: $vswhere"
-          }
+          if (-not (Test-Path $vswhere -PathType Leaf)) { throw "vswhere.exe was not found at: $vswhere" }
 
           $installPath = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($installPath)) {
-            throw 'Visual Studio 2026 Build Tools installation could not be located with vswhere.'
+            throw 'Visual Studio Build Tools installation could not be located with vswhere.'
           }
-
           $installPath = $installPath.Trim()
           $vsDevCmd = Join-Path $installPath 'Common7\Tools\VsDevCmd.bat'
-          if (-not (Test-Path $vsDevCmd -PathType Leaf)) {
-            throw "VsDevCmd.bat was not found in the Visual Studio installation: $vsDevCmd"
-          }
-
+          if (-not (Test-Path $vsDevCmd -PathType Leaf)) { throw "VsDevCmd.bat was not found: $vsDevCmd" }
           "VOIDONE_VS2026_PATH=$installPath" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "Visual Studio installation: $installPath"
-          Write-Host "Developer command file: $vsDevCmd"
 
-      - name: Setup MSVC 2026 environment
+      - name: Initialize MSVC 2026 x64 environment
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $vsDevCmd = Join-Path $env:VOIDONE_VS2026_PATH 'Common7\Tools\VsDevCmd.bat'
-          if (-not (Test-Path $vsDevCmd -PathType Leaf)) {
-            throw "VsDevCmd.bat was not found: $vsDevCmd"
-          }
-
           $output = & cmd.exe /d /s /c "`"$vsDevCmd`" -arch=amd64 && set" 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            $output | Write-Host
-            throw "VsDevCmd.bat failed with exit code $LASTEXITCODE."
-          }
+          if ($LASTEXITCODE -ne 0) { throw "VsDevCmd.bat failed with exit code $LASTEXITCODE." }
 
-          $environmentNames = @(
-            'PATH',
-            'INCLUDE',
-            'LIB',
-            'LIBPATH',
-            'VCToolsInstallDir',
-            'VCINSTALLDIR',
-            'VCToolsVersion',
-            'WindowsSdkDir',
-            'WindowsSDKVersion',
-            'UniversalCRTSdkDir',
-            'UCRTVersion',
-            'VSCMD_ARG_TGT_ARCH',
-            'VSCMD_VER'
-          )
-
+          $environmentNames = @('PATH','INCLUDE','LIB','LIBPATH','VCToolsInstallDir','VCINSTALLDIR','VCToolsVersion','WindowsSdkDir','WindowsSDKVersion','UniversalCRTSdkDir','UCRTVersion','VSCMD_ARG_TGT_ARCH','VSCMD_VER')
           foreach ($line in $output) {
             $text = [string]$line
             $separator = $text.IndexOf('=')
             if ($separator -le 0) { continue }
-
-            $name = $text.Substring(0, $separator)
+            $name = $text.Substring(0,$separator)
             if ($environmentNames -contains $name) {
-              $value = $text.Substring($separator + 1)
-              "$name=$value" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+              "$name=$($text.Substring($separator + 1))" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
             }
           }
 
-          if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
-            $env:Path = (($output | Where-Object { $_ -like 'PATH=*' } | Select-Object -First 1) -replace '^PATH=','')
-          }
-
-          $cl = Get-Command cl.exe -ErrorAction SilentlyContinue
-          if (-not $cl) {
-            throw 'MSVC cl.exe was not exposed after initializing VsDevCmd.bat.'
-          }
-          Write-Host "MSVC compiler path: $($cl.Source)"
+          $pathLine = $output | Where-Object { $_ -like 'PATH=*' } | Select-Object -First 1
+          if ($pathLine) { ($pathLine -replace '^PATH=','') | Out-File $env:GITHUB_PATH -Encoding utf8 -Append }
 
       - name: Verify MSVC toolchain
         shell: pwsh
@@ -144,11 +88,9 @@ jobs:
           $versionOutput | Write-Host
           if ($LASTEXITCODE -ne 0) { throw 'MSVC cl.exe could not be executed.' }
           if (($versionOutput -join "`n") -notmatch 'Version 19\.51\.') {
-            throw "VoidOne requires the stable MSVC 14.51 toolset (compiler 19.51.x), but the active compiler was: $($versionOutput -join ' ')"
+            throw "VoidOne requires MSVC 14.51 (compiler 19.51.x), but found: $($versionOutput -join ' ')"
           }
-          if ($env:VSCMD_ARG_TGT_ARCH -ne 'x64') {
-            throw "VoidOne requires an x64 MSVC environment, but VSCMD_ARG_TGT_ARCH is '$env:VSCMD_ARG_TGT_ARCH'."
-          }
+          if ($env:VSCMD_ARG_TGT_ARCH -ne 'x64') { throw "Expected x64 MSVC environment, found '$env:VSCMD_ARG_TGT_ARCH'." }
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4.3.1
@@ -160,72 +102,41 @@ jobs:
           setup-python: false
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git'
 
-      - name: Install CMake
+      - name: Install CMake 4.4.3
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $version = $env:CMAKE_VERSION
           $archive = "cmake-$version-windows-x86_64.zip"
-          $url = "https://github.com/Kitware/CMake/releases/download/v$version/$archive"
           $zip = Join-Path $env:RUNNER_TEMP $archive
-          $destination = Join-Path $env:RUNNER_TEMP "cmake-$version"
-
+          $url = "https://github.com/Kitware/CMake/releases/download/v$version/$archive"
           Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip
-          if (-not (Test-Path $zip -PathType Leaf)) {
-            throw "CMake archive was not downloaded: $zip"
-          }
-
-          Remove-Item $destination -Recurse -Force -ErrorAction SilentlyContinue
           Expand-Archive -Path $zip -DestinationPath $env:RUNNER_TEMP -Force
+          $cmakeBin = Join-Path $env:RUNNER_TEMP "cmake-$version-windows-x86_64\bin"
+          if (-not (Test-Path (Join-Path $cmakeBin 'cmake.exe') -PathType Leaf)) { throw "CMake $version was not installed correctly." }
+          $cmakeBin | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
 
-          $cmakeRoot = Join-Path $env:RUNNER_TEMP "cmake-$version-windows-x86_64"
-          $cmakeBin = Join-Path $cmakeRoot 'bin'
-          if (-not (Test-Path (Join-Path $cmakeBin 'cmake.exe') -PathType Leaf)) {
-            throw "CMake $version executable was not found at: $cmakeBin"
-          }
-
-          $cmakeBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          & (Join-Path $cmakeBin 'cmake.exe') --version
-
-      - name: Install build tools
+      - name: Install Ninja and NSIS
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           choco install ninja nsis -y --no-progress
-
           $nsisDir = Join-Path ${env:ProgramFiles(x86)} 'NSIS'
-          $makensis = Join-Path $nsisDir 'makensis.exe'
-          if (-not (Test-Path $makensis -PathType Leaf)) {
-            throw "NSIS compiler was not found at: $makensis"
-          }
-
-          $env:Path = "$nsisDir;$env:Path"
-          $nsisDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-          & $makensis /VERSION
-          if ($LASTEXITCODE -ne 0) { throw "NSIS version check failed: $LASTEXITCODE" }
-          ninja --version
-          cmake --version
+          if (-not (Test-Path (Join-Path $nsisDir 'makensis.exe') -PathType Leaf)) { throw 'NSIS compiler was not installed.' }
+          $nsisDir | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Verify build toolchain
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $cmakeOutput = & cmake --version 2>&1
-          $cmakeOutput | Write-Host
-          if ($LASTEXITCODE -ne 0) { throw 'CMake could not be executed.' }
-          if (($cmakeOutput -join "`n") -notmatch 'cmake version 4\.4\.3') {
-            throw "VoidOne requires CMake 4.4.3, but the active CMake was: $($cmakeOutput -join ' ')"
-          }
-
-          $ninjaVersion = & ninja --version
-          Write-Host "Ninja: $ninjaVersion"
-
-          $nsisVersion = & makensis /VERSION 2>&1
-          $nsisVersion | Write-Host
+          $cmake = & cmake --version 2>&1
+          $cmake | Write-Host
+          if (($cmake -join "`n") -notmatch 'cmake version 4\.4\.3') { throw "Expected CMake 4.4.3, found: $($cmake -join ' ')" }
+          Write-Host "Ninja: $(& ninja --version)"
+          Write-Host "NSIS: $(& makensis /VERSION)"
 
       # =====================================================================
-      # Stage 3 — Build metadata
+      # Stage 2 — Metadata
       # =====================================================================
       - name: Resolve version
         id: version
@@ -235,47 +146,23 @@ jobs:
           VOIDONE_REF_NAME: ${{ github.ref_name }}
         run: |
           $ErrorActionPreference = 'Stop'
-
-          if ($env:VOIDONE_REF_TYPE -eq 'tag') {
-            $version = $env:VOIDONE_REF_NAME -replace '^v',''
-          } else {
-            $version = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))"
-          }
-
-          if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
-            throw "Invalid version/tag: $version. Expected vMAJOR.MINOR.PATCH[-PRERELEASE]."
-          }
-
-          $baseVersion = $version -replace '-.*$',''
-          $parts = $baseVersion.Split('.')
+          if ($env:VOIDONE_REF_TYPE -eq 'tag') { $version = $env:VOIDONE_REF_NAME -replace '^v','' }
+          else { $version = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))" }
+          if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') { throw "Invalid version: $version" }
+          $base = $version -replace '-.*$',''
+          $parts = $base.Split('.')
           $windowsVersion = "$($parts[0]).$($parts[1]).$($parts[2]).0"
-
           "value=$version" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "windows_value=$windowsVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-          "## Build" >> $env:GITHUB_STEP_SUMMARY
-          "- Version source: **Git tag** (PRs use an ephemeral dev version)" >> $env:GITHUB_STEP_SUMMARY
-          "- Version: **$version**" >> $env:GITHUB_STEP_SUMMARY
-          "- Windows file version: **$windowsVersion**" >> $env:GITHUB_STEP_SUMMARY
-          "- Commit: $env:GITHUB_SHA" >> $env:GITHUB_STEP_SUMMARY
-
       # =====================================================================
-      # Stage 4 — Configure + compile
+      # Stage 3 — Configure, build, test
       # =====================================================================
       - name: Configure CMake
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $args = @(
-            '-S','.',
-            '-B','build',
-            '-G','Ninja',
-            '-DCMAKE_BUILD_TYPE=Release',
-            '-DVOIDONE_BUILD_TESTS=ON',
-            '-DVOIDONE_GENERATE_INSTALLER=OFF',
-            '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}'
-          )
-          & cmake @args
+          & cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVOIDONE_BUILD_TESTS=ON -DVOIDONE_GENERATE_INSTALLER=OFF '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}'
           if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
 
       - name: Build application and tests
@@ -285,58 +172,33 @@ jobs:
           & cmake --build build --config Release --parallel
           if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
 
-      # =====================================================================
-      # Stage 5 — Test
-      # =====================================================================
       - name: Deploy Qt runtime for tests
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $testBinaries = Get-ChildItem 'build' -Recurse -Filter 'voidone_*_tests.exe' -File |
-            Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' }
-          if (-not $testBinaries) { throw 'No test executables were produced.' }
-
-          foreach ($test in $testBinaries) {
+          $tests = Get-ChildItem build -Recurse -Filter 'voidone_*_tests.exe' -File | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' }
+          if (-not $tests) { throw 'No test executables were produced.' }
+          foreach ($test in $tests) {
             & windeployqt --release --no-translations --no-compiler-runtime $test.FullName
-            if ($LASTEXITCODE -ne 0) {
-              throw "windeployqt failed for $($test.Name): $LASTEXITCODE"
-            }
+            if ($LASTEXITCODE -ne 0) { throw "windeployqt failed for $($test.Name): $LASTEXITCODE" }
           }
-
-          $sqlitePlugin = Get-ChildItem 'build' -Recurse -Filter 'qsqlite.dll' -File | Select-Object -First 1
-          if (-not $sqlitePlugin) {
-            throw 'Qt QSQLITE plugin was not deployed for the database tests.'
-          }
+          if (-not (Get-ChildItem build -Recurse -Filter 'qsqlite.dll' -File | Select-Object -First 1)) { throw 'Qt QSQLITE plugin was not deployed.' }
 
       - name: Run tests
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $env:QT_PLUGIN_PATH = "$env:GITHUB_WORKSPACE\build;$env:QT_ROOT_DIR\plugins"
-          $env:QT_DEBUG_PLUGINS = '1'
-          $env:QT_LOGGING_RULES = 'qt.sql.*=true'
-
-          $databaseTests = @(
-            (Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_tests.exe'),
-            (Join-Path $env:GITHUB_WORKSPACE 'build\voidone_database_lifecycle_tests.exe')
-          )
-
-          foreach ($test in $databaseTests) {
-            $log = Join-Path $env:RUNNER_TEMP ((Split-Path $test -Leaf) + '.qtest.log')
-            Remove-Item $log -Force -ErrorAction SilentlyContinue
-            & $test '-v2' '-o' "$log,txt"
-            $exitCode = $LASTEXITCODE
-            if (Test-Path $log) { Get-Content $log }
-            if ($exitCode -ne 0) {
-              throw "Database test failed: $test (exit code $exitCode)"
-            }
+          foreach ($test in @('build\voidone_database_tests.exe','build\voidone_database_lifecycle_tests.exe')) {
+            if (-not (Test-Path $test)) { throw "Test executable is missing: $test" }
+            & $test '-v2'
+            if ($LASTEXITCODE -ne 0) { throw "Database test failed: $test" }
           }
-
           & ctest --test-dir build -C Release --output-on-failure --timeout 120 --verbose
           if ($LASTEXITCODE -ne 0) { throw "CTest failed: $LASTEXITCODE" }
 
       # =====================================================================
-      # Stage 6 — Application packaging
+      # Stage 4 — Package
       # =====================================================================
       - name: Stage application package
         shell: pwsh
@@ -344,101 +206,31 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Remove-Item package, dist -Recurse -Force -ErrorAction SilentlyContinue
           New-Item package, dist -ItemType Directory -Force | Out-Null
-
-          $exe = Get-ChildItem build -Filter 'VoidOne.exe' -Recurse -File |
-            Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } |
-            Select-Object -First 1
+          $exe = Get-ChildItem build -Recurse -Filter 'VoidOne.exe' -File | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } | Select-Object -First 1
           if (-not $exe) { throw 'VoidOne.exe was not produced.' }
-
           Copy-Item $exe.FullName 'package\VoidOne.exe'
-
           $qml = Join-Path $env:GITHUB_WORKSPACE 'src\ui\qml'
-          if (Test-Path $qml) {
-            & windeployqt --release --compiler-runtime --no-translations --qmldir $qml 'package\VoidOne.exe'
-          } else {
-            & windeployqt --release --compiler-runtime --no-translations 'package\VoidOne.exe'
-          }
+          if (Test-Path $qml) { & windeployqt --release --compiler-runtime --no-translations --qmldir $qml 'package\VoidOne.exe' }
+          else { & windeployqt --release --compiler-runtime --no-translations 'package\VoidOne.exe' }
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed: $LASTEXITCODE" }
-          if (-not (Test-Path 'package\platforms\qwindows.dll')) {
-            throw 'Qt Windows platform plugin is missing.'
-          }
+          if (-not (Test-Path 'package\platforms\qwindows.dll')) { throw 'Qt Windows platform plugin is missing.' }
 
-      # =====================================================================
-      # Stage 7 — Installer
-      # =====================================================================
       - name: Validate installer inputs
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-
-          $requiredFiles = @(
-            'packaging\windows\installer.nsi',
-            'assets\app-icon.ico',
-            'LICENSE',
-            'package\VoidOne.exe',
-            'package\platforms\qwindows.dll'
-          )
-
-          foreach ($path in $requiredFiles) {
-            if (-not (Test-Path $path -PathType Leaf)) {
-              throw "Required installer input is missing: $path"
-            }
+          foreach ($path in @('packaging\windows\installer.nsi','assets\app-icon.ico','LICENSE','package\VoidOne.exe','package\platforms\qwindows.dll')) {
+            if (-not (Test-Path $path -PathType Leaf)) { throw "Required installer input is missing: $path" }
           }
-
-          $packageFiles = Get-ChildItem 'package' -Recurse -File
-          if (-not $packageFiles) { throw 'Installer package directory is empty.' }
-
-          Write-Host 'Installer preflight passed.'
-          Write-Host "Package files: $($packageFiles.Count)"
 
       - name: Build NSIS installer
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $installerScript = Join-Path $env:GITHUB_WORKSPACE 'packaging\windows\installer.nsi'
-          Write-Host "Building installer from absolute path: $installerScript"
-          & makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' $installerScript
+          $script = Join-Path $env:GITHUB_WORKSPACE 'packaging\windows\installer.nsi'
+          & makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' $script
           if ($LASTEXITCODE -ne 0) { throw "NSIS failed: $LASTEXITCODE" }
-          if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) {
-            throw 'Installer was not produced.'
-          }
-
-      # =====================================================================
-      # Stage 8 — Release signing
-      # =====================================================================
-      - name: Sign release binaries
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        env:
-          SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
-          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
-          SIGNING_TIMESTAMP_URL: ${{ secrets.WINDOWS_SIGNING_TIMESTAMP_URL }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64) -or [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) {
-            Write-Host 'Windows signing certificate is not configured; skipping signing.'
-            exit 0
-          }
-
-          $certificate = Join-Path $env:RUNNER_TEMP 'windows-signing.pfx'
-          [IO.File]::WriteAllBytes($certificate, [Convert]::FromBase64String($env:SIGNING_CERTIFICATE_BASE64))
-
-          $targets = @(
-            'package\VoidOne.exe',
-            'dist\VoidOne-Setup-x64.exe'
-          )
-
-          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter 'signtool.exe' -File |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-          if (-not $signtool) { throw 'signtool.exe was not found.' }
-
-          foreach ($target in $targets) {
-            & $signtool.FullName sign /f $certificate /p $env:SIGNING_CERTIFICATE_PASSWORD /fd SHA256 /tr $env:SIGNING_TIMESTAMP_URL /td SHA256 $target
-            if ($LASTEXITCODE -ne 0) { throw "Signing failed for $target: $LASTEXITCODE" }
-          }
-
-          Remove-Item $certificate -Force -ErrorAction SilentlyContinue
+          if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) { throw 'Installer was not produced.' }
 
       - name: Build portable ZIP
         shell: pwsh
@@ -447,12 +239,10 @@ jobs:
           $zip = 'dist\VoidOne-Portable-x64.zip'
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path 'package\*' -DestinationPath $zip -CompressionLevel Optimal
-          if (-not (Test-Path $zip -PathType Leaf)) {
-            throw "Portable ZIP was not created: $zip"
-          }
+          if (-not (Test-Path $zip -PathType Leaf)) { throw "Portable ZIP was not created: $zip" }
 
       # =====================================================================
-      # Stage 9 — Artifacts + release
+      # Stage 5 — Artifacts and release
       # =====================================================================
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7.0.1
@@ -472,27 +262,3 @@ jobs:
           files: |
             dist/VoidOne-Setup-x64.exe
             dist/VoidOne-Portable-x64.zip
-
-      # =====================================================================
-      # Stage 10 — Notifications
-      # =====================================================================
-      - name: Discord notification
-        if: always() && (job.status != 'success' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
-        shell: pwsh
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          if ([string]::IsNullOrWhiteSpace($env:DISCORD_WEBHOOK_URL)) {
-            Write-Host 'Discord webhook is not configured; skipping notification.'
-            exit 0
-          }
-
-          $status = if ($env:JOB_STATUS -eq 'success') { 'success' } else { 'failure' }
-          $payload = @{
-            content = "VoidOne CI: $status — $env:GITHUB_WORKFLOW #$env:GITHUB_RUN_NUMBER — $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
-          } | ConvertTo-Json -Compress
-
-          Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK_URL -Method Post -ContentType 'application/json' -Body $payload
-        env:
-          JOB_STATUS: ${{ job.status }}
