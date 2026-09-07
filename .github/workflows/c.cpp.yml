@@ -66,7 +66,7 @@ jobs:
           $output = & cmd.exe /d /s /c "`"$vsDevCmd`" -arch=amd64 && set" 2>&1
           if ($LASTEXITCODE -ne 0) { throw "VsDevCmd.bat failed with exit code $LASTEXITCODE." }
 
-          $environmentNames = @('PATH','INCLUDE','LIB','LIBPATH','VCToolsInstallDir','VCINSTALLDIR','VCToolsVersion','WindowsSdkDir','WindowsSDKVersion','UniversalCRTSdkDir','UCRTVersion','VSCMD_ARG_TGT_ARCH','VSCMD_VER')
+          $environmentNames = @('PATH','INCLUDE','LIB','LIBPATH','VCToolsInstallDir','VCINSTALLDIR','VCToolsVersion','WindowsSdkDir','WindowsSDKVersion','UniversalCRTSdkDir','UCRTVersion','VSCMD_ARG_TGT_ARCH','VSCMD_VER','VCToolsRedistDir')
           foreach ($line in $output) {
             $text = [string]$line
             $separator = $text.IndexOf('=')
@@ -91,6 +91,7 @@ jobs:
             throw "VoidOne requires MSVC 14.51 (compiler 19.51.x), but found: $($versionOutput -join ' ')"
           }
           if ($env:VSCMD_ARG_TGT_ARCH -ne 'x64') { throw "Expected x64 MSVC environment, found '$env:VSCMD_ARG_TGT_ARCH'." }
+          if ([string]::IsNullOrWhiteSpace($env:VCToolsRedistDir)) { throw 'VCToolsRedistDir is not available; portable VC++ runtime deployment cannot continue.' }
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4.3.1
@@ -215,12 +216,50 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed: $LASTEXITCODE" }
           if (-not (Test-Path 'package\platforms\qwindows.dll')) { throw 'Qt Windows platform plugin is missing.' }
 
+      - name: Bundle VC++ runtime DLLs for portable package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:VCToolsRedistDir)) { throw 'VCToolsRedistDir is unavailable.' }
+
+          $runtimeDll = Get-ChildItem -Path $env:VCToolsRedistDir -Recurse -Filter 'msvcp140.dll' -File |
+            Where-Object { $_.FullName -match '\\x64\\Microsoft\.VC[^\\]*\.CRT\\msvcp140\.dll$' } |
+            Select-Object -First 1
+          if (-not $runtimeDll) { throw "Could not locate the x64 MSVC runtime under VCToolsRedistDir: $env:VCToolsRedistDir" }
+
+          $runtimeDir = $runtimeDll.Directory.FullName
+          Write-Host "Using MSVC runtime directory: $runtimeDir"
+          $runtimeFiles = Get-ChildItem $runtimeDir -Filter '*.dll' -File
+          if (-not $runtimeFiles) { throw "No runtime DLLs found in: $runtimeDir" }
+
+          foreach ($file in $runtimeFiles) {
+            Copy-Item $file.FullName (Join-Path $env:GITHUB_WORKSPACE 'package') -Force
+          }
+
+          $required = @('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')
+          foreach ($name in $required) {
+            $target = Join-Path $env:GITHUB_WORKSPACE "package\$name"
+            if (-not (Test-Path $target -PathType Leaf)) { throw "Required VC++ runtime DLL was not bundled: $name" }
+          }
+          Write-Host 'Portable package now contains the x64 VC++ runtime DLLs.'
+          Get-ChildItem $env:GITHUB_WORKSPACE\package -Filter '*140*.dll' | Select-Object Name,Length | Format-Table -AutoSize
+
       - name: Validate installer inputs
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           foreach ($path in @('packaging\windows\installer.nsi','assets\app-icon.ico','LICENSE','package\VoidOne.exe','package\platforms\qwindows.dll')) {
             if (-not (Test-Path $path -PathType Leaf)) { throw "Required installer input is missing: $path" }
+          }
+
+      - name: Validate portable VC++ runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $required = @('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')
+          foreach ($name in $required) {
+            $path = Join-Path $env:GITHUB_WORKSPACE "package\$name"
+            if (-not (Test-Path $path -PathType Leaf)) { throw "Portable runtime validation failed: $name is missing." }
           }
 
       - name: Download Microsoft VC++ Redistributable payload
