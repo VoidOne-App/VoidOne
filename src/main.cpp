@@ -23,6 +23,10 @@
 #include <csignal>
 #include <cstdlib>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 #include "VoidOneVersion.h"
 #include "Database.h"
 #include "GameModel.h"
@@ -92,6 +96,65 @@ bool initializeEnterpriseLogging()
     return g_logFile.open(QIODevice::WriteOnly | QIODevice::Text);
 }
 
+#ifdef Q_OS_WIN
+void writeWindowsCrashRecord(const LPEXCEPTION_POINTERS exceptionInfo)
+{
+    wchar_t tempPath[MAX_PATH] = {};
+    const DWORD length = GetTempPathW(MAX_PATH, tempPath);
+    if (length == 0 || length >= MAX_PATH)
+        return;
+
+    wchar_t filePath[MAX_PATH] = {};
+    if (FAILED(StringCchPrintfW(filePath, MAX_PATH, L"%sVoidOne-crash.log", tempPath)))
+        return;
+
+    HANDLE file = CreateFileW(
+        filePath,
+        FILE_APPEND_DATA,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        nullptr,
+        OPEN_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr);
+    if (file == INVALID_HANDLE_VALUE)
+        return;
+
+    const DWORD code = exceptionInfo && exceptionInfo->ExceptionRecord
+        ? exceptionInfo->ExceptionRecord->ExceptionCode
+        : 0;
+    const ULONG_PTR address = exceptionInfo && exceptionInfo->ExceptionRecord
+        ? reinterpret_cast<ULONG_PTR>(exceptionInfo->ExceptionRecord->ExceptionAddress)
+        : 0;
+
+    char buffer[512] = {};
+    const int written = _snprintf_s(
+        buffer,
+        sizeof(buffer),
+        _TRUNCATE,
+        "VoidOne fatal Windows exception\r\nExceptionCode=0x%08lX\r\nExceptionAddress=0x%p\r\n\r\n",
+        static_cast<unsigned long>(code),
+        reinterpret_cast<void *>(address));
+
+    if (written > 0) {
+        DWORD bytesWritten = 0;
+        WriteFile(file, buffer, static_cast<DWORD>(written), &bytesWritten, nullptr);
+    }
+
+    CloseHandle(file);
+}
+
+LONG WINAPI windowsUnhandledExceptionFilter(LPEXCEPTION_POINTERS exceptionInfo)
+{
+    writeWindowsCrashRecord(exceptionInfo);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+void registerWindowsCrashHandler()
+{
+    SetUnhandledExceptionFilter(windowsUnhandledExceptionFilter);
+}
+#endif
+
 // Signal handlers run in an extremely restricted execution context. Do not
 // touch Qt, heap allocation, mutexes, QFile, QDebug, or other non-signal-safe
 // facilities here. Crash reporting/log flushing belongs outside the handler.
@@ -113,6 +176,9 @@ void registerEnterpriseSignalHandlers()
 int main(int argc, char *argv[])
 {
     registerEnterpriseSignalHandlers();
+#ifdef Q_OS_WIN
+    registerWindowsCrashHandler();
+#endif
 
     QGuiApplication app(argc, argv);
 
