@@ -13,7 +13,8 @@ on:
 
 permissions:
   actions: read
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
   repair:
@@ -113,6 +114,20 @@ jobs:
             --repo . \
             --log-file "${AI_REPAIR_TEMP_DIR}/ci-failure.log"
 
+      - name: Verify validated patch is present
+        if: steps.repair.outcome == 'success'
+        id: patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$(git status --porcelain --untracked-files=all)" ]]; then
+            echo "AI reported success but produced no repository changes." >&2
+            exit 1
+          fi
+          git diff --check
+          git diff --stat
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
       - name: Publish repair artifacts
         if: always()
         uses: actions/upload-artifact@v7.0.1
@@ -124,6 +139,44 @@ jobs:
             ${{ steps.workspace.outputs.repair_dir }}/ci-failure.log
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Create reviewable repair branch
+        if: steps.repair.outcome == 'success' && steps.patch.outputs.has_changes == 'true'
+        id: branch
+        shell: bash
+        env:
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          branch="ai/repair/run-${RUN_ID}"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          if gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state all --json number --jq 'length' | grep -qv '^0$'; then
+            echo "A PR already exists for $branch; refusing to create a duplicate."
+            exit 1
+          fi
+          git config user.name "VoidOne AI Repair"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add -A
+          git commit -m "fix: apply validated AI repair for CI run ${RUN_ID}"
+          git push --set-upstream origin "$branch"
+
+      - name: Open repair pull request
+        if: steps.repair.outcome == 'success' && steps.patch.outputs.has_changes == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+        run: |
+          set -euo pipefail
+          run_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}"
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$BRANCH" \
+            --title "fix: AI-validated repair for CI run ${RUN_ID}" \
+            --body "Automated repair candidate generated and validated by VoidOne's AI repair pipeline.\n\nSource CI run: ${run_url}\n\nValidation completed by the trusted repair engine before this PR was opened.\n\nThe patch remains subject to normal CI and human review; this workflow does not merge it automatically."
 
       - name: Fail when no validated repair was produced
         if: steps.repair.outcome == 'failure'
