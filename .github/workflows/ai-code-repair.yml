@@ -11,6 +11,8 @@ on:
         required: false
         type: string
 
+# The workflow is privileged because it may create a reviewable repair PR.
+# It never merges the generated PR.
 permissions:
   actions: read
   contents: write
@@ -29,7 +31,8 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: main
-          fetch-depth: 1
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Resolve target run
         id: run
@@ -46,6 +49,28 @@ jobs:
           fi
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           echo "Repair target run: $run_id"
+
+      - name: Resolve failed revision
+        id: target
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          sha="$(gh run view "$RUN_ID" --json headSha --jq '.headSha')"
+          branch="$(gh run view "$RUN_ID" --json headBranch --jq '.headBranch // ""')"
+          repo="$(gh run view "$RUN_ID" --json headRepository --jq '.headRepository.fullName // ""')"
+          if [[ -z "$sha" || "$sha" == "null" ]]; then
+            echo "Unable to resolve failed run head SHA." >&2
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          echo "Failed revision: $sha"
+          echo "Failed branch: ${branch:-<detached>}"
+          echo "Failed repository: ${repo:-<unknown>}"
 
       - name: Prepare AI repair workspace
         id: workspace
@@ -184,3 +209,92 @@ jobs:
         run: |
           echo "No validated AI repair candidate was produced."
           exit 1
+
+      - name: Prepare repair branch from failed revision
+        id: pr
+        if: steps.repair.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+          REPAIR_DIR: ${{ steps.workspace.outputs.repair_dir }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$TARGET_SHA" --depth=1
+          git fetch origin main --depth=1
+
+          # Never overwrite an existing branch. The run ID makes retries deterministic.
+          repair_branch="ai/repair/${RUN_ID}"
+          echo "repair_branch=$repair_branch" >> "$GITHUB_OUTPUT"
+
+          worktree="${RUNNER_TEMP}/voidone-repair-tree"
+          rm -rf "$worktree"
+          git worktree add --detach "$worktree" "$TARGET_SHA"
+
+          if [[ ! -s "$REPAIR_DIR/repair-candidate.patch" ]]; then
+            echo "Validated repair patch is missing." >&2
+            exit 1
+          fi
+
+          git -C "$worktree" apply --check --whitespace=error-all "$REPAIR_DIR/repair-candidate.patch"
+          git -C "$worktree" apply --whitespace=error-all "$REPAIR_DIR/repair-candidate.patch"
+          git -C "$worktree" diff --check
+
+          # Do not permit an AI repair to modify its own engine or policy files.
+          forbidden_regex='^(\.ai/|scripts/ai/|scripts/validation/|scripts/reporting/)'
+          changed="$(git -C "$worktree" diff --name-only)"
+          if [[ -z "$changed" ]]; then
+            echo "AI patch produced no changes." >&2
+            exit 1
+          fi
+          while IFS= read -r file; do
+            if [[ "$file" =~ $forbidden_regex ]]; then
+              echo "AI patch attempts to modify protected path: $file" >&2
+              exit 1
+            fi
+          done <<< "$changed"
+
+          git -C "$worktree" config user.name 'github-actions[bot]'
+          git -C "$worktree" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C "$worktree" add -A
+          git -C "$worktree" commit -m "fix: apply AI-validated CI repair"
+
+          # Push with the workflow token. The branch is based exactly on the failed revision.
+          git -C "$worktree" remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git -C "$worktree" push origin "HEAD:${repair_branch}"
+
+          git worktree remove "$worktree" --force
+
+      - name: Open reviewable repair PR
+        if: steps.repair.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPAIR_BRANCH: ${{ steps.pr.outputs.repair_branch }}
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$REPAIR_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [[ -n "$existing" ]]; then
+            echo "Repair PR already exists: #$existing"
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$REPAIR_BRANCH" \
+            --base main \
+            --title "fix: AI-validated repair for CI run ${RUN_ID}" \
+            --body "## AI-validated CI repair
+
+Generated from failed GitHub Actions run **${RUN_ID}** at revision **${TARGET_SHA}**.
+
+The candidate passed the repository's AI policy/structural/configure validation and independent review before this PR was opened.
+
+- Automated merge: **disabled**
+- Human review: **required**
+- Source failure: CI run ${RUN_ID}
+
+Please review the generated diff and CI results before merging."

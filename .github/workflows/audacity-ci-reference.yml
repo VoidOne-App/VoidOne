@@ -1,0 +1,88 @@
+name: VoidOne Audacity CI Reference
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "ci/reference/**"
+      - ".github/workflows/audacity-ci-reference.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  reference:
+    name: Analyze Audacity CI patterns
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout VoidOne
+        uses: actions/checkout@v7
+
+      - name: Fetch upstream CI metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci/reference/upstream
+          curl -fsSL "https://raw.githubusercontent.com/audacity/audacity/master/.github/workflows/au4_build_windows.yml" \
+            -o ci/reference/upstream/au4_build_windows.yml
+          curl -fsSL "https://raw.githubusercontent.com/audacity/audacity/master/.github/workflows/au4_build_linux.yml" \
+            -o ci/reference/upstream/au4_build_linux.yml
+          curl -fsSL "https://raw.githubusercontent.com/audacity/audacity/master/.github/workflows/au4_check_unit_tests.yml" \
+            -o ci/reference/upstream/au4_check_unit_tests.yml
+          curl -fsSL "https://raw.githubusercontent.com/audacity/audacity/master/.github/workflows/au4_deps_matrix.yml" \
+            -o ci/reference/upstream/au4_deps_matrix.yml
+          curl -fsSL "https://raw.githubusercontent.com/audacity/audacity-actions/master/README.md" \
+            -o ci/reference/upstream/audacity-actions-README.md
+
+      - name: Build AI adaptation prompt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > ci/reference/upstream/AI_ADAPTATION_PROMPT.md <<'EOF'
+          # VoidOne CI architecture analysis task
+
+          Use the files in this directory as upstream engineering references from Audacity AU4.
+
+          Goal: improve VoidOne's CI/CD and runtime validation architecture using proven patterns from a large Qt/CMake/QML project.
+
+          VoidOne constraints:
+          - C++23
+          - Qt 6.11.2
+          - Qt Quick / QML
+          - SQLite
+          - CMake + Ninja
+          - Windows x64 is the primary packaged target
+          - NSIS/MSI/portable packaging may exist
+          - Keep VoidOne behavior and product architecture unchanged unless a verified defect requires a change
+
+          Analyze, do not blindly copy.
+
+          Compare:
+          1. dependency/toolchain setup
+          2. CMake configuration
+          3. build directory and artifact contracts
+          4. unit-test execution
+          5. Qt/QML deployment
+          6. package validation
+          7. runtime startup validation
+          8. matrix strategy
+          9. caching and reproducibility
+          10. failure diagnostics
+
+          Produce:
+          - concrete gaps in VoidOne
+          - recommended changes ordered by impact
+          - exact files/workflows to modify
+          - risks and compatibility concerns
+          - a minimal implementation plan
+
+          Do NOT copy Audacity-specific dependencies, Conan recipes, credentials, signing, Sentry, Artifactory, targets, paths, or application-specific assumptions.
+          EOF
+
+      - name: Upload reference analysis bundle
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: voidone-audacity-ci-reference-${{ github.run_id }}
+          path: ci/reference/upstream
+          retention-days: 14

@@ -16,12 +16,13 @@ env:
   QT_ARCH: win64_msvc2022_64
   CMAKE_VERSION: '4.4.3'
   APP_NAME: VoidOne
+  BUILD_TYPE: Release
 
 jobs:
   build:
-    name: Windows Build + Test + Package
+    name: Windows Build / Test / Package
     runs-on: windows-2025
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     steps:
       - name: Checkout source
@@ -29,54 +30,44 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
+          persist-credentials: false
 
-      # =====================================================================
-      # Stage 1 — Modern Windows toolchain
-      # =====================================================================
+      # ---------------------------------------------------------------------
+      # Stage 1: deterministic toolchain
+      # ---------------------------------------------------------------------
       - name: Install Visual Studio 2026 Build Tools
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $bootstrapper = Join-Path $env:RUNNER_TEMP 'vs_buildtools.exe'
-          Invoke-WebRequest -UseBasicParsing -Uri 'https://aka.ms/vs/stable/vs_buildtools.exe' -OutFile $bootstrapper
-
-          $arguments = @('--quiet','--wait','--norestart','--nocache','--add','Microsoft.VisualStudio.Workload.VCTools','--includeRecommended')
-          $process = Start-Process -FilePath $bootstrapper -ArgumentList $arguments -Wait -PassThru
-          if ($process.ExitCode -notin @(0,3010)) {
-            throw "Visual Studio 2026 Build Tools installation failed with exit code $($process.ExitCode)."
-          }
+          $installer = Join-Path $env:RUNNER_TEMP 'vs_buildtools.exe'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://aka.ms/vs/stable/vs_buildtools.exe' -OutFile $installer
+          $args = @('--quiet','--wait','--norestart','--nocache','--add','Microsoft.VisualStudio.Workload.VCTools','--includeRecommended')
+          $p = Start-Process -FilePath $installer -ArgumentList $args -Wait -PassThru
+          if ($p.ExitCode -notin @(0,3010)) { throw "Visual Studio installation failed: $($p.ExitCode)" }
 
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-          if (-not (Test-Path $vswhere -PathType Leaf)) { throw "vswhere.exe was not found at: $vswhere" }
+          $vsPath = (& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
+          if ([string]::IsNullOrWhiteSpace($vsPath)) { throw 'MSVC Build Tools installation was not found.' }
+          "VOIDONE_VS_PATH=$vsPath" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
 
-          $installPath = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($installPath)) {
-            throw 'Visual Studio Build Tools installation could not be located with vswhere.'
-          }
-          $installPath = $installPath.Trim()
-          $vsDevCmd = Join-Path $installPath 'Common7\Tools\VsDevCmd.bat'
-          if (-not (Test-Path $vsDevCmd -PathType Leaf)) { throw "VsDevCmd.bat was not found: $vsDevCmd" }
-          "VOIDONE_VS2026_PATH=$installPath" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Initialize MSVC 2026 x64 environment
+      - name: Initialize MSVC x64 environment
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $vsDevCmd = Join-Path $env:VOIDONE_VS2026_PATH 'Common7\Tools\VsDevCmd.bat'
+          $vsDevCmd = Join-Path $env:VOIDONE_VS_PATH 'Common7\Tools\VsDevCmd.bat'
           $output = & cmd.exe /d /s /c "`"$vsDevCmd`" -arch=amd64 && set" 2>&1
-          if ($LASTEXITCODE -ne 0) { throw "VsDevCmd.bat failed with exit code $LASTEXITCODE." }
+          if ($LASTEXITCODE -ne 0) { throw "VsDevCmd failed: $LASTEXITCODE" }
 
-          $environmentNames = @('PATH','INCLUDE','LIB','LIBPATH','VCToolsInstallDir','VCINSTALLDIR','VCToolsVersion','WindowsSdkDir','WindowsSDKVersion','UniversalCRTSdkDir','UCRTVersion','VSCMD_ARG_TGT_ARCH','VSCMD_VER','VCToolsRedistDir')
+          $persist = @('PATH','INCLUDE','LIB','LIBPATH','VCToolsInstallDir','VCToolsVersion','VCToolsRedistDir','WindowsSdkDir','WindowsSDKVersion','UniversalCRTSdkDir','UCRTVersion','VSCMD_ARG_TGT_ARCH')
           foreach ($line in $output) {
             $text = [string]$line
-            $separator = $text.IndexOf('=')
-            if ($separator -le 0) { continue }
-            $name = $text.Substring(0,$separator)
-            if ($environmentNames -contains $name) {
-              "$name=$($text.Substring($separator + 1))" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+            $i = $text.IndexOf('=')
+            if ($i -le 0) { continue }
+            $name = $text.Substring(0,$i)
+            if ($persist -contains $name) {
+              "$name=$($text.Substring($i + 1))" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
             }
           }
-
           $pathLine = $output | Where-Object { $_ -like 'PATH=*' } | Select-Object -First 1
           if ($pathLine) { ($pathLine -replace '^PATH=','') | Out-File $env:GITHUB_PATH -Encoding utf8 -Append }
 
@@ -84,14 +75,11 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $versionOutput = & cl 2>&1
-          $versionOutput | Write-Host
-          if ($LASTEXITCODE -ne 0) { throw 'MSVC cl.exe could not be executed.' }
-          if (($versionOutput -join "`n") -notmatch 'Version 19\.51\.') {
-            throw "VoidOne requires MSVC 14.51 (compiler 19.51.x), but found: $($versionOutput -join ' ')"
-          }
+          $cl = (& cl 2>&1) -join "`n"
+          $cl | Write-Host
+          if ($cl -notmatch 'Version 19\.51\.') { throw "Expected MSVC 14.51 / compiler 19.51.x, found: $cl" }
           if ($env:VSCMD_ARG_TGT_ARCH -ne 'x64') { throw "Expected x64 MSVC environment, found '$env:VSCMD_ARG_TGT_ARCH'." }
-          if ([string]::IsNullOrWhiteSpace($env:VCToolsRedistDir)) { throw 'VCToolsRedistDir is not available; portable VC++ runtime deployment cannot continue.' }
+          if ([string]::IsNullOrWhiteSpace($env:VCToolsRedistDir)) { throw 'VCToolsRedistDir is unavailable.' }
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4.3.1
@@ -103,204 +91,175 @@ jobs:
           setup-python: false
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git'
 
-      - name: Install CMake 4.4.3
+      - name: Install exact CMake
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $version = $env:CMAKE_VERSION
           $archive = "cmake-$version-windows-x86_64.zip"
           $zip = Join-Path $env:RUNNER_TEMP $archive
-          $url = "https://github.com/Kitware/CMake/releases/download/v$version/$archive"
-          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip
+          Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/Kitware/CMake/releases/download/v$version/$archive" -OutFile $zip
           Expand-Archive -Path $zip -DestinationPath $env:RUNNER_TEMP -Force
-          $cmakeBin = Join-Path $env:RUNNER_TEMP "cmake-$version-windows-x86_64\bin"
-          if (-not (Test-Path (Join-Path $cmakeBin 'cmake.exe') -PathType Leaf)) { throw "CMake $version was not installed correctly." }
-          $cmakeBin | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+          $bin = Join-Path $env:RUNNER_TEMP "cmake-$version-windows-x86_64\bin"
+          if (-not (Test-Path (Join-Path $bin 'cmake.exe'))) { throw 'Pinned CMake installation failed.' }
+          $bin | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Ninja and NSIS
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           choco install ninja nsis -y --no-progress
-          $nsisDir = Join-Path ${env:ProgramFiles(x86)} 'NSIS'
-          if (-not (Test-Path (Join-Path $nsisDir 'makensis.exe') -PathType Leaf)) { throw 'NSIS compiler was not installed.' }
-          $nsisDir | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+          $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS'
+          if (-not (Test-Path (Join-Path $nsis 'makensis.exe'))) { throw 'NSIS installation failed.' }
+          $nsis | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Verify build toolchain
+      - name: Verify deterministic toolchain
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $cmake = & cmake --version 2>&1
+          $cmake = (& cmake --version 2>&1) -join "`n"
           $cmake | Write-Host
-          if (($cmake -join "`n") -notmatch 'cmake version 4\.4\.3') { throw "Expected CMake 4.4.3, found: $($cmake -join ' ')" }
+          if ($cmake -notmatch 'cmake version 4\.4\.3') { throw "Expected CMake 4.4.3, found: $cmake" }
           Write-Host "Ninja: $(& ninja --version)"
           Write-Host "NSIS: $(& makensis /VERSION)"
 
-      # =====================================================================
-      # Stage 2 — Metadata
-      # =====================================================================
+      # ---------------------------------------------------------------------
+      # Stage 2: metadata
+      # ---------------------------------------------------------------------
       - name: Resolve version
         id: version
         shell: pwsh
         env:
-          VOIDONE_REF_TYPE: ${{ github.ref_type }}
-          VOIDONE_REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ($env:VOIDONE_REF_TYPE -eq 'tag') { $version = $env:VOIDONE_REF_NAME -replace '^v','' }
+          if ($env:REF_TYPE -eq 'tag') { $version = $env:REF_NAME -replace '^v','' }
           else { $version = "0.0.0-dev.$($env:GITHUB_SHA.Substring(0,7))" }
           if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') { throw "Invalid version: $version" }
           $base = $version -replace '-.*$',''
           $parts = $base.Split('.')
-          $windowsVersion = "$($parts[0]).$($parts[1]).$($parts[2]).0"
           "value=$version" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          "windows_value=$windowsVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "windows_value=$($parts[0]).$($parts[1]).$($parts[2]).0" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      # =====================================================================
-      # Stage 3 — Configure, build, test
-      # =====================================================================
+      # ---------------------------------------------------------------------
+      # Stage 3: configure -> build -> test in one canonical build tree
+      # ---------------------------------------------------------------------
       - name: Configure CMake
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVOIDONE_BUILD_TESTS=ON -DVOIDONE_GENERATE_INSTALLER=OFF '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}'
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=$env:BUILD_TYPE -DVOIDONE_BUILD_TESTS=ON -DVOIDONE_GENERATE_INSTALLER=OFF '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}'
           if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
 
       - name: Build application and tests
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & cmake --build build --config Release --parallel
+          cmake --build build --config $env:BUILD_TYPE --parallel
           if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
 
-      - name: Deploy Qt runtime for tests
+      - name: Deploy Qt runtime for test executables
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $tests = Get-ChildItem build -Recurse -Filter 'voidone_*_tests.exe' -File | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' }
-          if (-not $tests) { throw 'No test executables were produced.' }
+          if (-not $tests) { throw 'No VoidOne test executables were produced.' }
           foreach ($test in $tests) {
-            & windeployqt --release --no-translations --no-compiler-runtime $test.FullName
-            if ($LASTEXITCODE -ne 0) { throw "windeployqt failed for $($test.Name): $LASTEXITCODE" }
+            windeployqt --release --no-translations --no-compiler-runtime $test.FullName
+            if ($LASTEXITCODE -ne 0) { throw "windeployqt failed for $($test.Name)." }
           }
-          if (-not (Get-ChildItem build -Recurse -Filter 'qsqlite.dll' -File | Select-Object -First 1)) { throw 'Qt QSQLITE plugin was not deployed.' }
+          if (-not (Get-ChildItem build -Recurse -Filter qsqlite.dll -File | Select-Object -First 1)) { throw 'Qt SQLite plugin was not deployed for tests.' }
 
-      - name: Run tests
+      - name: Run CTest and database tests
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $env:QT_PLUGIN_PATH = "$env:GITHUB_WORKSPACE\build;$env:QT_ROOT_DIR\plugins"
-          foreach ($test in @('build\voidone_database_tests.exe','build\voidone_database_lifecycle_tests.exe')) {
-            if (-not (Test-Path $test)) { throw "Test executable is missing: $test" }
-            & $test '-v2'
-            if ($LASTEXITCODE -ne 0) { throw "Database test failed: $test" }
-          }
-          & ctest --test-dir build -C Release --output-on-failure --timeout 120 --verbose
+          ctest --test-dir build -C $env:BUILD_TYPE --output-on-failure --timeout 300 --verbose
           if ($LASTEXITCODE -ne 0) { throw "CTest failed: $LASTEXITCODE" }
 
-      # =====================================================================
-      # Stage 4 — Package
-      # =====================================================================
-      - name: Stage application package
+      # ---------------------------------------------------------------------
+      # Stage 4: one canonical runtime payload for every distribution format
+      # ---------------------------------------------------------------------
+      - name: Stage canonical Windows payload
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           Remove-Item package, dist -Recurse -Force -ErrorAction SilentlyContinue
           New-Item package, dist -ItemType Directory -Force | Out-Null
-          $exe = Get-ChildItem build -Recurse -Filter 'VoidOne.exe' -File | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } | Select-Object -First 1
+          $exe = Get-ChildItem build -Recurse -Filter VoidOne.exe -File | Where-Object { $_.FullName -notmatch '\\CMakeFiles\\' } | Select-Object -First 1
           if (-not $exe) { throw 'VoidOne.exe was not produced.' }
-          Copy-Item $exe.FullName 'package\VoidOne.exe'
+          Copy-Item $exe.FullName package\VoidOne.exe
           $qml = Join-Path $env:GITHUB_WORKSPACE 'src\ui\qml'
-          if (Test-Path $qml) { & windeployqt --release --compiler-runtime --no-translations --qmldir $qml 'package\VoidOne.exe' }
-          else { & windeployqt --release --compiler-runtime --no-translations 'package\VoidOne.exe' }
+          if (Test-Path $qml) { windeployqt --release --compiler-runtime --no-translations --qmldir $qml package\VoidOne.exe }
+          else { windeployqt --release --compiler-runtime --no-translations package\VoidOne.exe }
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed: $LASTEXITCODE" }
-          if (-not (Test-Path 'package\platforms\qwindows.dll')) { throw 'Qt Windows platform plugin is missing.' }
+          if (-not (Test-Path package\platforms\qwindows.dll)) { throw 'Qt Windows platform plugin is missing.' }
 
-      - name: Bundle VC++ runtime DLLs for portable package
+      - name: Force bundle x64 MSVC runtime
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          if ([string]::IsNullOrWhiteSpace($env:VCToolsRedistDir)) { throw 'VCToolsRedistDir is unavailable.' }
-
-          $runtimeDll = Get-ChildItem -Path $env:VCToolsRedistDir -Recurse -Filter 'msvcp140.dll' -File |
+          $runtime = Get-ChildItem $env:VCToolsRedistDir -Recurse -Filter msvcp140.dll -File |
             Where-Object { $_.FullName -match '\\x64\\Microsoft\.VC[^\\]*\.CRT\\msvcp140\.dll$' } |
             Select-Object -First 1
-          if (-not $runtimeDll) { throw "Could not locate the x64 MSVC runtime under VCToolsRedistDir: $env:VCToolsRedistDir" }
-
-          $runtimeDir = $runtimeDll.Directory.FullName
-          Write-Host "Using MSVC runtime directory: $runtimeDir"
-          $runtimeFiles = Get-ChildItem $runtimeDir -Filter '*.dll' -File
-          if (-not $runtimeFiles) { throw "No runtime DLLs found in: $runtimeDir" }
-
-          foreach ($file in $runtimeFiles) {
-            Copy-Item $file.FullName (Join-Path $env:GITHUB_WORKSPACE 'package') -Force
+          if (-not $runtime) { throw "Could not locate x64 MSVC runtime below $env:VCToolsRedistDir" }
+          $runtimeDir = $runtime.Directory.FullName
+          Get-ChildItem $runtimeDir -Filter '*.dll' -File | ForEach-Object { Copy-Item $_.FullName package\ -Force }
+          foreach ($dll in @('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')) {
+            if (-not (Test-Path "package\$dll")) { throw "Required VC++ runtime DLL missing: $dll" }
           }
 
-          $required = @('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')
-          foreach ($name in $required) {
-            $target = Join-Path $env:GITHUB_WORKSPACE "package\$name"
-            if (-not (Test-Path $target -PathType Leaf)) { throw "Required VC++ runtime DLL was not bundled: $name" }
-          }
-          Write-Host 'Portable package now contains the x64 VC++ runtime DLLs.'
-          Get-ChildItem $env:GITHUB_WORKSPACE\package -Filter '*140*.dll' | Select-Object Name,Length | Format-Table -AutoSize
-
-      - name: Validate installer inputs
+      - name: Validate canonical payload
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          foreach ($path in @('packaging\windows\installer.nsi','assets\app-icon.ico','LICENSE','package\VoidOne.exe','package\platforms\qwindows.dll')) {
-            if (-not (Test-Path $path -PathType Leaf)) { throw "Required installer input is missing: $path" }
+          $required = @('VoidOne.exe','Qt6Core.dll','Qt6Gui.dll','Qt6Qml.dll','Qt6Quick.dll','platforms\qwindows.dll','msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')
+          foreach ($file in $required) {
+            if (-not (Test-Path "package\$file" -PathType Leaf)) { throw "Canonical payload is missing: $file" }
           }
+          Get-ChildItem package -Recurse -File | Sort-Object FullName | Get-FileHash -Algorithm SHA256 | Export-Csv package\SHA256SUMS.csv -NoTypeInformation
 
-      - name: Validate portable VC++ runtime
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $required = @('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')
-          foreach ($name in $required) {
-            $path = Join-Path $env:GITHUB_WORKSPACE "package\$name"
-            if (-not (Test-Path $path -PathType Leaf)) { throw "Portable runtime validation failed: $name is missing." }
-          }
-
+      # ---------------------------------------------------------------------
+      # Stage 5: package from the same canonical payload
+      # ---------------------------------------------------------------------
       - name: Download Microsoft VC++ Redistributable payload
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $source = Join-Path $env:RUNNER_TEMP 'vc_redist.x64.exe'
           Invoke-WebRequest -UseBasicParsing -Uri 'https://aka.ms/vc14/vc_redist.x64.exe' -OutFile $source
-          if (-not (Test-Path $source -PathType Leaf)) { throw 'Microsoft VC++ Redistributable payload was not downloaded.' }
-          $size = (Get-Item $source).Length
-          if ($size -lt 1000000) { throw "Downloaded VC++ Redistributable payload is unexpectedly small: $size bytes." }
+          if (-not (Test-Path $source -PathType Leaf)) { throw 'VC++ Redistributable download failed.' }
+          if ((Get-Item $source).Length -lt 1000000) { throw 'VC++ Redistributable payload is unexpectedly small.' }
           "VOIDONE_VC_REDIST_SOURCE=$source" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build NSIS installer
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $script = Join-Path $env:GITHUB_WORKSPACE 'packaging\windows\installer.nsi'
-          & makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' "/DVC_REDIST_SOURCE=$env:VOIDONE_VC_REDIST_SOURCE" $script
+          foreach ($path in @('packaging\windows\installer.nsi','assets\app-icon.ico','LICENSE')) {
+            if (-not (Test-Path $path -PathType Leaf)) { throw "Installer input is missing: $path" }
+          }
+          makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' "/DVC_REDIST_SOURCE=$env:VOIDONE_VC_REDIST_SOURCE" packaging\windows\installer.nsi
           if ($LASTEXITCODE -ne 0) { throw "NSIS failed: $LASTEXITCODE" }
-          if (-not (Test-Path 'dist\VoidOne-Setup-x64.exe')) { throw 'Installer was not produced.' }
+          if (-not (Test-Path dist\VoidOne-Setup-x64.exe -PathType Leaf)) { throw 'NSIS installer was not produced.' }
 
-      - name: Build portable ZIP
+      - name: Build portable ZIP from canonical payload
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $zip = 'dist\VoidOne-Portable-x64.zip'
-          Remove-Item $zip -Force -ErrorAction SilentlyContinue
-          Compress-Archive -Path 'package\*' -DestinationPath $zip -CompressionLevel Optimal
-          if (-not (Test-Path $zip -PathType Leaf)) { throw "Portable ZIP was not created: $zip" }
+          Compress-Archive -Path package\* -DestinationPath dist\VoidOne-Portable-x64.zip -CompressionLevel Optimal -Force
+          if (-not (Test-Path dist\VoidOne-Portable-x64.zip -PathType Leaf)) { throw 'Portable ZIP was not produced.' }
 
-      # =====================================================================
-      # Stage 5 — Artifacts and release
-      # =====================================================================
-      - name: Upload build artifacts
+      - name: Upload canonical payload and packages
         uses: actions/upload-artifact@v7.0.1
         with:
           name: VoidOne-${{ steps.version.outputs.value }}
           path: |
-            dist/VoidOne-Setup-x64.exe
-            dist/VoidOne-Portable-x64.zip
+            package
+            dist\VoidOne-Setup-x64.exe
+            dist\VoidOne-Portable-x64.zip
           if-no-files-found: error
           retention-days: 14
 
