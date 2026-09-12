@@ -13,7 +13,7 @@
 
 <p>
   <a href="https://github.com/VoidOne-App/VoidOne/actions/workflows/c.cpp.yml"><img src="https://github.com/VoidOne-App/VoidOne/actions/workflows/c.cpp.yml/badge.svg" alt="CI/CD" /></a>
-  <a href="https://github.com/VoidOne-App/VoidOne/releases/latest"><img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?include_prereleases&label=latest%20release" alt="Latest Release" /></a>
+  <a href="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?include_prereleases&label=latest%20release"><img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?include_prereleases&label=latest%20release" alt="Latest Release" /></a>
   <a href="https://github.com/VoidOne-App/VoidOne/stargazers"><img src="https://img.shields.io/github/stars/VoidOne-App/VoidOne?style=flat" alt="GitHub Stars" /></a>
   <a href="https://github.com/VoidOne-App/VoidOne/blob/main/LICENSE"><img src="https://img.shields.io/github/license/VoidOne-App/VoidOne" alt="MIT License" /></a>
 </p>
@@ -29,6 +29,14 @@
 **Built by a gamer. Engineered like a platform. Built in the open.**
 
 </div>
+
+---
+
+## 💬 Community
+
+Join the official **VoidOne Community Discord** to chat with other gamers, testers, contributors, and developers.
+
+**[💬 Join the VoidOne Discord](https://discord.gg/KPWfGvf9VW)**
 
 ---
 
@@ -250,8 +258,8 @@ VoidOne is distributed under the **MIT License**. See [`LICENSE`](LICENSE).
 
 **Built by a gamer. Engineered like a platform. Built in the open.**
 
-♾️ Free & Open Source · 🚫 No Ads · 🔒 Privacy First · 🧠 Optional AI
+♾️ Free & Open Source · 🚫 No Ads · 🔒 Privacy First · 🧠 Optional AI · 💬 Community Discord
 
-[⭐ Star VoidOne](https://github.com/VoidOne-App/VoidOne) · [📦 Releases](https://github.com/VoidOne-App/VoidOne/releases) · [🐛 Issues](https://github.com/VoidOne-App/VoidOne/issues) · [🤝 Contributing](https://github.com/VoidOne-App/VoidOne/blob/main/CONTRIBUTING.md)
+[⭐ Star VoidOne](https://github.com/VoidOne-App/VoidOne) · [📦 Releases](https://github.com/VoidOne-App/VoidOne/releases) · [🐛 Issues](https://github.com/VoidOne-App/VoidOne/issues) · [💬 Discord](https://discord.gg/KPWfGvf9VW) · [🤝 Contributing](https://github.com/VoidOne-App/VoidOne/blob/main/CONTRIBUTING.md)
 
 </div>
