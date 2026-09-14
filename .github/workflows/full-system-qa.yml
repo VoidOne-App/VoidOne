@@ -20,7 +20,7 @@ env:
 jobs:
   build:
     name: Build + Test + Canonical Windows Runtime
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -30,20 +30,17 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Install Visual Studio 2026 Build Tools
+      - name: Locate installed Visual Studio 2026
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $installer = Join-Path $env:RUNNER_TEMP 'vs_buildtools.exe'
-          Invoke-WebRequest -UseBasicParsing -Uri 'https://aka.ms/vs/stable/vs_buildtools.exe' -OutFile $installer
-          $args = @('--quiet','--wait','--norestart','--nocache','--add','Microsoft.VisualStudio.Workload.VCTools','--includeRecommended')
-          $p = Start-Process $installer -ArgumentList $args -Wait -PassThru
-          if ($p.ExitCode -notin @(0,3010)) { throw "Visual Studio installation failed: $($p.ExitCode)" }
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          if (-not (Test-Path $vswhere)) { throw 'vswhere.exe was not found on the VS2026 runner.' }
           $vsPath = (& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath).Trim()
-          if ([string]::IsNullOrWhiteSpace($vsPath)) { throw 'MSVC installation was not found.' }
+          if ([string]::IsNullOrWhiteSpace($vsPath)) { throw 'A Visual Studio installation with x86/x64 C++ tools was not found.' }
+          if (-not (Test-Path (Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat'))) { throw "VsDevCmd.bat was not found under $vsPath" }
           "VOIDONE_VS_PATH=$vsPath" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
-          "VCINSTALLDIR=$vsPath\VC\" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Using Visual Studio: $vsPath"
 
       - name: Initialize MSVC x64
         shell: pwsh
@@ -69,8 +66,13 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $cl = (& cl 2>&1) -join "`n"
+          Write-Host $cl
           if ($cl -notmatch 'Version 19\.51\.') { throw "Unexpected MSVC: $cl" }
           if ($env:VSCMD_ARG_TGT_ARCH -ne 'x64') { throw 'MSVC target is not x64.' }
+          if ([string]::IsNullOrWhiteSpace($env:VCToolsVersion)) { throw 'VCToolsVersion was not initialized.' }
+          if ([string]::IsNullOrWhiteSpace($env:VCToolsRedistDir)) { throw 'VCToolsRedistDir was not initialized.' }
+          Write-Host "MSVC toolset: $env:VCToolsVersion"
+          Write-Host "MSVC redist:  $env:VCToolsRedistDir"
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4.3.1
@@ -136,17 +138,22 @@ jobs:
           windeployqt --release --compiler-runtime --no-translations --qmldir "$env:GITHUB_WORKSPACE\src\ui\qml" qa\package\VoidOne.exe
           if ($LASTEXITCODE -ne 0) { throw 'windeployqt failed for canonical runtime.' }
 
-      - name: Force bundle x64 MSVC runtime
+      - name: Force bundle exact x64 MSVC runtime
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $runtime = Get-ChildItem $env:VCToolsRedistDir -Recurse -Filter msvcp140.dll -File |
-            Where-Object { $_.FullName -match '\\x64\\' } |
+          $redistRoot = $env:VCToolsRedistDir
+          $runtime = Get-ChildItem $redistRoot -Recurse -Filter msvcp140.dll -File |
+            Where-Object { $_.FullName -match '\\x64\\Microsoft\.VC145\.CRT\\' } |
             Select-Object -First 1
-          if (-not $runtime) { throw "No x64 msvcp140.dll found under $env:VCToolsRedistDir" }
+          if (-not $runtime) {
+            throw "MSVC 14.51 x64 CRT was not found under $redistRoot. VCToolsVersion=$env:VCToolsVersion"
+          }
           $runtimeDir = $runtime.Directory.FullName
           Write-Host "Using MSVC runtime directory: $runtimeDir"
-          Get-ChildItem $runtimeDir -Filter '*.dll' -File | ForEach-Object { Copy-Item $_.FullName qa\package\ -Force }
+          $runtimeFiles = Get-ChildItem $runtimeDir -Filter '*.dll' -File
+          if (-not $runtimeFiles) { throw "No runtime DLLs found in $runtimeDir" }
+          $runtimeFiles | ForEach-Object { Copy-Item $_.FullName qa\package\ -Force }
           foreach ($dll in @('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')) {
             if (-not (Test-Path "qa\package\$dll" -PathType Leaf)) { throw "Failed to bundle VC++ runtime: $dll" }
           }
@@ -219,12 +226,12 @@ jobs:
             $p = Start-Process $exe -WorkingDirectory (Split-Path $exe) -PassThru -Environment $e
             Start-Sleep -Seconds 5
             $p.Refresh()
-            if ($p.HasExited -and $p.ExitCode -ne 0) {
+            if ($p.HasExited) {
               $crash = Join-Path $env:TEMP 'VoidOne-crash.log'
               if (Test-Path $crash) { Copy-Item $crash "qa\runtime-diagnostics\crash-$n.log" -Force }
-              throw "Headless startup iteration $n failed: $($p.ExitCode)"
+              throw "Headless startup iteration $n terminated after launch with exit code $($p.ExitCode)."
             }
-            if (-not $p.HasExited) { Stop-Process $p.Id -Force -ErrorAction SilentlyContinue }
+            Stop-Process $p.Id -Force -ErrorAction SilentlyContinue
             Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
           }
       - name: Upload runtime diagnostics
@@ -261,10 +268,6 @@ jobs:
           }
       - name: Startup graphics backend
         shell: pwsh
-        env:
-          QT_LOGGING_TO_CONSOLE: '1'
-          QT_DEBUG_PLUGINS: '1'
-          QML_IMPORT_TRACE: '1'
         run: |
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $env:RUNNER_TEMP "VoidOne-Gfx-${{ matrix.backend }}"
@@ -273,8 +276,8 @@ jobs:
           $p = Start-Process "$env:GITHUB_WORKSPACE\qa\package\VoidOne.exe" -WorkingDirectory "$env:GITHUB_WORKSPACE\qa\package" -PassThru -Environment $e
           Start-Sleep -Seconds 5
           $p.Refresh()
-          if ($p.HasExited -and $p.ExitCode -ne 0) { throw "Graphics backend '${{ matrix.backend }}' failed: $($p.ExitCode)" }
-          if (-not $p.HasExited) { Stop-Process $p.Id -Force -ErrorAction SilentlyContinue }
+          if ($p.HasExited) { throw "Graphics backend '${{ matrix.backend }}' terminated after launch with exit code $($p.ExitCode)." }
+          Stop-Process $p.Id -Force -ErrorAction SilentlyContinue
           Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
 
   package:
@@ -317,4 +320,3 @@ jobs:
           $results.GetEnumerator() | Sort-Object Name | ForEach-Object { Write-Host ("{0}: {1}" -f $_.Key,$_.Value) }
           $failed = $results.GetEnumerator() | Where-Object { $_.Value -ne 'success' }
           if ($failed) { throw ("QA gate failed: " + (($failed | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ', ')) }
-          Write-Host 'VoidOne Full System QA gate passed.'
