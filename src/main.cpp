@@ -21,6 +21,7 @@
 #include <exception>
 #include <csignal>
 #include <cstdlib>
+#include <cstdio>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -198,7 +199,7 @@ int main(int argc, char *argv[])
 
     const QString lockFilePath = QDir(appDataDir).filePath("voidone_enterprise.lock");
     QLockFile singleInstanceLock(lockFilePath);
-    singleInstanceLock.setStaleLockTime(0);
+    // Recover automatically from a lock left by a crashed process.\n    singleInstanceLock.setStaleLockTime(30000);
 
     if (!singleInstanceLock.tryLock(200)) {
         qCritical() << "[Lifecycle] Another VoidOne instance is already active.";
