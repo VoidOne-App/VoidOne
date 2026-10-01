@@ -169,54 +169,7 @@ Window {
                     }
                 }
 
-                Rectangle {
-                    id: musicWidget
-                    Layout.preferredWidth: 160
-                    Layout.preferredHeight: 40
-                    color: theme.background
-                    radius: 20
-                    border.color: theme.primary
-                    border.width: 1
-
-                    property bool isPlaying: false
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 6
-                        anchors.rightMargin: 8
-                        spacing: 6
-
-                        Button {
-                            Layout.preferredWidth: 26
-                            Layout.preferredHeight: 26
-                            background: Rectangle {
-                                color: theme.primaryTransparent
-                                radius: 13
-                            }
-                            contentItem: Text {
-                                text: musicWidget.isPlaying ? "⏸" : "▶"
-                                color: theme.primary
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignCenter
-                                font.pixelSize: 10
-                            }
-                            onClicked: {
-                                musicWidget.isPlaying = !musicWidget.isPlaying
-                                root.showNotification(musicWidget.isPlaying ? qsTr("Playing: MZ — The Lost") : qsTr("Music Paused"))
-                            }
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: musicWidget.isPlaying ? "MZ — The Lost" : "Paused"
-                            color: theme.textPrimary
-                            font.pixelSize: 10
-                            elide: Text.ElideRight
-                        }
-                    }
-                }
-
-                Item { Layout.fillWidth: true } // Quantum Layout Spacer
+                Item { Layout.fillWidth: true }
 
                 // Security & System Core Telemetry Widgets
                 RowLayout {
