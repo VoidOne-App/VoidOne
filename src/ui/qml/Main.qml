@@ -1,6 +1,6 @@
 /****************************************************************************
-**  V O I D O N E   E N G I N E   -   QUANTUM ENTERPRISE CORE
-**  Ultra-High Performance Commercial QML & C++ Game Launcher Architecture
+**  V O I D O N E   -   Native Open-Source Game Launcher
+**  QML / C++ desktop application UI
 **  Copyright (C) 2026 VoidOne_app | SPDX-License-Identifier: MIT
 ****************************************************************************/
 
@@ -19,7 +19,7 @@ Window {
     minimumHeight: 680
 
     visible: true
-    title: qsTr("VoidOne Engine // Enterprise Quantum Launcher [v0.0.1-PRO]")
+    title: qsTr("VoidOne — Game Library")
 
     color: theme.background
 
@@ -54,7 +54,6 @@ Window {
     LayoutMirroring.childrenInherit: true
 
     property string currentPage: "library"
-    property bool systemSecured: true
 
     // ---------------------------------------------------------
     // 2. Advanced Enterprise Toast Telemetry Popup Engine
@@ -80,7 +79,7 @@ Window {
         spacing: 0
 
         // ---------------------------------------------------------
-        // 3. Telemetry & Enterprise Command Top Bar
+        // 3. Status & command top bar
         // ---------------------------------------------------------
         Rectangle {
             Layout.fillWidth: true
@@ -102,7 +101,7 @@ Window {
                 anchors.rightMargin: 24
                 spacing: 20
 
-                // Enterprise Global Search Matrix
+                // Global game search
                 RowLayout {
                     spacing: 12
 
@@ -125,7 +124,7 @@ Window {
                         id: searchInput
                         Layout.preferredWidth: 260
                         Layout.preferredHeight: 40
-                        placeholderText: qsTr("Search database nodes...")
+                        placeholderText: qsTr("Search games...")
                         color: theme.textPrimary
                         placeholderTextColor: theme.textSecondary
                         font.pixelSize: 13
@@ -148,7 +147,7 @@ Window {
                     }
                 }
 
-                // --- Live System Monitoring Widget (CPU & RAM) ---
+                // --- System telemetry ---
                 Rectangle {
                     Layout.preferredWidth: 190
                     Layout.preferredHeight: 40
@@ -162,24 +161,14 @@ Window {
                         anchors.leftMargin: 10
                         anchors.rightMargin: 10
 
-                        ColumnLayout {
-                            spacing: 1
-                            Text { text: "RAM USAGE"; color: theme.textSecondary; font.pixelSize: 8; font.bold: true }
-                            Text { text: "4.2 GB / 12 GB"; color: theme.textPrimary; font.pixelSize: 10; font.bold: true }
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        ColumnLayout {
-                            spacing: 1
-                            Layout.alignment: Qt.AlignRight
-                            Text { text: "CPU LOAD"; color: theme.textSecondary; font.pixelSize: 8; font.bold: true }
-                            Text { text: "14%"; color: theme.primary; font.pixelSize: 10; font.bold: true }
+                        Text {
+                            text: qsTr("System telemetry unavailable")
+                            color: theme.textSecondary
+                            font.pixelSize: 10
                         }
                     }
                 }
 
-                // --- Background Soundtrack Controller ---
                 Rectangle {
                     id: musicWidget
                     Layout.preferredWidth: 160
@@ -250,7 +239,7 @@ Window {
                         }
 
                         Text {
-                            text: qsTr("SECURE LINK")
+                            text: qsTr("LOCAL MODE")
                             color: theme.textSecondary
                             font.pixelSize: 11
                             font.bold: true
@@ -273,7 +262,7 @@ Window {
 
                             Text {
                                 Layout.alignment: Qt.AlignRight
-                                text: "COMMANDER"
+                                text: qsTr("LOCAL USER")
                                 color: theme.textPrimary
                                 font.pixelSize: 11
                                 font.bold: true
@@ -281,7 +270,7 @@ Window {
 
                             Text {
                                 Layout.alignment: Qt.AlignRight
-                                text: "Level 14 (IR)"
+                                text: qsTr("Offline")
                                 color: theme.primary
                                 font.pixelSize: 9
                             }
@@ -297,7 +286,7 @@ Window {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: "MZ"
+                                text: "VO"
                                 color: theme.primary
                                 font.pixelSize: 13
                                 font.bold: true
@@ -377,7 +366,7 @@ Window {
                                     return
                                 }
 
-                                root.showNotification(qsTr("Spawning secure isolated process container..."))
+                                root.showNotification(qsTr("Launching game..."))
                                 gameModel.launchGame(path)
                             }
                         }
@@ -407,7 +396,7 @@ Window {
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: qsTr("No Game Assets Detected in Local Database")
+                            text: qsTr("No games found")
                             color: theme.textPrimary
                             font.pixelSize: 16
                             font.bold: true
@@ -415,7 +404,7 @@ Window {
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: qsTr("Initialize a Steam sync or mount directories to load nodes.")
+                            text: qsTr("Scan your Steam library or add a game to get started.")
                             color: theme.textSecondary
                             font.pixelSize: 13
                         }
@@ -432,7 +421,7 @@ Window {
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: qsTr("🌐 Quantum Store Infrastructure")
+                            text: qsTr("Store integration unavailable")
                             color: theme.primary
                             font.pixelSize: 26
                             font.bold: true
@@ -440,7 +429,7 @@ Window {
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
-                            text: qsTr("Encrypted distribution network initializing...")
+                            text: qsTr("Marketplace functionality is not implemented yet.")
                             color: theme.textSecondary
                             font.pixelSize: 14
                         }
@@ -589,6 +578,6 @@ Window {
     }
 
     Component.onCompleted: {
-        showNotification(qsTr("Quantum Enterprise Architecture fully operational."))
+        showNotification(qsTr("VoidOne is ready."))
     }
 }
