@@ -7,6 +7,7 @@
 #include <QStandardPaths>
 #include <QDebug>
 #include <algorithm>
+#include <utility>
 
 #ifdef Q_OS_WIN
 #include <QSettings>
@@ -30,6 +31,13 @@ QStringList uniqueExistingDirectories(const QStringList &paths)
 QStringList discoverSteamRoots()
 {
     QStringList roots;
+
+    // Test/diagnostic override: a platform-independent root list lets integration tests
+    // exercise the real scanner against isolated Steam-like directory trees.
+    const QString overrideRoots = qEnvironmentVariable("VOIDONE_STEAM_ROOTS").trimmed();
+    if (!overrideRoots.isEmpty()) {
+        return uniqueExistingDirectories(overrideRoots.split(QDir::listSeparator(), Qt::SkipEmptyParts));
+    }
 
 #if defined(Q_OS_WIN)
     const QString programFilesX86 = qEnvironmentVariable("ProgramFiles(x86)");
