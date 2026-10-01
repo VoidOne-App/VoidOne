@@ -23,6 +23,9 @@ jobs:
     name: Windows Build / Test / Package
     runs-on: windows-2025
     timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - name: Checkout source
