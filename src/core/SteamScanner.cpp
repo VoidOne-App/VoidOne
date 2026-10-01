@@ -92,7 +92,9 @@ QStringList discoverSteamLibraries(const QString &steamRoot)
 
     auto match = pathRx.globalMatch(content);
     while (match.hasNext()) {
-        const QString path = QDir::fromNativeSeparators(match.next().captured(1)).trimmed();
+        QString path = match.next().captured(1).trimmed();
+        path.replace(QStringLiteral("\\\\"), QStringLiteral("\\"));
+        path = QDir::fromNativeSeparators(path);
         if (!path.isEmpty() && QDir(path).exists() && !libraries.contains(path, Qt::CaseInsensitive))
             libraries.append(QDir::cleanPath(path));
     }
