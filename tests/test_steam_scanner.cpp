@@ -1,6 +1,7 @@
 #include <QtTest>
 #include <QFile>
 #include <QFileInfo>
+#include <QDir>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 
@@ -66,13 +67,11 @@ void SteamScannerTests::discoversLibraryAndSelectsGameExecutable()
         "  "installdir" "VoidOne Test"\n"
         "}\n"));
 
-    qputenv("VOIDONE_STEAM_ROOTS",
-            QDir::listSeparator().toLatin1() + primary.toUtf8());
-
     // The override is a single isolated root here; libraryfolders.vdf exercises
     // secondary-library discovery without touching a real Steam installation.
     qputenv("VOIDONE_STEAM_ROOTS", primary.toUtf8());
 
+    qRegisterMetaType<QVector<GameRecord>>("QVector<GameRecord>");
     SteamScannerWorker worker;
     QSignalSpy spy(&worker, &SteamScannerWorker::scanFinished);
 
