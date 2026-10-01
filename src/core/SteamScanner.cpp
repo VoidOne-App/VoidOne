@@ -7,6 +7,7 @@
 #include <QStandardPaths>
 #include <QDebug>
 #include <algorithm>
+#include <functional>
 #include <utility>
 
 #ifdef Q_OS_WIN
@@ -15,6 +16,15 @@
 
 namespace {
 
+Qt::CaseSensitivity pathCaseSensitivity()
+{
+#if defined(Q_OS_WIN)
+    return Qt::CaseInsensitive;
+#else
+    return Qt::CaseSensitive;
+#endif
+}
+
 QStringList uniqueExistingDirectories(const QStringList &paths)
 {
     QStringList result;
@@ -22,7 +32,7 @@ QStringList uniqueExistingDirectories(const QStringList &paths)
         if (path.isEmpty())
             continue;
         const QString cleaned = QDir::cleanPath(path);
-        if (QDir(cleaned).exists() && !result.contains(cleaned, Qt::CaseInsensitive))
+        if (QDir(cleaned).exists() && !result.contains(cleaned, pathCaseSensitivity()))
             result.append(cleaned);
     }
     return result;
@@ -95,7 +105,7 @@ QStringList discoverSteamLibraries(const QString &steamRoot)
         QString path = match.next().captured(1).trimmed();
         path.replace(QStringLiteral("\\\\"), QStringLiteral("\\"));
         path = QDir::fromNativeSeparators(path);
-        if (!path.isEmpty() && QDir(path).exists() && !libraries.contains(path, Qt::CaseInsensitive))
+        if (!path.isEmpty() && QDir(path).exists() && !libraries.contains(path, pathCaseSensitivity()))
             libraries.append(QDir::cleanPath(path));
     }
 
@@ -142,7 +152,9 @@ QString findMainExecutable(const QString &gameDir, const QString &gameName)
     };
     QList<Candidate> candidates;
 
-    auto inspect = [&](const QDir &scanDir, const QFileInfoList &files) {
+    const QString target = gameName.toLower().trimmed();
+
+    auto inspect = [&](const QDir &scanDir, const QFileInfoList &files, int depth) {
         for (const QFileInfo &file : files) {
             if (!file.isFile() || file.isSymLink() || isLikelyNonGameExecutable(file.fileName()))
                 continue;
@@ -153,29 +165,35 @@ QString findMainExecutable(const QString &gameDir, const QString &gameName)
 #endif
 
             const QString stem = file.completeBaseName().toLower();
-            const QString target = gameName.toLower().trimmed();
 
             int score = 0;
             if (stem == target)
                 score += 100;
-            if (stem.contains(target) || target.contains(stem))
+            if (!target.isEmpty() && (stem.contains(target) || target.contains(stem)))
                 score += 25;
-            if (scanDir.absolutePath() == dir.absolutePath())
+            if (depth == 0)
                 score += 15;
+            else if (depth == 1)
+                score += 8;
 
             // Size is only a tie-breaker, never the primary selection criterion.
             candidates.append({score, file.size(), file.absoluteFilePath()});
         }
     };
 
-    inspect(dir, dir.entryInfoList(filters, fileFilters, QDir::Name));
+    std::function<void(const QDir &, int)> scanDirectory =
+        [&](const QDir &scanDir, int depth) {
+            inspect(scanDir, scanDir.entryInfoList(filters, fileFilters, QDir::Name), depth);
+            if (depth >= 3)
+                return;
 
-    const QFileInfoList childDirs =
-        dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks, QDir::Name);
-    for (const QFileInfo &child : childDirs) {
-        inspect(QDir(child.absoluteFilePath()),
-                QDir(child.absoluteFilePath()).entryInfoList(filters, fileFilters, QDir::Name));
-    }
+            const QFileInfoList childDirs =
+                scanDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks, QDir::Name);
+            for (const QFileInfo &child : childDirs)
+                scanDirectory(QDir(child.absoluteFilePath()), depth + 1);
+        };
+
+    scanDirectory(dir, 0);
 
     if (candidates.isEmpty())
         return {};
@@ -263,7 +281,7 @@ void SteamScannerWorker::doScan()
 
                 bool duplicate = false;
                 for (const GameRecord &existing : std::as_const(games)) {
-                    if (existing.exePath.compare(rec.exePath, Qt::CaseInsensitive) == 0) {
+                    if (existing.exePath.compare(rec.exePath, pathCaseSensitivity()) == 0) {
                         duplicate = true;
                         break;
                     }
