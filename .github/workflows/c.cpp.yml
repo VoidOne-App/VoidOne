@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   QT_VERSION: '6.11.2'
@@ -263,11 +263,36 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: VoidOne-*
+          path: release
+          merge-multiple: true
+
+      - name: Validate release payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f release/dist/VoidOne-Setup-x64.exe
+          test -f release/dist/VoidOne-Portable-x64.zip
+
       - name: Create GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
-            dist/VoidOne-Setup-x64.exe
-            dist/VoidOne-Portable-x64.zip
+            release/dist/VoidOne-Setup-x64.exe
+            release/dist/VoidOne-Portable-x64.zip
