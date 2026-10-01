@@ -19,13 +19,12 @@
 #include <QDebug>
 
 #include <exception>
-#include <csignal>
 #include <cstdlib>
 #include <cstdio>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
-#include <strsafe.h>
+#include <dbghelp.h>
 #endif
 
 #include "VoidOneVersion.h"
@@ -103,32 +102,56 @@ bool initializeEnterpriseLogging()
 }
 
 #ifdef Q_OS_WIN
-void writeWindowsCrashRecord(const LPEXCEPTION_POINTERS exceptionInfo)
+bool writeWindowsMiniDump(EXCEPTION_POINTERS *exceptionInfo)
 {
-    const QString dirPath = logDirectoryPath();
-    if (!QDir().mkpath(dirPath))
-        return;
+    wchar_t localAppData[MAX_PATH] = {};
+    const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH)
+        return false;
 
-    const QString filePath = QDir(dirPath).filePath("VoidOne-crash.log");
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
-        return;
+    wchar_t logDir[MAX_PATH] = {};
+    if (FAILED(StringCchPrintfW(logDir, MAX_PATH, L"%s\\VoidOne_app\\VoidOne\\logs", localAppData)))
+        return false;
 
-    const DWORD code = exceptionInfo && exceptionInfo->ExceptionRecord
-        ? exceptionInfo->ExceptionRecord->ExceptionCode : 0;
-    const ULONG_PTR address = exceptionInfo && exceptionInfo->ExceptionRecord
-        ? reinterpret_cast<ULONG_PTR>(exceptionInfo->ExceptionRecord->ExceptionAddress) : 0;
+    CreateDirectoryW((QString()), nullptr);
+    CreateDirectoryW((std::wstring(localAppData) + L"\\VoidOne_app").c_str(), nullptr);
+    CreateDirectoryW((std::wstring(localAppData) + L"\\VoidOne_app\\VoidOne").c_str(), nullptr);
+    CreateDirectoryW(logDir, nullptr);
 
-    QTextStream stream(&file);
-    stream << "VoidOne fatal Windows exception\n"
-           << "Timestamp=" << QDateTime::currentDateTime().toString(Qt::ISODateWithMs) << '\n'
-           << "ExceptionCode=0x" << QString::number(code, 16) << '\n'
-           << "ExceptionAddress=0x" << QString::number(address, 16) << "\n\n";
+    SYSTEMTIME time;
+    GetLocalTime(&time);
+
+    wchar_t dumpPath[MAX_PATH] = {};
+    if (FAILED(StringCchPrintfW(
+            dumpPath, MAX_PATH,
+            L"%s\\VoidOne-crash-%04u%02u%02u-%02u%02u%02u.dmp",
+            logDir, time.wYear, time.wMonth, time.wDay,
+            time.wHour, time.wMinute, time.wSecond)))
+        return false;
+
+    HANDLE dumpFile = CreateFileW(
+        dumpPath, GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (dumpFile == INVALID_HANDLE_VALUE)
+        return false;
+
+    MINIDUMP_EXCEPTION_INFORMATION exceptionData{};
+    exceptionData.ThreadId = GetCurrentThreadId();
+    exceptionData.ExceptionPointers = exceptionInfo;
+    exceptionData.ClientPointers = FALSE;
+
+    const BOOL dumped = MiniDumpWriteDump(
+        GetCurrentProcess(), GetCurrentProcessId(), dumpFile,
+        MiniDumpWithIndirectlyReferencedMemory | MiniDumpScanMemory,
+        exceptionInfo ? &exceptionData : nullptr, nullptr, nullptr);
+
+    CloseHandle(dumpFile);
+    return dumped == TRUE;
 }
 
-LONG WINAPI windowsUnhandledExceptionFilter(LPEXCEPTION_POINTERS exceptionInfo)
+LONG WINAPI windowsUnhandledExceptionFilter(EXCEPTION_POINTERS *exceptionInfo)
 {
-    writeWindowsCrashRecord(exceptionInfo);
+    writeWindowsMiniDump(exceptionInfo);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
@@ -138,21 +161,7 @@ void registerWindowsCrashHandler()
 }
 #endif
 
-#if !defined(Q_OS_WIN)
-void fatalSignalHandler(int signalNumber)
-{
-    // Keep the handler async-signal-safe: no Qt allocation or logging here.
-    std::_Exit(128 + signalNumber);
-}
 
-void registerEnterpriseSignalHandlers()
-{
-    std::signal(SIGSEGV, fatalSignalHandler);
-    std::signal(SIGABRT, fatalSignalHandler);
-    std::signal(SIGFPE, fatalSignalHandler);
-    std::signal(SIGILL, fatalSignalHandler);
-}
-#endif
 
 } // namespace
 
