@@ -25,6 +25,7 @@
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <dbghelp.h>
+#include <strsafe.h>
 #endif
 
 #include "VoidOneVersion.h"
@@ -109,13 +110,16 @@ bool writeWindowsMiniDump(EXCEPTION_POINTERS *exceptionInfo)
     if (length == 0 || length >= MAX_PATH)
         return false;
 
+    wchar_t appDir[MAX_PATH] = {};
+    wchar_t vendorDir[MAX_PATH] = {};
     wchar_t logDir[MAX_PATH] = {};
-    if (FAILED(StringCchPrintfW(logDir, MAX_PATH, L"%s\\VoidOne_app\\VoidOne\\logs", localAppData)))
+    if (FAILED(StringCchPrintfW(appDir, MAX_PATH, L"%s\\VoidOne_app", localAppData))
+        || FAILED(StringCchPrintfW(vendorDir, MAX_PATH, L"%s\\VoidOne_app\\VoidOne", localAppData))
+        || FAILED(StringCchPrintfW(logDir, MAX_PATH, L"%s\\VoidOne_app\\VoidOne\\logs", localAppData)))
         return false;
 
-    CreateDirectoryW((QString()), nullptr);
-    CreateDirectoryW((std::wstring(localAppData) + L"\\VoidOne_app").c_str(), nullptr);
-    CreateDirectoryW((std::wstring(localAppData) + L"\\VoidOne_app\\VoidOne").c_str(), nullptr);
+    CreateDirectoryW(appDir, nullptr);
+    CreateDirectoryW(vendorDir, nullptr);
     CreateDirectoryW(logDir, nullptr);
 
     SYSTEMTIME time;
