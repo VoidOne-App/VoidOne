@@ -1,157 +1,293 @@
 #include "SteamScanner.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QStandardPaths>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QDebug>
 #include <algorithm>
 
-#if defined(Q_OS_WIN)
-static bool isLikelyNonGameExe(const QString &fileName) {
-    static const QStringList prefixes = {
-        "uninstall", "setup", "redist", "vcredist",
-        "dxsetup", "dotnet", "install", "remove"
-    };
-    static const QStringList substrings = {
-        "uninstall", "setup", "redist", "crashhandler",
-        "crash_handler", "launcher", "updater", "patcher",
-        "helper", "service", "agent", "installer"
-    };
-    const QString lower = fileName.toLower();
-    for (const QString &p : prefixes) {
-        if (lower.startsWith(p)) return true;
+#ifdef Q_OS_WIN
+#include <QSettings>
+#endif
+
+namespace {
+
+QStringList uniqueExistingDirectories(const QStringList &paths)
+{
+    QStringList result;
+    for (const QString &path : paths) {
+        if (path.isEmpty())
+            continue;
+        const QString cleaned = QDir::cleanPath(path);
+        if (QDir(cleaned).exists() && !result.contains(cleaned, Qt::CaseInsensitive))
+            result.append(cleaned);
     }
-    for (const QString &s : substrings) {
-        if (lower.contains(s)) return true;
+    return result;
+}
+
+QStringList discoverSteamRoots()
+{
+    QStringList roots;
+
+#if defined(Q_OS_WIN)
+    const QString programFilesX86 = qEnvironmentVariable("ProgramFiles(x86)");
+    const QString programFiles = qEnvironmentVariable("ProgramFiles");
+    const QString localAppData = qEnvironmentVariable("LOCALAPPDATA");
+
+    roots << QDir(programFilesX86).filePath("Steam")
+          << QDir(programFiles).filePath("Steam")
+          << QDir(localAppData).filePath("Steam");
+
+    // Steam commonly stores its install path in the Windows registry.
+    const QStringList registryKeys = {
+        QStringLiteral("HKEY_CURRENT_USER\\Software\\Valve\\Steam"),
+        QStringLiteral("HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Valve\\Steam"),
+        QStringLiteral("HKEY_LOCAL_MACHINE\\SOFTWARE\\Valve\\Steam")
+    };
+    for (const QString &key : registryKeys) {
+        QSettings settings(key, QSettings::NativeFormat);
+        const QString installPath = settings.value(QStringLiteral("SteamPath")).toString();
+        if (!installPath.isEmpty())
+            roots.append(installPath);
+    }
+#elif defined(Q_OS_LINUX)
+    const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    roots << QDir(home).filePath(".local/share/Steam")
+          << QDir(home).filePath(".steam/steam")
+          << QDir(home).filePath(".steam/root")
+          << QDir(home).filePath(".var/app/com.valvesoftware.Steam/.local/share/Steam");
+#elif defined(Q_OS_MACOS)
+    const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    roots << QDir(home).filePath("Library/Application Support/Steam");
+#endif
+
+    return uniqueExistingDirectories(roots);
+}
+
+QStringList discoverSteamLibraries(const QString &steamRoot)
+{
+    QStringList libraries;
+    libraries << steamRoot;
+
+    const QString libraryFile = QDir(steamRoot).filePath("steamapps/libraryfolders.vdf");
+    QFile file(libraryFile);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return libraries;
+
+    const QString content = QString::fromUtf8(file.readAll());
+    // Valve's VDF contains entries such as: "path" "D:\\SteamLibrary".
+    static const QRegularExpression pathRx(
+        QStringLiteral(R"("path"\s+"([^"]+)")"),
+        QRegularExpression::CaseInsensitiveOption);
+
+    auto match = pathRx.globalMatch(content);
+    while (match.hasNext()) {
+        const QString path = QDir::fromNativeSeparators(match.next().captured(1)).trimmed();
+        if (!path.isEmpty() && QDir(path).exists() && !libraries.contains(path, Qt::CaseInsensitive))
+            libraries.append(QDir::cleanPath(path));
+    }
+
+    return libraries;
+}
+
+bool isLikelyNonGameExecutable(const QString &fileName)
+{
+    static const QStringList blockedTokens = {
+        QStringLiteral("uninstall"), QStringLiteral("setup"), QStringLiteral("redist"),
+        QStringLiteral("vcredist"), QStringLiteral("dxsetup"), QStringLiteral("dotnet"),
+        QStringLiteral("install"), QStringLiteral("remove"), QStringLiteral("crashhandler"),
+        QStringLiteral("crash_handler"), QStringLiteral("launcher"), QStringLiteral("updater"),
+        QStringLiteral("patcher"), QStringLiteral("helper"), QStringLiteral("service"),
+        QStringLiteral("agent"), QStringLiteral("installer"), QStringLiteral("bootstrapper")
+    };
+
+    const QString lower = fileName.toLower();
+    for (const QString &token : blockedTokens) {
+        if (lower.contains(token))
+            return true;
     }
     return false;
 }
 
-static QString findMainExecutable(const QString &gameDir, const QString &gameName) {
+QString findMainExecutable(const QString &gameDir, const QString &gameName)
+{
     QDir dir(gameDir);
-    if (!dir.exists()) {
-        qWarning() << "[VoidOne] Game directory does not exist:" << gameDir;
-        return QString();
-    }
-
-    const QStringList rootExeFiles = dir.entryList(QStringList() << "*.exe", QDir::Files);
-    const QString lowerName = gameName.toLower();
-
-    for (const QString &f : rootExeFiles) {
-        if (QFileInfo(f).completeBaseName().toLower() == lowerName)
-            return dir.absoluteFilePath(f);
-    }
-
-    QList<QPair<qint64, QString>> candidates;
-    for (const QString &f : rootExeFiles) {
-        if (isLikelyNonGameExe(f)) continue;
-        const QFileInfo fi(dir.absoluteFilePath(f));
-        candidates.append({fi.size(), fi.absoluteFilePath()});
-    }
-
-    // Search one level deeper for common modern game layouts such as
-    // Binaries/Win64 or bin/win64. Avoid an unrestricted recursive scan.
-    const QFileInfoList childDirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-    for (const QFileInfo &child : childDirs) {
-        const QDir childDir(child.absoluteFilePath());
-        const QStringList childExes = childDir.entryList(QStringList() << "*.exe", QDir::Files);
-        for (const QString &f : childExes) {
-            if (isLikelyNonGameExe(f)) continue;
-            const QFileInfo fi(childDir.absoluteFilePath(f));
-            const QString stem = fi.completeBaseName().toLower();
-            if (stem == lowerName)
-                return fi.absoluteFilePath();
-            candidates.append({fi.size(), fi.absoluteFilePath()});
-        }
-    }
-
-    if (!candidates.isEmpty()) {
-        std::sort(candidates.begin(), candidates.end(),
-                  [](const auto &a, const auto &b) { return a.first > b.first; });
-        return candidates.first().second;
-    }
-
-    qWarning() << "[VoidOne] No game executable found in:" << gameDir;
-    return QString();
-}
-#endif
-
-void SteamScannerWorker::doScan() {
-    QVector<GameRecord> games;
-    QString steamPath;
+    if (!dir.exists())
+        return {};
 
 #if defined(Q_OS_WIN)
-    steamPath = "C:/Program Files (x86)/Steam";
-#elif defined(Q_OS_LINUX)
-    const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-    steamPath = home + "/.local/share/Steam";
-    if (!QDir(steamPath).exists())
-        steamPath = home + "/.var/app/com.valvesoftware.Steam/.local/share/Steam";
+    const QStringList filters = {QStringLiteral("*.exe")};
+    const QDir::Filters fileFilters = QDir::Files | QDir::NoDotAndDotDot | QDir::NoSymLinks;
+#else
+    const QStringList filters = {QStringLiteral("*")};
+    const QDir::Filters fileFilters = QDir::Files | QDir::Executable | QDir::NoDotAndDotDot | QDir::NoSymLinks;
 #endif
 
-    const QString steamappsPath = steamPath + "/steamapps";
-    const QDir steamappsDir(steamappsPath);
-    if (!steamappsDir.exists()) {
+    struct Candidate {
+        int score = 0;
+        qint64 size = 0;
+        QString path;
+    };
+    QList<Candidate> candidates;
+
+    auto inspect = [&](const QDir &scanDir, const QFileInfoList &files) {
+        for (const QFileInfo &file : files) {
+            if (!file.isFile() || file.isSymLink() || isLikelyNonGameExecutable(file.fileName()))
+                continue;
+
+#if !defined(Q_OS_WIN)
+            if (!file.isExecutable())
+                continue;
+#endif
+
+            const QString stem = file.completeBaseName().toLower();
+            const QString target = gameName.toLower().trimmed();
+
+            int score = 0;
+            if (stem == target)
+                score += 100;
+            if (stem.contains(target) || target.contains(stem))
+                score += 25;
+            if (scanDir.absolutePath() == dir.absolutePath())
+                score += 15;
+
+            // Size is only a tie-breaker, never the primary selection criterion.
+            candidates.append({score, file.size(), file.absoluteFilePath()});
+        }
+    };
+
+    inspect(dir, dir.entryInfoList(filters, fileFilters, QDir::Name));
+
+    const QFileInfoList childDirs =
+        dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks, QDir::Name);
+    for (const QFileInfo &child : childDirs) {
+        inspect(QDir(child.absoluteFilePath()),
+                QDir(child.absoluteFilePath()).entryInfoList(filters, fileFilters, QDir::Name));
+    }
+
+    if (candidates.isEmpty())
+        return {};
+
+    std::sort(candidates.begin(), candidates.end(), [](const Candidate &a, const Candidate &b) {
+        if (a.score != b.score)
+            return a.score > b.score;
+        if (a.size != b.size)
+            return a.size > b.size;
+        return a.path < b.path;
+    });
+
+    if (candidates.first().score < 15) {
+        qWarning() << "[VoidOne] Executable discovery has low confidence for" << gameDir
+                   << "candidate:" << candidates.first().path;
+    }
+
+    return candidates.first().path;
+}
+
+}
+
+void SteamScannerWorker::doScan()
+{
+    QVector<GameRecord> games;
+
+    const QStringList steamRoots = discoverSteamRoots();
+    if (steamRoots.isEmpty()) {
         emit scanFinished({});
         return;
     }
 
-    const QFileInfoList manifestFiles = steamappsDir.entryInfoList(
-        {"appmanifest_*.acf"}, QDir::Files, QDir::Name);
-    const QRegularExpression nameRx("\\\"name\\\"\\s+\\\"([^\\\"]+)\\\"");
-    const QRegularExpression dirRx("\\\"installdir\\\"\\s+\\\"([^\\\"]+)\\\"");
+    const QRegularExpression nameRx(
+        QStringLiteral(R"("name"\s+"([^"]+)")"),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpression dirRx(
+        QStringLiteral(R"("installdir"\s+"([^"]+)")"),
+        QRegularExpression::CaseInsensitiveOption);
 
-    for (const QFileInfo &fileInfo : manifestFiles) {
-        QFile file(fileInfo.absoluteFilePath());
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            qWarning() << "[VoidOne] Failed to read Steam manifest:" << fileInfo.absoluteFilePath();
-            continue;
+    for (const QString &steamRoot : steamRoots) {
+        const QStringList libraries = discoverSteamLibraries(steamRoot);
+
+        for (const QString &library : libraries) {
+            const QString steamappsPath = QDir(library).filePath("steamapps");
+            const QDir steamappsDir(steamappsPath);
+            if (!steamappsDir.exists())
+                continue;
+
+            const QFileInfoList manifestFiles = steamappsDir.entryInfoList(
+                {QStringLiteral("appmanifest_*.acf")},
+                QDir::Files | QDir::NoDotAndDotDot,
+                QDir::Name);
+
+            for (const QFileInfo &fileInfo : manifestFiles) {
+                QFile file(fileInfo.absoluteFilePath());
+                if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    qWarning() << "[VoidOne] Failed to read Steam manifest:"
+                               << fileInfo.absoluteFilePath();
+                    continue;
+                }
+
+                const QString content = QString::fromUtf8(file.readAll());
+                const auto nameMatch = nameRx.match(content);
+                const auto dirMatch = dirRx.match(content);
+                if (!nameMatch.hasMatch() || !dirMatch.hasMatch())
+                    continue;
+
+                GameRecord rec;
+                rec.name = nameMatch.captured(1).trimmed();
+                const QString gameDir =
+                    QDir(steamappsPath).filePath("common/" + dirMatch.captured(1));
+
+                rec.exePath = findMainExecutable(gameDir, rec.name);
+                rec.platform = QStringLiteral("Steam");
+
+                if (rec.name.isEmpty() || rec.exePath.isEmpty()) {
+                    qWarning() << "[VoidOne] Skipping Steam game with no usable executable:"
+                               << rec.name << gameDir;
+                    continue;
+                }
+
+                const QString canonicalExe = QFileInfo(rec.exePath).canonicalFilePath();
+                if (!canonicalExe.isEmpty())
+                    rec.exePath = canonicalExe;
+
+                bool duplicate = false;
+                for (const GameRecord &existing : std::as_const(games)) {
+                    if (existing.exePath.compare(rec.exePath, Qt::CaseInsensitive) == 0) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+                if (!duplicate)
+                    games.append(rec);
+            }
         }
-
-        const QString content = QString::fromUtf8(file.readAll());
-        const auto nameMatch = nameRx.match(content);
-        const auto dirMatch = dirRx.match(content);
-        if (!nameMatch.hasMatch() || !dirMatch.hasMatch())
-            continue;
-
-        GameRecord rec;
-        rec.name = nameMatch.captured(1).trimmed();
-        const QString gameDir = QDir(steamappsPath).filePath("common/" + dirMatch.captured(1));
-#if defined(Q_OS_WIN)
-        rec.exePath = findMainExecutable(gameDir, rec.name);
-#else
-        rec.exePath = gameDir;
-#endif
-        rec.platform = "Steam";
-
-        if (rec.name.isEmpty() || rec.exePath.isEmpty()) {
-            qWarning() << "[VoidOne] Skipping Steam game with no usable executable:" << rec.name;
-            continue;
-        }
-        games.append(rec);
     }
 
     emit scanFinished(games);
 }
 
-SteamScanner::SteamScanner(QObject *parent) : QObject(parent) {
+SteamScanner::SteamScanner(QObject *parent) : QObject(parent)
+{
     qRegisterMetaType<QVector<GameRecord>>("QVector<GameRecord>");
     worker = new SteamScannerWorker;
     worker->moveToThread(&workerThread);
 
     connect(&workerThread, &QThread::finished, worker, &QObject::deleteLater);
-    connect(worker, &SteamScannerWorker::scanFinished, this, &SteamScanner::handleScanFinished);
+    connect(worker, &SteamScannerWorker::scanFinished,
+            this, &SteamScanner::handleScanFinished);
     workerThread.start();
 }
 
-SteamScanner::~SteamScanner() {
+SteamScanner::~SteamScanner()
+{
     workerThread.quit();
     workerThread.wait();
     worker = nullptr;
 }
 
-void SteamScanner::startAsyncScan() {
+void SteamScanner::startAsyncScan()
+{
     if (m_scanInProgress) {
         qWarning() << "[VoidOne] Steam scan already in progress; ignoring duplicate request.";
         return;
@@ -167,7 +303,8 @@ void SteamScanner::startAsyncScan() {
     QMetaObject::invokeMethod(worker, &SteamScannerWorker::doScan, Qt::QueuedConnection);
 }
 
-void SteamScanner::handleScanFinished(const QVector<GameRecord> &games) {
+void SteamScanner::handleScanFinished(const QVector<GameRecord> &games)
+{
     const bool success = games.isEmpty() ? true : Database::addGamesBatch(games);
     m_scanInProgress = false;
 
