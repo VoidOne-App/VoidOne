@@ -82,7 +82,9 @@ jobs:
           $cl | Write-Host
           if ($cl -notmatch 'Version 19\.51\.') { throw "Expected MSVC 14.51 / compiler 19.51.x, found: $cl" }
           if ($env:VSCMD_ARG_TGT_ARCH -ne 'x64') { throw "Expected x64 MSVC environment, found '$env:VSCMD_ARG_TGT_ARCH'." }
+          if ([string]::IsNullOrWhiteSpace($env:VCINSTALLDIR)) { throw 'VCINSTALLDIR is unavailable.' }
           if ([string]::IsNullOrWhiteSpace($env:VCToolsRedistDir)) { throw 'VCToolsRedistDir is unavailable.' }
+          if (-not (Get-Command dumpbin -ErrorAction SilentlyContinue)) { throw 'dumpbin is unavailable; MSVC environment is incomplete.' }
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4.3.1
@@ -204,15 +206,26 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $runtime = Get-ChildItem $env:VCToolsRedistDir -Recurse -Filter msvcp140.dll -File |
-            Where-Object { $_.FullName -match '\\x64\\Microsoft\.VC[^\\]*\.CRT\\msvcp140\.dll$' } |
-            Select-Object -First 1
-          if (-not $runtime) { throw "Could not locate x64 MSVC runtime below $env:VCToolsRedistDir" }
+          $redistRoots = @()
+          if ($env:VCToolsRedistDir) { $redistRoots += $env:VCToolsRedistDir }
+          if ($env:VCINSTALLDIR) { $redistRoots += (Join-Path $env:VCINSTALLDIR 'VC\Redist\MSVC') }
+          $runtime = $null
+          foreach ($root in ($redistRoots | Select-Object -Unique)) {
+            if (-not (Test-Path $root)) { continue }
+            $runtime = Get-ChildItem $root -Recurse -Filter msvcp140.dll -File |
+              Where-Object { $_.FullName -match '\\x64\\Microsoft\.VC[^\\]*\.CRT\\msvcp140\.dll$' } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if ($runtime) { break }
+          }
+          if (-not $runtime) { throw "Could not locate x64 MSVC runtime below the installed Visual Studio redist roots." }
           $runtimeDir = $runtime.Directory.FullName
           Get-ChildItem $runtimeDir -Filter '*.dll' -File | ForEach-Object { Copy-Item $_.FullName package\ -Force }
           foreach ($dll in @('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')) {
             if (-not (Test-Path "package\$dll")) { throw "Required VC++ runtime DLL missing: $dll" }
           }
+          $header = (& dumpbin /headers package\VoidOne.exe 2>&1) -join "`n"
+          if ($LASTEXITCODE -ne 0 -or $header -notmatch 'machine \(x64\)') { throw 'VoidOne.exe is not an x64 MSVC binary.' }
 
       - name: Validate canonical payload
         shell: pwsh
