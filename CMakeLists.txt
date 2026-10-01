@@ -145,6 +145,9 @@ qt_add_qml_module(VoidOne
         src/ui/qml/SystemTelemetryWidget.qml
 )
 target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick)
+if(WIN32)
+    target_link_libraries(VoidOne PRIVATE Dbghelp)
+endif()
 voidone_apply_compile_policy(VoidOne)
 
 if(WIN32)
