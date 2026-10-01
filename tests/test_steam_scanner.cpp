@@ -1,10 +1,10 @@
 #include <QtTest>
-#include <QFile>
-#include <QFileInfo>
 #include <QDir>
+#include <QFile>
+#include <QFileDevice>
+#include <QFileInfo>
 #include <QSignalSpy>
 #include <QTemporaryDir>
-#include <QFileDevice>
 
 #include "SteamScanner.h"
 
@@ -43,7 +43,8 @@ void SteamScannerTests::discoversLibraryAndSelectsGameExecutable()
     QVERIFY(gameFile.write("game") > 0);
     gameFile.close();
 #if !defined(Q_OS_WIN)
-    QVERIFY(QFile::setPermissions(gameExe, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+    QVERIFY(QFile::setPermissions(gameExe,
+        QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
 #endif
 
     QFile redistFile(largeRedist);
@@ -53,25 +54,28 @@ void SteamScannerTests::discoversLibraryAndSelectsGameExecutable()
 
     const QString steamApps = QDir(primary).filePath("steamapps");
     QVERIFY(QDir().mkpath(steamApps));
-    const QString libraryVdf =
-        QDir(steamApps).filePath("libraryfolders.vdf");
-    QVERIFY(writeTextFile(libraryVdf,
-        ""libraryfolders"\n"
-        "{\n"
-        "  "0" { "path" "" + QDir::toNativeSeparators(primary).toUtf8() + "" }\n"
-        "  "1" { "path" "" + QDir::toNativeSeparators(secondary).toUtf8() + "" }\n"
-        "}\n"));
+
+    const QString libraryVdf = QDir(steamApps).filePath("libraryfolders.vdf");
+    const QByteArray libraryContent =
+        R"("libraryfolders"
+{
+  "0" { "path" ")" + QDir::toNativeSeparators(primary).toUtf8() + R"(" }
+  "1" { "path" ")" + QDir::toNativeSeparators(secondary).toUtf8() + R"(" }
+}
+)";
+    QVERIFY(writeTextFile(libraryVdf, libraryContent));
 
     const QString manifest = QDir(secondary).filePath("steamapps/appmanifest_123.acf");
-    QVERIFY(writeTextFile(manifest,
-        ""AppState"\n"
-        "{\n"
-        "  "appid" "123"\n"
-        "  "name" "VoidOne Test"\n"
-        "  "installdir" "VoidOne Test"\n"
-        "}\n"));
+    const QByteArray manifestContent = R"("AppState"
+{
+  "appid" "123"
+  "name" "VoidOne Test"
+  "installdir" "VoidOne Test"
+}
+)";
+    QVERIFY(writeTextFile(manifest, manifestContent));
 
-    // The override is a single isolated root here; libraryfolders.vdf exercises
+    // The override is a single isolated root; libraryfolders.vdf exercises
     // secondary-library discovery without touching a real Steam installation.
     qputenv("VOIDONE_STEAM_ROOTS", primary.toUtf8());
 
