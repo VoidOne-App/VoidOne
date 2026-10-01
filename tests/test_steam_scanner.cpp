@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QFileDevice>
 
 #include "SteamScanner.h"
 
@@ -41,6 +42,9 @@ void SteamScannerTests::discoversLibraryAndSelectsGameExecutable()
     QVERIFY(gameFile.open(QIODevice::WriteOnly));
     QVERIFY(gameFile.write("game") > 0);
     gameFile.close();
+#if !defined(Q_OS_WIN)
+    QVERIFY(QFile::setPermissions(gameExe, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+#endif
 
     QFile redistFile(largeRedist);
     QVERIFY(redistFile.open(QIODevice::WriteOnly));
