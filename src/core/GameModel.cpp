@@ -1,18 +1,23 @@
 #include "GameModel.h"
+
 #include <QDebug>
 #include <QFileInfo>
+#include <QProcess>
 #include <utility>
 
 GameModel::GameModel(QObject *parent) : QAbstractListModel(parent) {}
 
-int GameModel::rowCount(const QModelIndex &parent) const {
-    if (parent.isValid()) return 0;
+int GameModel::rowCount(const QModelIndex &parent) const
+{
+    if (parent.isValid())
+        return 0;
     return m_games.size();
 }
 
-QVariant GameModel::data(const QModelIndex &index, int role) const {
-    if (!index.isValid() || index.row() >= m_games.size())
-        return QVariant();
+QVariant GameModel::data(const QModelIndex &index, int role) const
+{
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_games.size())
+        return {};
 
     const GameRecord &game = m_games.at(index.row());
 
@@ -22,21 +27,23 @@ QVariant GameModel::data(const QModelIndex &index, int role) const {
     case ExePathRole: return game.exePath;
     case IconPathRole: return game.iconPath;
     case PlatformRole: return game.platform;
-    default: return QVariant();
+    default: return {};
     }
 }
 
-QHash<int, QByteArray> GameModel::roleNames() const {
-    QHash<int, QByteArray> roles;
-    roles[IdRole] = "id";
-    roles[NameRole] = "name";
-    roles[ExePathRole] = "exePath";
-    roles[IconPathRole] = "iconPath";
-    roles[PlatformRole] = "platform";
-    return roles;
+QHash<int, QByteArray> GameModel::roleNames() const
+{
+    return {
+        {IdRole, "id"},
+        {NameRole, "name"},
+        {ExePathRole, "exePath"},
+        {IconPathRole, "iconPath"},
+        {PlatformRole, "platform"}
+    };
 }
 
-void GameModel::loadGamesFromDatabase() {
+void GameModel::loadGamesFromDatabase()
+{
     beginResetModel();
     m_allGames = Database::getAllGames();
     m_games = m_allGames;
@@ -44,7 +51,8 @@ void GameModel::loadGamesFromDatabase() {
     emit countChanged();
 }
 
-bool GameModel::addNewGame(const QString &name, const QString &exePath, const QString &iconPath) {
+bool GameModel::addNewGame(const QString &name, const QString &exePath, const QString &iconPath)
+{
     const QString trimmedName = name.trimmed();
     const QString trimmedExePath = exePath.trimmed();
     if (trimmedName.isEmpty() || trimmedExePath.isEmpty()) {
@@ -53,32 +61,46 @@ bool GameModel::addNewGame(const QString &name, const QString &exePath, const QS
     }
 
     const QFileInfo exeInfo(trimmedExePath);
-    if (!exeInfo.isFile()) {
-        qWarning() << "[VoidOne] Refusing to add missing executable:" << trimmedExePath;
+    if (!exeInfo.isFile() || exeInfo.isSymLink()) {
+        qWarning() << "[VoidOne] Refusing to add invalid executable:" << trimmedExePath;
         return false;
     }
 
-    GameRecord game{-1, trimmedName, exeInfo.absoluteFilePath(), iconPath.trimmed(), "Custom"};
-    if (Database::addGame(game)) {
-        loadGamesFromDatabase();
-        return true;
-    }
-    return false;
-}
-
-bool GameModel::deleteGame(int id, int index) {
-    if (index < 0 || index >= m_games.size() || m_games.at(index).id != id) {
+#if defined(Q_OS_WIN)
+    if (!exeInfo.fileName().endsWith(".exe", Qt::CaseInsensitive)) {
+        qWarning() << "[VoidOne] Refusing non-Windows executable:" << trimmedExePath;
         return false;
     }
-
-    if (Database::removeGame(id)) {
-        loadGamesFromDatabase();
-        return true;
+#else
+    if (!exeInfo.isExecutable()) {
+        qWarning() << "[VoidOne] Refusing non-executable file:" << trimmedExePath;
+        return false;
     }
-    return false;
+#endif
+
+    GameRecord game{-1, trimmedName, exeInfo.absoluteFilePath(),
+                    iconPath.trimmed(), QStringLiteral("Custom")};
+    if (!Database::addGame(game))
+        return false;
+
+    loadGamesFromDatabase();
+    return true;
 }
 
-void GameModel::launchGame(const QString &exePath) {
+bool GameModel::deleteGame(int id, int index)
+{
+    if (index < 0 || index >= m_games.size() || m_games.at(index).id != id)
+        return false;
+
+    if (!Database::removeGame(id))
+        return false;
+
+    loadGamesFromDatabase();
+    return true;
+}
+
+void GameModel::launchGame(const QString &exePath)
+{
     const QString trimmedPath = exePath.trimmed();
     if (trimmedPath.isEmpty()) {
         qWarning() << "[VoidOne] Refusing to launch an empty game path.";
@@ -86,34 +108,37 @@ void GameModel::launchGame(const QString &exePath) {
     }
 
     const QFileInfo targetInfo(trimmedPath);
-    if (!targetInfo.exists()) {
-        qWarning() << "[VoidOne] Game path does not exist:" << trimmedPath;
+    if (!targetInfo.isFile() || targetInfo.isSymLink()) {
+        qWarning() << "[VoidOne] Refusing to launch non-file or symlink:" << trimmedPath;
         return;
     }
 
-    const QString workingDirectory = targetInfo.isDir()
-        ? targetInfo.absoluteFilePath()
-        : targetInfo.absolutePath();
-
-    QString program = trimmedPath;
-    QStringList arguments;
-
-    if (targetInfo.isDir()) {
 #if defined(Q_OS_WIN)
-        qWarning() << "[VoidOne] Cannot launch a directory on Windows:" << trimmedPath;
+    if (!targetInfo.fileName().endsWith(".exe", Qt::CaseInsensitive)) {
+        qWarning() << "[VoidOne] Refusing non-executable Windows target:" << trimmedPath;
         return;
+    }
 #else
-        program = QStringLiteral("xdg-open");
-        arguments << trimmedPath;
+    if (!targetInfo.isExecutable()) {
+        qWarning() << "[VoidOne] Refusing non-executable target:" << trimmedPath;
+        return;
+    }
 #endif
+
+    const QString absolutePath = targetInfo.absoluteFilePath();
+    const QString workingDirectory = targetInfo.absolutePath();
+
+    qint64 pid = -1;
+    if (!QProcess::startDetached(absolutePath, {}, workingDirectory, &pid)) {
+        qWarning() << "[VoidOne] Failed to launch game:" << absolutePath;
+        return;
     }
 
-    if (!QProcess::startDetached(program, arguments, workingDirectory)) {
-        qWarning() << "[VoidOne] Failed to launch game path:" << trimmedPath;
-    }
+    qInfo() << "[VoidOne] Game launched:" << absolutePath << "PID:" << pid;
 }
 
-void GameModel::filter(const QString &searchText) {
+void GameModel::filter(const QString &searchText)
+{
     const QString needle = searchText.trimmed();
 
     beginResetModel();

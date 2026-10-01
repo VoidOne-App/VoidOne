@@ -15,19 +15,37 @@ Rectangle {
         anchors.rightMargin: 12
         spacing: 15
 
-        // RAM Usage Icon/Indicator
         ColumnLayout {
             spacing: 2
-            Text { text: "RAM USAGE"; color: "#64748b"; font.pixelSize: 9; font.bold: true }
-            Text { text: "4.2 GB / 12 GB"; color: "#f8fafc"; font.pixelSize: 11; font.bold: true }
+            Text {
+                text: qsTr("RAM USAGE")
+                color: "#64748b"
+                font.pixelSize: 9
+                font.bold: true
+            }
+            Text {
+                text: qsTr("Telemetry unavailable")
+                color: "#f8fafc"
+                font.pixelSize: 11
+                font.bold: true
+            }
         }
 
-        // CPU Pulse
         ColumnLayout {
             spacing: 2
             Layout.alignment: Qt.AlignRight
-            Text { text: "CPU LOAD"; color: "#64748b"; font.pixelSize: 9; font.bold: true }
-            Text { text: "14%"; color: "#00f0ff"; font.pixelSize: 11; font.bold: true }
+            Text {
+                text: qsTr("CPU LOAD")
+                color: "#64748b"
+                font.pixelSize: 9
+                font.bold: true
+            }
+            Text {
+                text: qsTr("Telemetry unavailable")
+                color: "#00f0ff"
+                font.pixelSize: 11
+                font.bold: true
+            }
         }
     }
 }
