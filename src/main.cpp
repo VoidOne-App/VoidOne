@@ -21,6 +21,7 @@
 #include <exception>
 #include <cstdlib>
 #include <cstdio>
+#include <string>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
