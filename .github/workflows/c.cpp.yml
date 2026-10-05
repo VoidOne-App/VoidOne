@@ -258,7 +258,8 @@ jobs:
           foreach ($path in @('packaging\windows\installer.nsi','assets\app-icon.ico','LICENSE')) {
             if (-not (Test-Path $path -PathType Leaf)) { throw "Installer input is missing: $path" }
           }
-          makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' "/DVC_REDIST_SOURCE=$env:VOIDONE_VC_REDIST_SOURCE" packaging\windows\installer.nsi
+          $installerScript = Join-Path $env:GITHUB_WORKSPACE 'packaging\windows\installer.nsi'
+          makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' "/DVC_REDIST_SOURCE=$env:VOIDONE_VC_REDIST_SOURCE" $installerScript
           if ($LASTEXITCODE -ne 0) { throw "NSIS failed: $LASTEXITCODE" }
           if (-not (Test-Path dist\VoidOne-Setup-x64.exe -PathType Leaf)) { throw 'NSIS installer was not produced.' }
 
