@@ -236,7 +236,7 @@ jobs:
           foreach ($file in $required) {
             if (-not (Test-Path "package\$file" -PathType Leaf)) { throw "Canonical payload is missing: $file" }
           }
-          Get-ChildItem package -Recurse -File | Sort-Object FullName | Get-FileHash -Algorithm SHA256 | Export-Csv package\SHA256SUMS.csv -NoTypeInformation
+          Get-ChildItem package -Recurse -File | Where-Object { $_.FullName -ne (Join-Path $env:GITHUB_WORKSPACE 'package\SHA256SUMS.csv') } | Sort-Object FullName | Get-FileHash -Algorithm SHA256 | Export-Csv package\SHA256SUMS.csv -NoTypeInformation
 
       # ---------------------------------------------------------------------
       # Stage 5: package from the same canonical payload
