@@ -23,6 +23,10 @@
 #include <cstdio>
 #include <string>
 
+#ifndef Q_OS_WIN
+#include <csignal>
+#endif
+
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <dbghelp.h>
@@ -166,7 +170,20 @@ void registerWindowsCrashHandler()
 }
 #endif
 
+#ifndef Q_OS_WIN
+void fatalSignalHandler(int signalNumber)
+{
+    std::_Exit(128 + signalNumber);
+}
 
+void registerEnterpriseSignalHandlers()
+{
+    std::signal(SIGSEGV, fatalSignalHandler);
+    std::signal(SIGABRT, fatalSignalHandler);
+    std::signal(SIGFPE, fatalSignalHandler);
+    std::signal(SIGILL, fatalSignalHandler);
+}
+#endif
 
 } // namespace
 
