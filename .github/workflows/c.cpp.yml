@@ -287,7 +287,8 @@ jobs:
           Compress-Archive -Path package\* -DestinationPath dist\VoidOne-Portable-x64.zip -CompressionLevel Optimal -Force
           if (-not (Test-Path dist\VoidOne-Portable-x64.zip -PathType Leaf)) { throw 'Portable ZIP was not produced.' }
 
-      - name: Upload canonical payload and packages
+      - name: Upload tagged build artifact
+        if: github.ref_type == 'tag'
         uses: actions/upload-artifact@v7.0.1
         with:
           name: VoidOne-${{ steps.version.outputs.value }}
@@ -295,6 +296,33 @@ jobs:
             package
             dist\VoidOne-Setup-x64.exe
             dist\VoidOne-Portable-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload non-tag installer artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: VoidOne-${{ steps.version.outputs.value }}-Setup-x64
+          path: dist\VoidOne-Setup-x64.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload non-tag portable artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: VoidOne-${{ steps.version.outputs.value }}-Portable-x64
+          path: dist\VoidOne-Portable-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload non-tag checksums artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: VoidOne-${{ steps.version.outputs.value }}-SHA256
+          path: package\SHA256SUMS.csv
           if-no-files-found: error
           retention-days: 14
 
