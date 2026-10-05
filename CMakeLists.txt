@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.4.3)
+cmake_minimum_required(VERSION 3.25.0)
 
 set(VOIDONE_VERSION_OVERRIDE "0.0.1" CACHE STRING "Override application version (normally supplied by CI/tag)")
 set(VOIDONE_VERSION_INPUT "${VOIDONE_VERSION_OVERRIDE}")
@@ -145,6 +145,9 @@ qt_add_qml_module(VoidOne
         src/ui/qml/SystemTelemetryWidget.qml
 )
 target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick)
+if(WIN32)
+    target_link_libraries(VoidOne PRIVATE Dbghelp)
+endif()
 voidone_apply_compile_policy(VoidOne)
 
 if(WIN32)

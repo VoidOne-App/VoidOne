@@ -1,6 +1,5 @@
 /****************************************************************************
-**  V O I D O N E   E N G I N E  [ENTERPRISE CORE]
-**  Copyright (C) 2026 VoidOne_app
+**  V O I D O N E   E N G I N E  [CORE]
 **  SPDX-License-Identifier: MIT
 ****************************************************************************/
 
@@ -20,11 +19,17 @@
 #include <QDebug>
 
 #include <exception>
-#include <csignal>
 #include <cstdlib>
+#include <cstdio>
+#include <string>
+
+#ifndef Q_OS_WIN
+#include <csignal>
+#endif
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <dbghelp.h>
 #include <strsafe.h>
 #endif
 
@@ -40,23 +45,29 @@ namespace {
 QMutex g_logMutex;
 QFile g_logFile;
 
-QString logDirectoryPath()
+QString appDataDirectory()
 {
-    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/logs";
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
 }
 
-void enterpriseMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &message)
+QString logDirectoryPath()
+{
+    return QDir(appDataDirectory()).filePath("logs");
+}
+
+void enterpriseMessageHandler(QtMsgType type, const QMessageLogContext &context,
+                              const QString &message)
 {
     Q_UNUSED(context)
     QMutexLocker locker(&g_logMutex);
 
     const char *levelTag = "INFO ";
     switch (type) {
-        case QtDebugMsg:    levelTag = "DEBUG"; break;
-        case QtInfoMsg:     levelTag = "INFO "; break;
-        case QtWarningMsg:  levelTag = "WARN "; break;
-        case QtCriticalMsg: levelTag = "CRIT "; break;
-        case QtFatalMsg:    levelTag = "FATAL"; break;
+    case QtDebugMsg:    levelTag = "DEBUG"; break;
+    case QtInfoMsg:     levelTag = "INFO "; break;
+    case QtWarningMsg:  levelTag = "WARN "; break;
+    case QtCriticalMsg: levelTag = "CRIT "; break;
+    case QtFatalMsg:    levelTag = "FATAL"; break;
     }
 
     const QString line = QStringLiteral("[%1] [%2] [TID %3] %4")
@@ -84,57 +95,76 @@ bool initializeEnterpriseLogging()
     if (!QDir().mkpath(dirPath))
         return false;
 
-    const QString currentPath = dirPath + "/voidone_enterprise.log";
-    const QString previousPath = dirPath + "/voidone_enterprise.log.old";
+    const QString currentPath = QDir(dirPath).filePath("voidone_enterprise.log");
+    const QString previousPath = QDir(dirPath).filePath("voidone_enterprise.log.old");
 
     if (QFile::exists(previousPath))
         QFile::remove(previousPath);
-    if (QFile::exists(currentPath))
-        QFile::rename(currentPath, previousPath);
+    if (QFile::exists(currentPath) && !QFile::rename(currentPath, previousPath))
+        return false;
 
     g_logFile.setFileName(currentPath);
     return g_logFile.open(QIODevice::WriteOnly | QIODevice::Text);
 }
 
 #ifdef Q_OS_WIN
-void writeWindowsCrashRecord(const LPEXCEPTION_POINTERS exceptionInfo)
+bool writeWindowsMiniDump(EXCEPTION_POINTERS *exceptionInfo)
 {
-    wchar_t tempPath[MAX_PATH] = {};
-    const DWORD length = GetTempPathW(MAX_PATH, tempPath);
+    wchar_t localAppData[MAX_PATH] = {};
+    const DWORD length = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
     if (length == 0 || length >= MAX_PATH)
-        return;
+        return false;
 
-    wchar_t filePath[MAX_PATH] = {};
-    if (FAILED(StringCchPrintfW(filePath, MAX_PATH, L"%sVoidOne-crash.log", tempPath)))
-        return;
+    wchar_t appDir[MAX_PATH] = {};
+    wchar_t vendorDir[MAX_PATH] = {};
+    wchar_t logDir[MAX_PATH] = {};
+    if (FAILED(StringCchPrintfW(appDir, MAX_PATH, L"%s\\VoidOne_app", localAppData))
+        || FAILED(StringCchPrintfW(vendorDir, MAX_PATH, L"%s\\VoidOne_app\\VoidOne", localAppData))
+        || FAILED(StringCchPrintfW(logDir, MAX_PATH, L"%s\\VoidOne_app\\VoidOne\\logs", localAppData)))
+        return false;
 
-    HANDLE file = CreateFileW(filePath, FILE_APPEND_DATA,
-                              FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                              OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (file == INVALID_HANDLE_VALUE)
-        return;
+    CreateDirectoryW(appDir, nullptr);
+    CreateDirectoryW(vendorDir, nullptr);
+    CreateDirectoryW(logDir, nullptr);
 
-    const DWORD code = exceptionInfo && exceptionInfo->ExceptionRecord
-        ? exceptionInfo->ExceptionRecord->ExceptionCode : 0;
-    const ULONG_PTR address = exceptionInfo && exceptionInfo->ExceptionRecord
-        ? reinterpret_cast<ULONG_PTR>(exceptionInfo->ExceptionRecord->ExceptionAddress) : 0;
+    SYSTEMTIME time;
+    GetLocalTime(&time);
 
-    char buffer[512] = {};
-    const int written = _snprintf_s(
-        buffer, sizeof(buffer), _TRUNCATE,
-        "VoidOne fatal Windows exception\r\nExceptionCode=0x%08lX\r\nExceptionAddress=0x%p\r\n\r\n",
-        static_cast<unsigned long>(code), reinterpret_cast<void *>(address));
+    wchar_t dumpPath[MAX_PATH] = {};
+    if (FAILED(StringCchPrintfW(
+            dumpPath, MAX_PATH,
+            L"%s\\VoidOne-crash-%04u%02u%02u-%02u%02u%02u.dmp",
+            logDir, time.wYear, time.wMonth, time.wDay,
+            time.wHour, time.wMinute, time.wSecond)))
+        return false;
 
-    if (written > 0) {
-        DWORD bytesWritten = 0;
-        WriteFile(file, buffer, static_cast<DWORD>(written), &bytesWritten, nullptr);
-    }
-    CloseHandle(file);
+    HANDLE dumpFile = CreateFileW(
+        dumpPath, GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (dumpFile == INVALID_HANDLE_VALUE)
+        return false;
+
+    MINIDUMP_EXCEPTION_INFORMATION exceptionData{};
+    exceptionData.ThreadId = GetCurrentThreadId();
+    exceptionData.ExceptionPointers = exceptionInfo;
+    exceptionData.ClientPointers = FALSE;
+
+    const MINIDUMP_TYPE dumpType =
+        static_cast<MINIDUMP_TYPE>(
+            MiniDumpWithIndirectlyReferencedMemory | MiniDumpScanMemory);
+
+    const BOOL dumped = MiniDumpWriteDump(
+        GetCurrentProcess(), GetCurrentProcessId(), dumpFile,
+        dumpType,
+        exceptionInfo ? &exceptionData : nullptr, nullptr, nullptr);
+
+    CloseHandle(dumpFile);
+    return dumped == TRUE;
 }
 
-LONG WINAPI windowsUnhandledExceptionFilter(LPEXCEPTION_POINTERS exceptionInfo)
+LONG WINAPI windowsUnhandledExceptionFilter(EXCEPTION_POINTERS *exceptionInfo)
 {
-    writeWindowsCrashRecord(exceptionInfo);
+    writeWindowsMiniDump(exceptionInfo);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
@@ -144,7 +174,7 @@ void registerWindowsCrashHandler()
 }
 #endif
 
-#if !defined(Q_OS_WIN)
+#ifndef Q_OS_WIN
 void fatalSignalHandler(int signalNumber)
 {
     std::_Exit(128 + signalNumber);
@@ -176,8 +206,15 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName("VoidOne");
     QCoreApplication::setApplicationVersion(VOIDONE_VERSION_DISPLAY);
 
+    // AppDataLocation must exist before anything such as QLockFile uses it.
+    const QString appDataDir = appDataDirectory();
+    if (appDataDir.isEmpty() || !QDir().mkpath(appDataDir)) {
+        fprintf(stderr, "[CRITICAL] Failed to create VoidOne application data directory.\n");
+        return -1;
+    }
+
     QCommandLineParser parser;
-    parser.setApplicationDescription("VoidOne — High-Performance PC Game Launcher.");
+    parser.setApplicationDescription("VoidOne — Open-source native PC game launcher.");
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOption(QCommandLineOption({"d", "diagnostics"},
@@ -195,16 +232,17 @@ int main(int argc, char *argv[])
     qInfo() << "Operating System :" << QSysInfo::prettyProductName();
     qInfo() << "Architecture     :" << QSysInfo::currentCpuArchitecture();
 
-    const QString lockFilePath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-        + "/voidone_enterprise.lock";
+    const QString lockFilePath = QDir(appDataDir).filePath("voidone_enterprise.lock");
     QLockFile singleInstanceLock(lockFilePath);
-    singleInstanceLock.setStaleLockTime(0);
+    // Recover automatically from a lock left by a crashed process.
+    singleInstanceLock.setStaleLockTime(30000);
 
     if (!singleInstanceLock.tryLock(200)) {
-        qCritical() << "[Security] Another VoidOne instance is already active.";
+        qCritical() << "[Lifecycle] Another VoidOne instance is already active.";
         return -1;
     }
 
+    int exitCode = -1;
     try {
         qInfo() << "[Database] Initializing SQLite storage...";
         if (!Database::initialize()) {
@@ -231,29 +269,30 @@ int main(int argc, char *argv[])
             QCoreApplication::exit(-1);
         }, Qt::QueuedConnection);
 
-        QObject::connect(&app, &QCoreApplication::aboutToQuit, []() {
-            qInfo() << "[Lifecycle] Shutdown sequence initiated.";
-            Database::shutdown();
-            QMutexLocker locker(&g_logMutex);
-            if (g_logFile.isOpen())
-                g_logFile.close();
-        });
-
         engine.loadFromModule("VoidOne", "Main");
         if (engine.rootObjects().isEmpty()) {
             qCritical() << "[UI-FATAL] No root QML object was created.";
             return -1;
         }
 
-        return app.exec();
+        QObject::connect(&app, &QCoreApplication::aboutToQuit, [&]() {
+            qInfo() << "[Lifecycle] Shutdown sequence initiated.";
+            saveBackupManager.setAutoSaveEnabled(false);
+            Database::shutdown();
+
+            QMutexLocker locker(&g_logMutex);
+            if (g_logFile.isOpen())
+                g_logFile.close();
+        });
+
+        exitCode = app.exec();
     } catch (const std::bad_alloc &ex) {
         qCritical() << "[Memory-FATAL] Out of memory:" << ex.what();
-        return -1;
     } catch (const std::exception &ex) {
         qCritical() << "[Exception-FATAL] Unhandled exception:" << ex.what();
-        return -1;
     } catch (...) {
         qCritical() << "[Exception-FATAL] Unknown exception.";
-        return -1;
     }
+
+    return exitCode;
 }

@@ -22,3 +22,8 @@ add_executable(voidone_save_backup_tests test_save_backup_manager.cpp)
 voidone_configure_test(voidone_save_backup_tests)
 add_test(NAME VoidOne.SaveBackupTests COMMAND voidone_save_backup_tests)
 set_tests_properties(VoidOne.SaveBackupTests PROPERTIES TIMEOUT 120)
+
+add_executable(voidone_steam_scanner_tests test_steam_scanner.cpp)
+voidone_configure_test(voidone_steam_scanner_tests)
+add_test(NAME VoidOne.SteamScannerTests COMMAND voidone_steam_scanner_tests)
+set_tests_properties(VoidOne.SteamScannerTests PROPERTIES TIMEOUT 120)

@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   QT_VERSION: '6.11.2'
@@ -23,6 +23,9 @@ jobs:
     name: Windows Build / Test / Package
     runs-on: windows-2025
     timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - name: Checkout source
@@ -79,7 +82,10 @@ jobs:
           $cl | Write-Host
           if ($cl -notmatch 'Version 19\.51\.') { throw "Expected MSVC 14.51 / compiler 19.51.x, found: $cl" }
           if ($env:VSCMD_ARG_TGT_ARCH -ne 'x64') { throw "Expected x64 MSVC environment, found '$env:VSCMD_ARG_TGT_ARCH'." }
+          if ([string]::IsNullOrWhiteSpace($env:VCToolsInstallDir)) { throw 'VCToolsInstallDir is unavailable.' }
+          if (-not (Get-Command cl -ErrorAction SilentlyContinue)) { throw 'cl.exe is unavailable; MSVC environment is incomplete.' }
           if ([string]::IsNullOrWhiteSpace($env:VCToolsRedistDir)) { throw 'VCToolsRedistDir is unavailable.' }
+          if (-not (Get-Command dumpbin -ErrorAction SilentlyContinue)) { throw 'dumpbin is unavailable; MSVC environment is incomplete.' }
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4.3.1
@@ -98,7 +104,24 @@ jobs:
           $version = $env:CMAKE_VERSION
           $archive = "cmake-$version-windows-x86_64.zip"
           $zip = Join-Path $env:RUNNER_TEMP $archive
-          Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/Kitware/CMake/releases/download/v$version/$archive" -OutFile $zip
+          $cmakeUrl = "https://github.com/Kitware/CMake/releases/download/v$version/$archive"
+          $downloaded = $false
+          for ($attempt = 1; $attempt -le 5; $attempt++) {
+            try {
+              Invoke-WebRequest -UseBasicParsing -Uri $cmakeUrl -OutFile $zip -MaximumRetryCount 2 -RetryIntervalSec 5
+              if ((Test-Path $zip -PathType Leaf) -and (Get-Item $zip).Length -gt 1000000) {
+                $downloaded = $true
+                break
+              }
+              throw "Downloaded CMake archive is missing or unexpectedly small."
+            } catch {
+              if ($attempt -eq 5) { throw "Failed to download CMake $version after $attempt attempts: $($_.Exception.Message)" }
+              Write-Warning "CMake download attempt $attempt failed: $($_.Exception.Message). Retrying in 10 seconds."
+              Remove-Item $zip -Force -ErrorAction SilentlyContinue
+              Start-Sleep -Seconds 10
+            }
+          }
+          if (-not $downloaded) { throw "CMake $version download did not complete." }
           Expand-Archive -Path $zip -DestinationPath $env:RUNNER_TEMP -Force
           $bin = Join-Path $env:RUNNER_TEMP "cmake-$version-windows-x86_64\bin"
           if (-not (Test-Path (Join-Path $bin 'cmake.exe'))) { throw 'Pinned CMake installation failed.' }
@@ -149,14 +172,14 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=$env:BUILD_TYPE -DVOIDONE_BUILD_TESTS=ON -DVOIDONE_GENERATE_INSTALLER=OFF '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}'
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVOIDONE_BUILD_TESTS=ON -DVOIDONE_GENERATE_INSTALLER=OFF '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}'
           if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
 
       - name: Build application and tests
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake --build build --config $env:BUILD_TYPE --parallel
+          cmake --build build --config Release --parallel
           if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
 
       - name: Deploy Qt runtime for test executables
@@ -176,7 +199,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $env:QT_PLUGIN_PATH = "$env:GITHUB_WORKSPACE\build;$env:QT_ROOT_DIR\plugins"
-          ctest --test-dir build -C $env:BUILD_TYPE --output-on-failure --timeout 300 --verbose
+          ctest --test-dir build -C Release --output-on-failure --timeout 300 --verbose
           if ($LASTEXITCODE -ne 0) { throw "CTest failed: $LASTEXITCODE" }
 
       # ---------------------------------------------------------------------
@@ -201,15 +224,26 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $runtime = Get-ChildItem $env:VCToolsRedistDir -Recurse -Filter msvcp140.dll -File |
-            Where-Object { $_.FullName -match '\\x64\\Microsoft\.VC[^\\]*\.CRT\\msvcp140\.dll$' } |
-            Select-Object -First 1
-          if (-not $runtime) { throw "Could not locate x64 MSVC runtime below $env:VCToolsRedistDir" }
+          $redistRoots = @()
+          if ($env:VCToolsRedistDir) { $redistRoots += $env:VCToolsRedistDir }
+          if ($env:VCINSTALLDIR) { $redistRoots += (Join-Path $env:VCINSTALLDIR 'VC\Redist\MSVC') }
+          $runtime = $null
+          foreach ($root in ($redistRoots | Select-Object -Unique)) {
+            if (-not (Test-Path $root)) { continue }
+            $runtime = Get-ChildItem $root -Recurse -Filter msvcp140.dll -File |
+              Where-Object { $_.FullName -match '\\x64\\Microsoft\.VC[^\\]*\.CRT\\msvcp140\.dll$' } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if ($runtime) { break }
+          }
+          if (-not $runtime) { throw "Could not locate x64 MSVC runtime below the installed Visual Studio redist roots." }
           $runtimeDir = $runtime.Directory.FullName
           Get-ChildItem $runtimeDir -Filter '*.dll' -File | ForEach-Object { Copy-Item $_.FullName package\ -Force }
           foreach ($dll in @('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')) {
             if (-not (Test-Path "package\$dll")) { throw "Required VC++ runtime DLL missing: $dll" }
           }
+          $header = (& dumpbin /headers package\VoidOne.exe 2>&1) -join "`n"
+          if ($LASTEXITCODE -ne 0 -or $header -notmatch 'machine \(x64\)') { throw 'VoidOne.exe is not an x64 MSVC binary.' }
 
       - name: Validate canonical payload
         shell: pwsh
@@ -219,7 +253,7 @@ jobs:
           foreach ($file in $required) {
             if (-not (Test-Path "package\$file" -PathType Leaf)) { throw "Canonical payload is missing: $file" }
           }
-          Get-ChildItem package -Recurse -File | Sort-Object FullName | Get-FileHash -Algorithm SHA256 | Export-Csv package\SHA256SUMS.csv -NoTypeInformation
+          Get-ChildItem package -Recurse -File | Where-Object { $_.FullName -ne (Join-Path $env:GITHUB_WORKSPACE 'package\SHA256SUMS.csv') } | Sort-Object FullName | Get-FileHash -Algorithm SHA256 | Export-Csv package\SHA256SUMS.csv -NoTypeInformation
 
       # ---------------------------------------------------------------------
       # Stage 5: package from the same canonical payload
@@ -241,7 +275,8 @@ jobs:
           foreach ($path in @('packaging\windows\installer.nsi','assets\app-icon.ico','LICENSE')) {
             if (-not (Test-Path $path -PathType Leaf)) { throw "Installer input is missing: $path" }
           }
-          makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' "/DVC_REDIST_SOURCE=$env:VOIDONE_VC_REDIST_SOURCE" packaging\windows\installer.nsi
+          $installerScript = Join-Path $env:GITHUB_WORKSPACE 'packaging\windows\installer.nsi'
+          makensis /V2 /DVERSION='${{ steps.version.outputs.value }}' /DWINDOWS_VERSION='${{ steps.version.outputs.windows_value }}' "/DVC_REDIST_SOURCE=$env:VOIDONE_VC_REDIST_SOURCE" $installerScript
           if ($LASTEXITCODE -ne 0) { throw "NSIS failed: $LASTEXITCODE" }
           if (-not (Test-Path dist\VoidOne-Setup-x64.exe -PathType Leaf)) { throw 'NSIS installer was not produced.' }
 
@@ -263,11 +298,36 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: VoidOne-*
+          path: release
+          merge-multiple: true
+
+      - name: Validate release payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f release/dist/VoidOne-Setup-x64.exe
+          test -f release/dist/VoidOne-Portable-x64.zip
+
       - name: Create GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
-            dist/VoidOne-Setup-x64.exe
-            dist/VoidOne-Portable-x64.zip
+            release/dist/VoidOne-Setup-x64.exe
+            release/dist/VoidOne-Portable-x64.zip

@@ -272,13 +272,39 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $env:RUNNER_TEMP "VoidOne-Gfx-${{ matrix.backend }}"
           New-Item -ItemType Directory -Force "$root\Roaming","$root\Local" | Out-Null
-          $e = @{ APPDATA="$root\Roaming"; LOCALAPPDATA="$root\Local"; QT_LOGGING_TO_CONSOLE='1'; QT_DEBUG_PLUGINS='1'; QML_IMPORT_TRACE='1' }
+          $e = @{
+            APPDATA="$root\Roaming"
+            LOCALAPPDATA="$root\Local"
+            QT_QPA_PLATFORM='offscreen'
+            QT_LOGGING_TO_CONSOLE='1'
+            QT_DEBUG_PLUGINS='1'
+            QML_IMPORT_TRACE='1'
+            QSG_INFO='1'
+            QSG_RHI_PREFER_SOFTWARE_RENDERER='1'
+          }
           $p = Start-Process "$env:GITHUB_WORKSPACE\qa\package\VoidOne.exe" -WorkingDirectory "$env:GITHUB_WORKSPACE\qa\package" -PassThru -Environment $e
           Start-Sleep -Seconds 5
           $p.Refresh()
-          if ($p.HasExited) { throw "Graphics backend '${{ matrix.backend }}' terminated after launch with exit code $($p.ExitCode)." }
+          if ($p.HasExited) {
+            $log = Join-Path $root 'VoidOne_app\VoidOne\logs\voidone_enterprise.log'
+            if (Test-Path $log) {
+              Write-Host '--- VoidOne enterprise log ---'
+              Get-Content $log -ErrorAction SilentlyContinue
+              Write-Host '--- End VoidOne enterprise log ---'
+            }
+            throw "Graphics backend terminated after launch with exit code $($p.ExitCode)."
+          }
           Stop-Process $p.Id -Force -ErrorAction SilentlyContinue
           Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Upload graphics diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: voidone-graphics-diagnostics-${{ github.run_id }}-${{ matrix.backend }}
+          path: ${{ runner.temp }}/VoidOne-Gfx-${{ matrix.backend }}
+          if-no-files-found: warn
+          retention-days: 14
 
   package:
     name: Package Integrity QA
