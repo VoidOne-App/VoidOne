@@ -81,7 +81,13 @@ qt_standard_project_setup(REQUIRES 6.11.2)
 
 function(voidone_apply_compile_policy target)
     if(MSVC)
-        target_compile_options(${target} PRIVATE /W4 /permissive- /guard:cf /EHsc)
+        # Release-size/performance tuning. /O2 already enables /GF and /Gy;
+        # /Gw lets the linker discard unreferenced global data. The linker
+        # options below remove unreferenced COMDATs and fold identical ones.
+        target_compile_options(${target} PRIVATE /W4 /permissive- /guard:cf /EHsc /O2 /Gw)
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            target_link_options(${target} PRIVATE /OPT:REF /OPT:ICF /INCREMENTAL:NO)
+        endif()
         if(VOIDONE_WARNINGS_AS_ERRORS)
             target_compile_options(${target} PRIVATE /WX)
         endif()
