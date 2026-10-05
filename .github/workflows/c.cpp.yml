@@ -155,14 +155,14 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=$env:BUILD_TYPE -DVOIDONE_BUILD_TESTS=ON -DVOIDONE_GENERATE_INSTALLER=OFF '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}'
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVOIDONE_BUILD_TESTS=ON -DVOIDONE_GENERATE_INSTALLER=OFF '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}'
           if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
 
       - name: Build application and tests
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake --build build --config $env:BUILD_TYPE --parallel
+          cmake --build build --config Release --parallel
           if ($LASTEXITCODE -ne 0) { throw "Build failed: $LASTEXITCODE" }
 
       - name: Deploy Qt runtime for test executables
@@ -182,7 +182,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $env:QT_PLUGIN_PATH = "$env:GITHUB_WORKSPACE\build;$env:QT_ROOT_DIR\plugins"
-          ctest --test-dir build -C $env:BUILD_TYPE --output-on-failure --timeout 300 --verbose
+          ctest --test-dir build -C Release --output-on-failure --timeout 300 --verbose
           if ($LASTEXITCODE -ne 0) { throw "CTest failed: $LASTEXITCODE" }
 
       # ---------------------------------------------------------------------
