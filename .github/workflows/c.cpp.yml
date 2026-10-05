@@ -82,7 +82,8 @@ jobs:
           $cl | Write-Host
           if ($cl -notmatch 'Version 19\.51\.') { throw "Expected MSVC 14.51 / compiler 19.51.x, found: $cl" }
           if ($env:VSCMD_ARG_TGT_ARCH -ne 'x64') { throw "Expected x64 MSVC environment, found '$env:VSCMD_ARG_TGT_ARCH'." }
-          if ([string]::IsNullOrWhiteSpace($env:VCINSTALLDIR)) { throw 'VCINSTALLDIR is unavailable.' }
+          if ([string]::IsNullOrWhiteSpace($env:VCToolsInstallDir)) { throw 'VCToolsInstallDir is unavailable.' }
+          if (-not (Get-Command cl -ErrorAction SilentlyContinue)) { throw 'cl.exe is unavailable; MSVC environment is incomplete.' }
           if ([string]::IsNullOrWhiteSpace($env:VCToolsRedistDir)) { throw 'VCToolsRedistDir is unavailable.' }
           if (-not (Get-Command dumpbin -ErrorAction SilentlyContinue)) { throw 'dumpbin is unavailable; MSVC environment is incomplete.' }
 
