@@ -97,7 +97,7 @@ QStringList discoverSteamLibraries(const QString &steamRoot)
     const QString content = QString::fromUtf8(file.readAll());
     // Valve's VDF contains entries such as: "path" "D:\\SteamLibrary".
     static const QRegularExpression pathRx(
-        QStringLiteral(R"("path"\s+"([^"]+)")"),
+        QStringLiteral("\"path\"\\s+\"([^\"]+)\""),
         QRegularExpression::CaseInsensitiveOption);
 
     auto match = pathRx.globalMatch(content);
@@ -227,10 +227,10 @@ void SteamScannerWorker::doScan()
     }
 
     const QRegularExpression nameRx(
-        QStringLiteral(R"("name"\s+"([^"]+)")"),
+        QStringLiteral("\"name\"\\s+\"([^\"]+)\""),
         QRegularExpression::CaseInsensitiveOption);
     const QRegularExpression dirRx(
-        QStringLiteral(R"("installdir"\s+"([^"]+)")"),
+        QStringLiteral("\"installdir\"\\s+\"([^\"]+)\""),
         QRegularExpression::CaseInsensitiveOption);
 
     for (const QString &steamRoot : steamRoots) {
