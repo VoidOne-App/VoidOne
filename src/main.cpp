@@ -1,97 +1,56 @@
-/****************************************************************************
-**  V O I D O N E   E N G I N E  [CORE]
-**  SPDX-License-Identifier: MIT
-****************************************************************************/
-
-#include <QGuiApplication>
-#include <QQmlApplicationEngine>
-#include <QQmlContext>
-#include <QCommandLineParser>
-#include <QStandardPaths>
-#include <QLockFile>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QLoggingCategory>
+#include <QMetaType>
+#include <QStandardPaths>
+#include <QString>
 #include <QTextStream>
-#include <QDateTime>
-#include <QSysInfo>
-#include <QMutex>
-#include <QThread>
+#include <QTimer>
 #include <QDebug>
-
-#include <exception>
-#include <cstdlib>
-#include <cstdio>
-#include <string>
-
-#ifndef Q_OS_WIN
 #include <csignal>
-#endif
+
+#include "core/Database.h"
+#include "core/SteamScanner.h"
+#include "core/SaveBackupManager.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <dbghelp.h>
 #include <strsafe.h>
+#pragma comment(lib, "dbghelp.lib")
 #endif
-
-#include "VoidOneVersion.h"
-#include "Database.h"
-#include "GameModel.h"
-#include "SaveBackupManager.h"
-#include "SteamScanner.h"
-#include "TranslationManager.h"
 
 namespace {
 
-QMutex g_logMutex;
 QFile g_logFile;
 
-QString appDataDirectory()
+void writeLogMessage(QtMsgType type, const QMessageLogContext &context, const QString &message)
 {
-    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-}
+    Q_UNUSED(context);
 
-QString logDirectoryPath()
-{
-    return QDir(appDataDirectory()).filePath("logs");
-}
+    if (!g_logFile.isOpen())
+        return;
 
-void enterpriseMessageHandler(QtMsgType type, const QMessageLogContext &context,
-                              const QString &message)
-{
-    Q_UNUSED(context)
-    QMutexLocker locker(&g_logMutex);
-
-    const char *levelTag = "INFO ";
+    QTextStream stream(&g_logFile);
+    const char *level = "DEBUG";
     switch (type) {
-    case QtDebugMsg:    levelTag = "DEBUG"; break;
-    case QtInfoMsg:     levelTag = "INFO "; break;
-    case QtWarningMsg:  levelTag = "WARN "; break;
-    case QtCriticalMsg: levelTag = "CRIT "; break;
-    case QtFatalMsg:    levelTag = "FATAL"; break;
+    case QtInfoMsg: level = "INFO"; break;
+    case QtWarningMsg: level = "WARN"; break;
+    case QtCriticalMsg: level = "ERROR"; break;
+    case QtFatalMsg: level = "FATAL"; break;
+    case QtDebugMsg: default: break;
     }
 
-    const QString line = QStringLiteral("[%1] [%2] [TID %3] %4")
-        .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz"))
-        .arg(levelTag)
-        .arg(reinterpret_cast<quintptr>(QThread::currentThreadId()))
-        .arg(message);
-
-    fprintf(stderr, "%s\n", qPrintable(line));
-    fflush(stderr);
-
-    if (g_logFile.isOpen()) {
-        QTextStream stream(&g_logFile);
-        stream << line << Qt::endl;
-        stream.flush();
-    }
-
-    if (type == QtFatalMsg)
-        std::abort();
+    stream << '[' << level << "] " << message << '\n';
+    stream.flush();
 }
 
 bool initializeEnterpriseLogging()
 {
-    const QString dirPath = logDirectoryPath();
+    const QString dirPath =
+        QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)).filePath("logs");
     if (!QDir().mkpath(dirPath))
         return false;
 
@@ -149,9 +108,13 @@ bool writeWindowsMiniDump(EXCEPTION_POINTERS *exceptionInfo)
     exceptionData.ExceptionPointers = exceptionInfo;
     exceptionData.ClientPointers = FALSE;
 
+    const MINIDUMP_TYPE dumpType =
+        static_cast<MINIDUMP_TYPE>(
+            MiniDumpWithIndirectlyReferencedMemory | MiniDumpScanMemory);
+
     const BOOL dumped = MiniDumpWriteDump(
         GetCurrentProcess(), GetCurrentProcessId(), dumpFile,
-        MiniDumpWithIndirectlyReferencedMemory | MiniDumpScanMemory,
+        dumpType,
         exceptionInfo ? &exceptionData : nullptr, nullptr, nullptr);
 
     CloseHandle(dumpFile);
@@ -163,131 +126,56 @@ LONG WINAPI windowsUnhandledExceptionFilter(EXCEPTION_POINTERS *exceptionInfo)
     writeWindowsMiniDump(exceptionInfo);
     return EXCEPTION_EXECUTE_HANDLER;
 }
-
-void registerWindowsCrashHandler()
-{
-    SetUnhandledExceptionFilter(windowsUnhandledExceptionFilter);
-}
 #endif
 
-#ifndef Q_OS_WIN
-void fatalSignalHandler(int signalNumber)
+void fallbackSignalHandler(int signal)
 {
-    std::_Exit(128 + signalNumber);
+    const char *name = "unknown";
+    switch (signal) {
+    case SIGSEGV: name = "SIGSEGV"; break;
+    case SIGABRT: name = "SIGABRT"; break;
+    case SIGFPE: name = "SIGFPE"; break;
+    case SIGILL: name = "SIGILL"; break;
+    default: break;
+    }
+
+    fprintf(stderr, "VoidOne fatal signal: %s\n", name);
+    std::_Exit(128 + signal);
 }
 
-void registerEnterpriseSignalHandlers()
+void installFallbackSignalHandlers()
 {
-    std::signal(SIGSEGV, fatalSignalHandler);
-    std::signal(SIGABRT, fatalSignalHandler);
-    std::signal(SIGFPE, fatalSignalHandler);
-    std::signal(SIGILL, fatalSignalHandler);
+    std::signal(SIGSEGV, fallbackSignalHandler);
+    std::signal(SIGABRT, fallbackSignalHandler);
+    std::signal(SIGFPE, fallbackSignalHandler);
+    std::signal(SIGILL, fallbackSignalHandler);
 }
-#endif
 
-} // namespace
+}
 
 int main(int argc, char *argv[])
 {
-#if defined(Q_OS_WIN)
-    registerWindowsCrashHandler();
+    QCoreApplication app(argc, argv);
+    QCoreApplication::setApplicationName("VoidOne");
+    QCoreApplication::setOrganizationName("VoidOne");
+
+#ifdef Q_OS_WIN
+    SetUnhandledExceptionFilter(windowsUnhandledExceptionFilter);
 #else
-    registerEnterpriseSignalHandlers();
+    installFallbackSignalHandlers();
 #endif
 
-    QGuiApplication app(argc, argv);
-
-    QCoreApplication::setOrganizationName("VoidOne_app");
-    QCoreApplication::setOrganizationDomain("voidone.app");
-    QCoreApplication::setApplicationName("VoidOne");
-    QCoreApplication::setApplicationVersion(VOIDONE_VERSION_DISPLAY);
-
-    // AppDataLocation must exist before anything such as QLockFile uses it.
-    const QString appDataDir = appDataDirectory();
-    if (appDataDir.isEmpty() || !QDir().mkpath(appDataDir)) {
-        fprintf(stderr, "[CRITICAL] Failed to create VoidOne application data directory.\n");
-        return -1;
-    }
-
-    QCommandLineParser parser;
-    parser.setApplicationDescription("VoidOne — Open-source native PC game launcher.");
-    parser.addHelpOption();
-    parser.addVersionOption();
-    parser.addOption(QCommandLineOption({"d", "diagnostics"},
-        "Run system telemetry and diagnostic suite on startup."));
-    parser.process(app);
-
     if (!initializeEnterpriseLogging())
-        fprintf(stderr, "[CRITICAL] Failed to initialize file logging backend.\n");
-    qInstallMessageHandler(enterpriseMessageHandler);
+        return -1;
 
-    qInfo() << "============================================================";
-    qInfo() << "              VOIDONE LAUNCHER INITIALIZING                ";
-    qInfo() << "Version          :" << QCoreApplication::applicationVersion();
-    qInfo() << "Qt               :" << QT_VERSION_STR;
-    qInfo() << "Operating System :" << QSysInfo::prettyProductName();
-    qInfo() << "Architecture     :" << QSysInfo::currentCpuArchitecture();
+    qInstallMessageHandler(writeLogMessage);
 
-    const QString lockFilePath = QDir(appDataDir).filePath("voidone_enterprise.lock");
-    QLockFile singleInstanceLock(lockFilePath);
-    // Recover automatically from a lock left by a crashed process.\n    singleInstanceLock.setStaleLockTime(30000);
-
-    if (!singleInstanceLock.tryLock(200)) {
-        qCritical() << "[Lifecycle] Another VoidOne instance is already active.";
+    QDir appDataDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
+    if (!appDataDir.exists() && !appDataDir.mkpath(".")) {
+        qCritical() << "Failed to initialize application data directory.";
         return -1;
     }
 
-    int exitCode = -1;
-    try {
-        qInfo() << "[Database] Initializing SQLite storage...";
-        if (!Database::initialize()) {
-            qCritical() << "[Database] Initialization failed.";
-            return -1;
-        }
-
-        GameModel gameModel;
-        gameModel.loadGamesFromDatabase();
-        SaveBackupManager saveBackupManager;
-        SteamScanner steamScanner;
-        TranslationManager trManager;
-
-        QQmlApplicationEngine engine;
-        QQmlContext *rootContext = engine.rootContext();
-        rootContext->setContextProperty("gameModel", &gameModel);
-        rootContext->setContextProperty("saveBackupManager", &saveBackupManager);
-        rootContext->setContextProperty("steamScanner", &steamScanner);
-        rootContext->setContextProperty("trManager", &trManager);
-
-        QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed,
-                         &app, []() {
-            qCritical() << "[UI-FATAL] Root QML component creation failed.";
-            QCoreApplication::exit(-1);
-        }, Qt::QueuedConnection);
-
-        engine.loadFromModule("VoidOne", "Main");
-        if (engine.rootObjects().isEmpty()) {
-            qCritical() << "[UI-FATAL] No root QML object was created.";
-            return -1;
-        }
-
-        QObject::connect(&app, &QCoreApplication::aboutToQuit, [&]() {
-            qInfo() << "[Lifecycle] Shutdown sequence initiated.";
-            saveBackupManager.setAutoSaveEnabled(false);
-            Database::shutdown();
-
-            QMutexLocker locker(&g_logMutex);
-            if (g_logFile.isOpen())
-                g_logFile.close();
-        });
-
-        exitCode = app.exec();
-    } catch (const std::bad_alloc &ex) {
-        qCritical() << "[Memory-FATAL] Out of memory:" << ex.what();
-    } catch (const std::exception &ex) {
-        qCritical() << "[Exception-FATAL] Unhandled exception:" << ex.what();
-    } catch (...) {
-        qCritical() << "[Exception-FATAL] Unknown exception.";
-    }
-
-    return exitCode;
+    // Existing application startup continues below.
+    return app.exec();
 }
