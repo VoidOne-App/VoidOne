@@ -81,11 +81,13 @@ qt_standard_project_setup(REQUIRES 6.11.2)
 
 function(voidone_apply_compile_policy target)
     if(MSVC)
-        # Release-size/performance tuning. /O2 already enables /GF and /Gy;
-        # /Gw lets the linker discard unreferenced global data. The linker
-        # options below remove unreferenced COMDATs and fold identical ones.
-        target_compile_options(${target} PRIVATE /W4 /permissive- /guard:cf /EHsc /O2 /Gw)
+        target_compile_options(${target} PRIVATE /W4 /permissive- /guard:cf /EHsc)
         if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            # Keep Release builds fast while giving the linker maximum safe
+            # visibility into unused code/data. /O2 already enables /GF and
+            # /Gy; /Gw extends dead-data elimination and /Zc:inline allows
+            # conforming unused inline definitions to be discarded.
+            target_compile_options(${target} PRIVATE /O2 /Gw /Zc:inline)
             target_link_options(${target} PRIVATE /OPT:REF /OPT:ICF /INCREMENTAL:NO)
         endif()
         if(VOIDONE_WARNINGS_AS_ERRORS)
