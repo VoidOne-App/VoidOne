@@ -60,9 +60,9 @@ QStringList discoverSteamRoots()
 
     // Steam commonly stores its install path in the Windows registry.
     const QStringList registryKeys = {
-        QStringLiteral("HKEY_CURRENT_USER\\Software\\Valve\\Steam"),
-        QStringLiteral("HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Valve\\Steam"),
-        QStringLiteral("HKEY_LOCAL_MACHINE\\SOFTWARE\\Valve\\Steam")
+        QStringLiteral("HKEY_CURRENT_USER\Software\Valve\Steam"),
+        QStringLiteral("HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam"),
+        QStringLiteral("HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam")
     };
     for (const QString &key : registryKeys) {
         QSettings settings(key, QSettings::NativeFormat);
@@ -154,7 +154,7 @@ QString findMainExecutable(const QString &gameDir, const QString &gameName)
 
     const QString target = gameName.toLower().trimmed();
 
-    auto inspect = [&](const QDir &scanDir, const QFileInfoList &files, int depth) {
+    auto inspect = [&](const QFileInfoList &files, int depth) {
         for (const QFileInfo &file : files) {
             if (!file.isFile() || file.isSymLink() || isLikelyNonGameExecutable(file.fileName()))
                 continue;
@@ -183,7 +183,7 @@ QString findMainExecutable(const QString &gameDir, const QString &gameName)
 
     std::function<void(const QDir &, int)> scanDirectory =
         [&](const QDir &scanDir, int depth) {
-            inspect(scanDir, scanDir.entryInfoList(filters, fileFilters, QDir::Name), depth);
+            inspect(scanDir.entryInfoList(filters, fileFilters, QDir::Name), depth);
             if (depth >= 3)
                 return;
 
