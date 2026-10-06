@@ -20,29 +20,25 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ai-repair-${{ github.event.workflow_run.id || inputs.run_id }}
+  group: voidone-ai-repair-${{ github.event.workflow_run.id || inputs.run_id || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   repair:
     name: Diagnose CI failure and create repair PR
-
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'failure'
-
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
-
-      - name: Checkout repository
+      - name: Checkout trusted repair engine
         uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
           persist-credentials: false
-
 
       - name: Resolve target run
         id: run
@@ -50,19 +46,23 @@ jobs:
         env:
           EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
           INPUT_RUN_ID: ${{ inputs.run_id }}
-
         run: |
           set -euo pipefail
 
-          RUN_ID="${INPUT_RUN_ID:-${EVENT_RUN_ID:-}}"
+          run_id="${INPUT_RUN_ID:-${EVENT_RUN_ID:-}}"
 
-          if [[ -z "$RUN_ID" ]]; then
-            echo "Missing workflow run id"
+          if [[ -z "$run_id" ]]; then
+            echo "run_id is required for manual runs." >&2
             exit 1
           fi
 
-          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          if [[ ! "$run_id" =~ ^[0-9]+$ ]]; then
+            echo "run_id must be numeric." >&2
+            exit 1
+          fi
 
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Repair target run: $run_id"
 
       - name: Resolve failed revision
         id: target
@@ -70,49 +70,69 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ steps.run.outputs.run_id }}
-
         run: |
           set -euo pipefail
 
-          SHA=$(gh run view "$RUN_ID" --json headSha --jq '.headSha')
-          BRANCH=$(gh run view "$RUN_ID" --json headBranch --jq '.headBranch')
+          sha="$(gh run view "$RUN_ID" --json headSha --jq '.headSha')"
+          branch="$(gh run view "$RUN_ID" --json headBranch --jq '.headBranch // ""')"
+          repo="$(gh run view "$RUN_ID" --json headRepository --jq '.headRepository.fullName // ""')"
+          conclusion="$(gh run view "$RUN_ID" --json conclusion --jq '.conclusion')"
 
-          test -n "$SHA"
+          if [[ -z "$sha" || "$sha" == "null" ]]; then
+            echo "Unable to resolve failed run head SHA." >&2
+            exit 1
+          fi
 
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          echo "conclusion=$conclusion" >> "$GITHUB_OUTPUT"
 
+          echo "Failed revision: $sha"
+          echo "Failed branch: ${branch:-<detached>}"
+          echo "Failed repository: ${repo:-<unknown>}"
+          echo "Run conclusion: $conclusion"
 
-      - name: Prepare workspace
+      - name: Prepare AI repair workspace
         id: workspace
         shell: bash
-
         run: |
           set -euo pipefail
 
-          DIR="${RUNNER_TEMP}/voidone-ai"
+          repair_dir="${RUNNER_TEMP}/voidone-ai"
+          rm -rf "$repair_dir"
+          mkdir -p "$repair_dir"
 
-          mkdir -p "$DIR"
+          echo "repair_dir=$repair_dir" >> "$GITHUB_OUTPUT"
 
-          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
-
-
-      - name: Download CI logs
+      - name: Download failed CI logs
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ steps.run.outputs.run_id }}
-          DIR: ${{ steps.workspace.outputs.dir }}
-
+          REPAIR_DIR: ${{ steps.workspace.outputs.repair_dir }}
         run: |
           set -euo pipefail
 
-          gh run view "$RUN_ID" \
-            --log-failed \
-            > "$DIR/ci-failure.log"
+          gh run view "$RUN_ID" --log-failed > "$REPAIR_DIR/ci-failure.log"
 
-          test -s "$DIR/ci-failure.log"
+          if [[ ! -s "$REPAIR_DIR/ci-failure.log" ]]; then
+            echo "GitHub Actions returned no failed-step log output." >&2
+            exit 1
+          fi
 
+          wc -c "$REPAIR_DIR/ci-failure.log"
+
+      - name: Verify trusted repair engine checkout is clean
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+            echo "Trusted repair engine checkout is not clean." >&2
+            git status --short
+            exit 1
+          fi
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -121,167 +141,176 @@ jobs:
           cache: pip
           cache-dependency-path: scripts/requirements-ai-repair.txt
 
-
-      - name: Install dependencies
+      - name: Install repair dependencies
+        shell: bash
         run: |
-          python -m pip install \
-            -r scripts/requirements-ai-repair.txt
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -r scripts/requirements-ai-repair.txt
 
-
-      - name: Generate repair
+      - name: Generate and validate repair candidate
         id: repair
         continue-on-error: true
-
         env:
           AI_REPAIR_PROVIDER: experiential-labs
           AI_REPAIR_MAX_ATTEMPTS: "2"
-
-          EXPLABS_API_KEY:
-            ${{ secrets.EXPLABS_API_KEY }}
-
-          EXPLABS_BASE_URL:
-            https://api.experientiallabs.ai/v1
-
-          AI_REPAIR_TEMP_DIR:
-            ${{ steps.workspace.outputs.dir }}
-
+          EXPLABS_API_KEY: ${{ secrets.EXPLABS_API_KEY }}
+          EXPLABS_BASE_URL: https://api.experientiallabs.ai/v1
+          EXPLABS_DIAGNOSIS_MODEL: ${{ vars.EXPLABS_DIAGNOSIS_MODEL || 'deepseek-v4-flash' }}
+          EXPLABS_SECOND_OPINION_MODEL: ${{ vars.EXPLABS_SECOND_OPINION_MODEL || 'qwen3.8-27b' }}
+          EXPLABS_REPAIR_MODEL: ${{ vars.EXPLABS_REPAIR_MODEL || 'claude-fable-5.1' }}
+          EXPLABS_REVIEW_MODEL: ${{ vars.EXPLABS_REVIEW_MODEL || 'gpt-5.6-luna' }}
+          AI_REPAIR_TEMP_DIR: ${{ steps.workspace.outputs.repair_dir }}
         shell: bash
-
         run: |
           set -euo pipefail
 
           python scripts/ai/dispatcher.py \
             --repo . \
-            --log-file \
-            "${AI_REPAIR_TEMP_DIR}/ci-failure.log"
-
+            --log-file "${AI_REPAIR_TEMP_DIR}/ci-failure.log"
 
       - name: Upload repair artifacts
         if: always()
-
         uses: actions/upload-artifact@v7
-
         with:
-
-          name:
-            VoidOne-AI-Repair-${{ steps.run.outputs.run_id }}
-
+          name: VoidOne-AI-Repair-${{ steps.run.outputs.run_id }}
           path: |
-            ${{ steps.workspace.outputs.dir }}/repair-report.json
-            ${{ steps.workspace.outputs.dir }}/repair-candidate.patch
-            ${{ steps.workspace.outputs.dir }}/ci-failure.log
-
+            ${{ steps.workspace.outputs.repair_dir }}/repair-report.json
+            ${{ steps.workspace.outputs.repair_dir }}/repair-candidate.patch
+            ${{ steps.workspace.outputs.repair_dir }}/ci-failure.log
           if-no-files-found: warn
           retention-days: 14
 
-
-      - name: Stop if repair failed
+      - name: Stop when no validated repair was produced
         if: steps.repair.outcome == 'failure'
-
+        shell: bash
         run: |
-          echo "No validated repair produced."
+          echo "No validated AI repair candidate was produced."
           exit 1
 
-
-      - name: Apply repair patch
+      - name: Prepare repair worktree
         id: patch
         shell: bash
-
         env:
-          SHA: ${{ steps.target.outputs.sha }}
-          DIR: ${{ steps.workspace.outputs.dir }}
-
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+          REPAIR_DIR: ${{ steps.workspace.outputs.repair_dir }}
+          RUN_ID: ${{ steps.run.outputs.run_id }}
         run: |
-
           set -euo pipefail
 
-          git fetch origin "$SHA" --depth=1
+          git fetch origin "$TARGET_SHA" --depth=1
 
-          TREE="${RUNNER_TEMP}/repair-tree"
+          worktree="${RUNNER_TEMP}/voidone-repair-tree"
+          rm -rf "$worktree"
 
-          git worktree add \
-            "$TREE" \
-            "$SHA"
+          cleanup() {
+            git worktree remove "$worktree" --force 2>/dev/null || true
+          }
+          trap cleanup EXIT
 
+          git worktree add --detach "$worktree" "$TARGET_SHA"
 
-          PATCH="$DIR/repair-candidate.patch"
+          patch_file="$REPAIR_DIR/repair-candidate.patch"
 
+          if [[ ! -s "$patch_file" ]]; then
+            echo "Validated repair patch is missing." >&2
+            exit 1
+          fi
 
-          test -s "$PATCH"
-
-
-          git -C "$TREE" apply \
+          git -C "$worktree" apply \
             --check \
             --whitespace=error-all \
-            "$PATCH"
+            "$patch_file"
 
-
-          git -C "$TREE" apply \
+          git -C "$worktree" apply \
             --whitespace=error-all \
-            "$PATCH"
+            "$patch_file"
 
+          git -C "$worktree" diff --check
 
-          git -C "$TREE" diff --check
+          forbidden_regex='^(.ai/|scripts/ai/|scripts/validation/|scripts/reporting/|.github/workflows/ai-code-repair\.yml$)'
 
+          changed="$(git -C "$worktree" diff --name-only)"
 
+          if [[ -z "$changed" ]]; then
+            echo "AI patch produced no changes." >&2
+            exit 1
+          fi
 
-      - name: Create repair branch and PR
-        shell: bash
+          while IFS= read -r file; do
+            [[ -z "$file" ]] && continue
 
+            if [[ "$file" =~ $forbidden_regex ]]; then
+              echo "AI patch attempts to modify protected path: $file" >&2
+              exit 1
+            fi
+          done <<< "$changed"
+
+          echo "Changed files:"
+          printf '%s\n' "$changed"
+
+          git -C "$worktree" config user.name 'github-actions[bot]'
+          git -C "$worktree" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git -C "$worktree" add -A
+          git -C "$worktree" commit -m "fix: apply AI-validated CI repair"
+
+          repair_branch="ai/repair/${RUN_ID}"
+
+          git -C "$worktree" remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git -C "$worktree" push origin "HEAD:${repair_branch}"
+
+          echo "repair_branch=$repair_branch" >> "$GITHUB_OUTPUT"
+          echo "repair_branch=$repair_branch"
+
+      - name: Open reviewable repair PR
+        if: steps.repair.outcome == 'success'
         env:
-
-          GH_TOKEN:
-            ${{ github.token }}
-
-          RUN_ID:
-            ${{ steps.run.outputs.run_id }}
-
-          SHA:
-            ${{ steps.target.outputs.sha }}
-
+          GH_TOKEN: ${{ github.token }}
+          REPAIR_BRANCH: ${{ steps.patch.outputs.repair_branch }}
+          RUN_ID: ${{ steps.run.outputs.run_id }}
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+          TARGET_BRANCH: ${{ steps.target.outputs.branch }}
+          TARGET_REPO: ${{ steps.target.outputs.repo }}
+        shell: bash
         run: |
-
           set -euo pipefail
 
-
-          BRANCH="ai/repair/${RUN_ID}"
-
-
-          EXISTING=$(gh pr list \
-            --head "$BRANCH" \
+          existing="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$REPAIR_BRANCH" \
             --state open \
             --json number \
-            --jq '.[0].number // empty')
+            --jq '.[0].number // empty')"
 
-
-          if [[ -n "$EXISTING" ]]; then
-            echo "PR already exists #$EXISTING"
+          if [[ -n "$existing" ]]; then
+            echo "Repair PR already exists: #$existing"
             exit 0
           fi
 
+          body_file="${RUNNER_TEMP}/voidone-ai/pr-body.md"
 
-          BODY=$(cat <<EOF
-## AI validated repair
+          cat > "$body_file" <<EOF
+          ## AI-validated CI repair
 
-Generated from failed CI run:
+          Generated from failed GitHub Actions run **${RUN_ID}**.
 
-${RUN_ID}
+          - Failed revision: **${TARGET_SHA}**
+          - Failed branch: **${TARGET_BRANCH:-detached}**
+          - Failed repository: **${TARGET_REPO:-unknown}**
+          - Automated merge: **disabled**
+          - Human review: **required**
 
-Revision:
+          The repair candidate was generated and passed the repository's configured AI policy, structural validation, deterministic validation, and independent review before this PR was created.
 
-${SHA}
-
-
-Automated merge: disabled
-
-Human review required.
-EOF
-)
-
+          Please review the generated diff and CI results before merging.
+          EOF
 
           gh pr create \
-            --head "$BRANCH" \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$REPAIR_BRANCH" \
             --base main \
-            --title \
-            "fix: AI repair for CI ${RUN_ID}" \
-            --body "$BODY"
+            --title "fix: AI-validated repair for CI run ${RUN_ID}" \
+            --body-file "$body_file"
