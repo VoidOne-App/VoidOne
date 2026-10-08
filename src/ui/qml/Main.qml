@@ -1,7 +1,7 @@
 /****************************************************************************
-**  V O I D O N E   -   Native Open-Source Game Launcher
+**  V O I D O N E   -   Native Free & Source-Available Game Platform
 **  QML / C++ desktop application UI
-**  Copyright (C) 2026 VoidOne_app | SPDX-License-Identifier: MIT
+**  Copyright (C) 2026 VoidOne_app | SPDX-License-Identifier: LicenseRef-VoidOne-Community-License-1.0
 ****************************************************************************/
 
 import QtQuick
