@@ -1,6 +1,6 @@
 /****************************************************************************
 **  V O I D O N E   E N G I N E — SQLite persistence layer
-**  SPDX-License-Identifier: MIT
+**  SPDX-License-Identifier: LicenseRef-VoidOne-Community-License-1.0
 ****************************************************************************/
 
 #include "Database.h"
