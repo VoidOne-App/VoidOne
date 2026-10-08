@@ -151,6 +151,7 @@ voidone_apply_compile_policy(voidone_core)
 set(VOIDONE_EXE_EXTRA_SOURCES "")
 if(WIN32)
     set(APP_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/app-icon.ico")
+    set(BRAND_MARK_PATH "${CMAKE_CURRENT_SOURCE_DIR}/assets/branding/voidone-mark.svg")
     set(VOIDONE_RC_PATH "${CMAKE_CURRENT_BINARY_DIR}/voidone.rc")
     if(EXISTS "${APP_ICON_PATH}")
         set(VOIDONE_RC_VERSION "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0")
@@ -175,6 +176,7 @@ qt_add_qml_module(VoidOne
         src/ui/qml/ActionButton.qml
         src/ui/qml/GameDetailsDialog.qml
     RESOURCES
+        assets/branding/voidone-mark.svg
         assets/ui/icons/home.svg
         assets/ui/icons/library.svg
         assets/ui/icons/activity.svg
