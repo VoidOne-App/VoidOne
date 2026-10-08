@@ -151,6 +151,16 @@ qt_add_qml_module(VoidOne
         src/ui/qml/EnterpriseDialog.qml
         src/ui/qml/MusicControllerWidget.qml
         src/ui/qml/SystemTelemetryWidget.qml
+        src/ui/qml/AddGameDialog.qml
+        src/ui/qml/ActionButton.qml
+    RESOURCES
+        assets/ui/icons/home.svg
+        assets/ui/icons/library.svg
+        assets/ui/icons/activity.svg
+        assets/ui/icons/settings.svg
+        assets/ui/icons/add.svg
+        assets/ui/icons/folder.svg
+        assets/ui/icons/file.svg
 )
 target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick)
 if(WIN32)
