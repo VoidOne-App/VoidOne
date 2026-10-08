@@ -40,9 +40,9 @@ Rectangle {
 
                 SidebarButton {
                     Layout.fillWidth: true
-                    icon: "🏠"
-                    label: trManager.currentLanguage === "fa" ? "کتابخانه" : "Library"
-                    selected: currentPage === "library"
+                    voIcon: "🏠"
+                    voLabel: trManager.currentLanguage === "fa" ? "کتابخانه" : "Library"
+                    voSelected: currentPage === "library"
                     onClicked: pageChanged("library")
                 }
 
