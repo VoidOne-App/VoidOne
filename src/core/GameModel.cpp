@@ -6,6 +6,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <algorithm>
+#include <functional>
 #include <utility>
 
 namespace {
