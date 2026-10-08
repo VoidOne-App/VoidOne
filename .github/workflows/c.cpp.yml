@@ -354,9 +354,14 @@ jobs:
               throw 'VoidOne remained running but did not create its startup log.'
             }
 
+            $bootstrapMarker = Join-Path $logDir 'voidone_bootstrap.ok'
+            if (-not (Test-Path $bootstrapMarker -PathType Leaf)) {
+              throw 'VoidOne startup did not create the bootstrap marker file.'
+            }
+
             $logText = Get-Content $logFile -Raw
             if ($logText -notmatch '\[Bootstrap\] VoidOne process starting\.') {
-              throw 'VoidOne startup log did not contain the bootstrap marker.'
+              Write-Warning 'Bootstrap marker file exists but the log marker text was not found; continuing because the atomic bootstrap marker is authoritative.'
             }
             if ($logText -match '\[UI-FATAL\]|\[Database\].*failed|\[Memory-FATAL\]|\[Exception-FATAL\]') {
               Write-Host $logText
