@@ -4,7 +4,7 @@
 
 # 🌌 VoidOne
 
-### The Open-Source Native PC Gaming Platform Built Around Your Games — Not Around a Store
+### The Free & Source-Available Native PC Gaming Platform Built Around Your Games — Not Around a Store
 
 <p>
   <b>🇬🇧 English</b> •
@@ -15,14 +15,14 @@
   <a href="https://github.com/VoidOne-App/VoidOne/actions/workflows/c.cpp.yml"><img src="https://github.com/VoidOne-App/VoidOne/actions/workflows/c.cpp.yml/badge.svg" alt="CI/CD" /></a>
   <a href="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?include_prereleases&label=latest%20release"><img src="https://img.shields.io/github/v/release/VoidOne-App/VoidOne?include_prereleases&label=latest%20release" alt="Latest Release" /></a>
   <a href="https://github.com/VoidOne-App/VoidOne/stargazers"><img src="https://img.shields.io/github/stars/VoidOne-App/VoidOne?style=flat" alt="GitHub Stars" /></a>
-  <a href="https://github.com/VoidOne-App/VoidOne/blob/main/LICENSE"><img src="https://img.shields.io/github/license/VoidOne-App/VoidOne" alt="MIT License" /></a>
+  <a href="https://github.com/VoidOne-App/VoidOne/blob/main/LICENSE"><img src="https://img.shields.io/github/license/VoidOne-App/VoidOne" alt="VoidOne Community License" /></a>
 </p>
 
 <p>
   <b>C++23</b> • <b>Qt 6.11.2</b> • <b>QML / Qt Quick</b> • <b>SQLite</b> • <b>CMake</b> • <b>Ninja</b>
 </p>
 
-<p><b>Windows x64 — Primary Release Platform</b> • <b>MIT License</b></p>
+<p><b>Windows x64 — Primary Release Platform</b> • <b>VoidOne Community License v1.0</b></p>
 
 ### **Your Games. Your Hardware. Your AI. Your Rules.**
 
@@ -42,7 +42,7 @@ Join the official **VoidOne Community Discord** to chat with other gamers, teste
 
 ## 🌌 What Is VoidOne?
 
-**VoidOne** is an open-source native PC gaming platform designed around a simple principle:
+**VoidOne** is a free and source-available native PC gaming platform designed around a simple principle:
 
 > **Your games should be the center of your gaming experience — not the stores distributing them.**
 
@@ -67,7 +67,7 @@ Long-term platform areas include:
 - **Local first** — keep important player state locally controlled whenever practical.
 - **Lightweight by design** — dependencies and background work must justify their resource cost.
 - **Player ownership** — users control their games, configuration, data, integrations, and optional intelligence systems.
-- **Open by design** — the platform should remain inspectable, modifiable, and extensible.
+- **Free by design** — the platform should remain inspectable, modifiable, and extensible.
 - **Evidence over marketing** — technical claims should be backed by implementation, tests, benchmarks, or reproducible evidence.
 
 ## 📦 Project Status
@@ -248,7 +248,7 @@ Security is an engineering concern throughout the project. Report security issue
 
 ## 📜 License
 
-VoidOne is distributed under the **MIT License**. See [`LICENSE`](LICENSE).
+VoidOne is distributed under the **VoidOne Community License v1.0**. See [`LICENSE`](LICENSE).
 
 ---
 
@@ -258,7 +258,7 @@ VoidOne is distributed under the **MIT License**. See [`LICENSE`](LICENSE).
 
 **Built by a gamer. Engineered like a platform. Built in the open.**
 
-♾️ Free & Open Source · 🚫 No Ads · 🔒 Privacy First · 🧠 Optional AI · 💬 Community Discord
+♾️ Free & Source-Available · 🚫 No Ads · 🔒 Privacy First · 🧠 Optional AI · 💬 Community Discord
 
 [⭐ Star VoidOne](https://github.com/VoidOne-App/VoidOne) · [📦 Releases](https://github.com/VoidOne-App/VoidOne/releases) · [🐛 Issues](https://github.com/VoidOne-App/VoidOne/issues) · [💬 Discord](https://discord.gg/KPWfGvf9VW) · [🤝 Contributing](https://github.com/VoidOne-App/VoidOne/blob/main/CONTRIBUTING.md)
 

@@ -1,21 +1,121 @@
-MIT License
+VOIDONE COMMUNITY LICENSE
+Version 1.0
 
-Copyright (c) 2026 VoidOne_app
+Copyright © 2026 VoidOne
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+VoidOne is built for players.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This project is founded on the belief that software created for players should not become a product that makes a player's freedom dependent on payment.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+This License is intended to preserve the freedom to use, study, modify, develop, and share VoidOne, while ensuring that VoidOne itself and software derived from it remain freely available to players and the community.
+
+The best things should be free for the best.
+
+1. Player Freedoms
+
+Subject to the terms and conditions of this License, permission is hereby granted to any person to:
+
+- use VoidOne;
+- run and test VoidOne;
+- inspect and study its source code;
+- modify and improve the software;
+- create forks;
+- create derivative versions;
+- develop extensions and integrations;
+- and redistribute VoidOne or permitted derivative versions free of charge.
+
+These permissions apply to personal, educational, research, development, and community use.
+
+2. VoidOne Must Remain Free
+
+VoidOne and software derived directly from VoidOne must remain freely available to users.
+
+No person or organization may:
+
+- sell VoidOne;
+- sell a derivative version containing or based upon VoidOne;
+- place VoidOne or such a derivative behind a paywall;
+- charge a license fee for the right to use VoidOne;
+- require payment as a condition of downloading or accessing VoidOne;
+- or make access to VoidOne conditional upon the purchase of another product or service.
+
+No fee may be charged for the software itself or for the right to obtain, use, or access VoidOne.
+
+3. Forks and Derivative Works
+
+You are free to modify, fork, and develop VoidOne.
+
+However, any software that contains, incorporates, or is otherwise derived from VoidOne source code must preserve the free-distribution requirements of this License.
+
+Changing the name, user interface, packaging, branding, or portions of the source code does not remove these requirements.
+
+A derivative work may not be converted into a paid product, paywalled distribution, or otherwise restricted commercial version of VoidOne.
+
+The purpose of this condition is to prevent the freedoms granted by the VoidOne community from being taken away through redistribution or modification.
+
+4. Freedom to Develop
+
+VoidOne is not intended to restrict the creativity of players or developers.
+
+You are free to:
+
+- add new features;
+- modify the user interface;
+- create new systems;
+- build integrations;
+- develop extensions and companion tools;
+- create platform-specific versions;
+- adapt VoidOne to different environments;
+- and develop VoidOne for your own needs or for the community.
+
+These freedoms remain available provided that VoidOne itself, or software derived from it, is not made into a paid or paywalled product.
+
+5. No Artificial Restrictions on Players
+
+VoidOne must not be distributed or modified in a manner intended to artificially restrict the freedoms available to users of the freely available software.
+
+In particular, a distributor or derivative developer may not:
+
+- lock core VoidOne functionality solely behind payment;
+- intentionally distribute a crippled free version while making payment the only practical means of obtaining the full VoidOne functionality;
+- or require users to pay in order to use VoidOne itself.
+
+6. Name, Trademark, and Project Identity
+
+The name "VoidOne", the VoidOne logo, trademarks, service marks, and official project identity are not automatically granted under this License.
+
+This License does not grant permission to represent a derivative work or fork as an official release of VoidOne.
+
+Derivative works must be presented in a manner that does not falsely imply official endorsement, affiliation, or authorship by the VoidOne project, unless explicit permission has been granted.
+
+7. No Warranty
+
+VOIDONE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW.
+
+The VoidOne project, its authors, contributors, and maintainers disclaim all warranties, including but not limited to warranties of merchantability, fitness for a particular purpose, non-infringement, reliability, availability, security, compatibility, and freedom from defects.
+
+You use VoidOne at your own risk.
+
+8. Acceptance
+
+By using, copying, modifying, developing, or distributing VoidOne, you agree to be bound by the terms of this License.
+
+If you do not agree to these terms, you may not use, modify, or distribute VoidOne under this License.
+
+The VoidOne Principle
+
+VoidOne was not built to sell the freedom of players.
+
+Games belong at the center of the player's experience.
+
+The platform should serve the player.
+
+The player's data should remain under the player's control.
+
+And the software built for players should remain free.
+
+The best things should be free for the best.
+
+VOIDONE COMMUNITY LICENSE v1.0
+
+Copyright © 2026 VoidOne

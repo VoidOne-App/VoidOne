@@ -10,7 +10,7 @@ endif()
 
 project(VoidOne
     VERSION "${VOIDONE_VERSION_BASE}"
-    DESCRIPTION "Open-source native PC gaming platform"
+    DESCRIPTION "Free and source-available native PC gaming platform"
     HOMEPAGE_URL "https://github.com/VoidOne-App/VoidOne"
     LANGUAGES CXX C
 )
