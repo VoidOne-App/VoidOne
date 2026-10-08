@@ -225,6 +225,6 @@ VoidOne تحت **VoidOne Community License v1.0** منتشر می‌شود.
 
 **ساخته‌شده توسط یک گیمر. مهندسی‌شده مثل یک پلتفرم. توسعه‌یافته در فضای باز.**
 
-♾️ Free & Free & Source-Available · 🚫 No Ads · 🔒 Privacy First · 🧠 Optional AI
+♾️ Free & Source-Available · 🚫 No Ads · 🔒 Privacy First · 🧠 Optional AI
 
 </div>
