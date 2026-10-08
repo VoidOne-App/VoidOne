@@ -88,7 +88,7 @@ qt_standard_project_setup(REQUIRES 6.11.2)
 
 function(voidone_apply_compile_policy target)
     if(MSVC)
-        target_compile_options(${target} PRIVATE /W4 /permissive- /guard:cf /EHsc)
+        target_compile_options(${target} PRIVATE /W4 /permissive- /guard:cf /EHsc)\n        # Qt QML cache/AOT output can trigger MSVC C4702 (unreachable code) in\n        # Qt headers under /WX. This is a toolchain-generated diagnostic, not a\n        # warning from VoidOne source code.\n        if("${target}" STREQUAL "VoidOne")\n            target_compile_options(${target} PRIVATE /wd4702)\n        endif()
         if(CMAKE_BUILD_TYPE STREQUAL "Release")
             # Keep Release builds fast while giving the linker maximum safe
             # visibility into unused code/data. /O2 already enables /GF and
