@@ -307,7 +307,7 @@ Dialog {
         title: qsTr("Choose the game's installation folder")
 
         onAccepted: {
-            selectedFolder = selectedFolder.toString().replace(/^file:\/\//, "")
+            selectedFolder = folderDialog.selectedFolder.toLocalFile()
             candidates = gameModel.suggestExecutables(selectedFolder)
             if (candidates.length === 1) {
                 selectedExecutable = candidates[0]
