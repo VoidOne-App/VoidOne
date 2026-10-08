@@ -6,6 +6,7 @@
 #include "Database.h"
 
 #include <QDir>
+#include <QFileInfo>
 #include <QDebug>
 #include <QSqlError>
 #include <QSqlQuery>
