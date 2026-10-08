@@ -269,10 +269,22 @@ void GameModel::launchGame(const QString &exePath)
 #endif
 
     const QString absolutePath = targetInfo.absoluteFilePath();
-    const QString workingDirectory = targetInfo.absolutePath();
+    QString workingDirectory = targetInfo.absolutePath();
+    QStringList arguments;
+    QSqlQuery options(QSqlDatabase::database());
+    options.prepare("SELECT launch_args, working_dir FROM games WHERE exe_path = :path");
+    options.bindValue(":path", absolutePath);
+    if (options.exec() && options.next()) {
+        const QString savedArgs = options.value(0).toString();
+        const QString savedDir = options.value(1).toString();
+        if (!savedDir.trimmed().isEmpty() && QDir(savedDir).exists())
+            workingDirectory = savedDir;
+        if (!savedArgs.trimmed().isEmpty())
+            arguments = QProcess::splitCommand(savedArgs);
+    }
 
     qint64 pid = -1;
-    if (!QProcess::startDetached(absolutePath, {}, workingDirectory, &pid)) {
+    if (!QProcess::startDetached(absolutePath, arguments, workingDirectory, &pid)) {
         qWarning() << "[VoidOne] Failed to launch game:" << absolutePath;
         return;
     }
