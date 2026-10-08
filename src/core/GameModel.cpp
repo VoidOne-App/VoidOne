@@ -342,7 +342,7 @@ void GameModel::setFavorite(int id, bool favorite)
 
 void GameModel::hideGame(int id, bool hidden)
 {
-    QSqlQuery q(QSqlDatabase::database());
+    QSqlQuery q(QSqlDatabase::database(QStringLiteral("voidone-main"), false));
     q.prepare("UPDATE games SET hidden=:hidden WHERE id=:id");
     q.bindValue(":hidden", hidden ? 1 : 0); q.bindValue(":id", id);
     if (q.exec()) loadGamesFromDatabase();
