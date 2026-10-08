@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Dialogs
+import QtQuick.Dialogs as NativeDialogs
 
 Dialog {
     id: dialog
@@ -288,7 +288,7 @@ Dialog {
         }
     }
 
-    FileDialog {
+    NativeDialogs.FileDialog {
         id: exeDialog
         title: qsTr("Choose a game executable")
         fileMode: FileDialog.OpenFile
@@ -302,7 +302,7 @@ Dialog {
         }
     }
 
-    FolderDialog {
+    NativeDialogs.FolderDialog {
         id: folderDialog
         title: qsTr("Choose the game's installation folder")
 
