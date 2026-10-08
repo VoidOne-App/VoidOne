@@ -466,6 +466,13 @@ Window {
                                     }
                                 }
                                 Button {
+                                    text: qsTr("Scan PC")
+                                    onClicked: { steamScanner.startAsyncScan(); root.showNotification(qsTr("Scanning installed Steam games...")) }
+                                    background: Rectangle { radius: 10; color: "#101a24"; border.color: "#263a4c" }
+                                    contentItem: Text { text: parent.text; color: theme.text; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                                }
+
+                                Button {
                                     text: qsTr("＋ Add Game")
                                     onClicked: addGameDialog.open()
                                     background: Rectangle {
@@ -639,6 +646,15 @@ Window {
     Component {
         id: statCardComponent
         StatCard {}
+    }
+
+    Connections {
+        target: steamScanner
+        function onScanCompleted(count) {
+            gameModel.loadGamesFromDatabase()
+            root.showNotification(qsTr("Steam scan complete: ") + count + qsTr(" games found."))
+        }
+        function onScanFailed(message) { root.showNotification(message, true) }
     }
 
     Component.onCompleted: {
