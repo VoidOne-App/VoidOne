@@ -27,6 +27,7 @@ public:
 
     Q_INVOKABLE void loadGamesFromDatabase();
     Q_INVOKABLE bool addNewGame(const QString &name, const QString &exePath, const QString &iconPath);
+    Q_INVOKABLE QStringList suggestExecutables(const QString &folderPath) const;
     Q_INVOKABLE bool deleteGame(int id, int index);
     Q_INVOKABLE void launchGame(const QString &exePath);
     Q_INVOKABLE void filter(const QString &searchText);
