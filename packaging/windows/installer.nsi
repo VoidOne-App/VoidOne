@@ -76,7 +76,7 @@ InstallDirRegKey HKLM "${APP_REG_KEY}" "InstallDir"
 RequestExecutionLevel admin
 Unicode True
 ManifestSupportedOS Win10
-BrandingText "VoidOne • Open Source PC Gaming Platform"
+BrandingText "VoidOne • Free & Source-Available PC Gaming Platform"
 ShowInstDetails show
 ShowUninstDetails show
 CRCCheck force
@@ -93,7 +93,7 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 ${PUBLISHER}"
 VIAddVersionKey "OriginalFilename" "VoidOne-Setup-x64.exe"
-VIAddVersionKey "Comments" "Open-source native PC gaming platform"
+VIAddVersionKey "Comments" "free and source-available native PC gaming platform"
 
 !define MUI_ICON "${APP_ICON_PATH}"
 !define MUI_UNICON "${APP_ICON_PATH}"
@@ -103,7 +103,7 @@ VIAddVersionKey "Comments" "Open-source native PC gaming platform"
 !define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_TITLE "Installation options"
 !define MUI_COMPONENTSPAGE_TEXT_DESCRIPTION_INFO "Select an option to see what it does."
 !define MUI_WELCOMEPAGE_TITLE "Welcome to VoidOne"
-!define MUI_WELCOMEPAGE_TEXT "Install VoidOne ${VERSION} on your Windows PC.$\r$\n$\r$\nA native, open-source PC gaming platform built around your games — not around a store.$\r$\n$\r$\nThe installer will validate your system, install or repair the required Microsoft Visual C++ runtime when needed, preserve an existing installation path when upgrading, register VoidOne with Windows, and give you control over optional shortcuts."
+!define MUI_WELCOMEPAGE_TEXT "Install VoidOne ${VERSION} on your Windows PC.$\r$\n$\r$\nA native, free and source-available PC gaming platform built around your games — not around a store.$\r$\n$\r$\nThe installer will validate your system, install or repair the required Microsoft Visual C++ runtime when needed, preserve an existing installation path when upgrading, register VoidOne with Windows, and give you control over optional shortcuts."
 !define MUI_DIRECTORYPAGE_TEXT_TOP "Choose where VoidOne should be installed. Your existing VoidOne installation directory will be reused automatically when possible."
 !define MUI_DIRECTORYPAGE_TEXT_DESTINATION "Installation folder"
 !define MUI_INSTFILESPAGE_HEADER "Installing VoidOne"
