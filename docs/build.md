@@ -9,8 +9,9 @@ VoidOne is a native C++23 / Qt 6 desktop application. The repository uses CMake 
 ### Windows — primary platform
 
 - Windows 10 or Windows 11, x64
-- Visual Studio 2022 or Build Tools with MSVC x64
-- Qt 6.11.x with the MSVC 2022 64-bit kit
+- MSVC x64 toolchain compatible with the selected Qt MSVC kit
+- CI currently validates with Visual Studio 2026 on the Windows runner
+- Qt 6.11.x with the matching 64-bit MSVC kit (CI uses `win64_msvc2022_64`)
 - CMake 3.25+
 - Ninja
 - Git
