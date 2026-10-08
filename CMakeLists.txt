@@ -87,7 +87,7 @@ set(VOIDONE_VERSION_DISPLAY "${VOIDONE_VERSION_INPUT}")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/VoidOneVersion.h.in"
                "${VOIDONE_GENERATED_DIR}/VoidOneVersion.h" @ONLY)
 
-find_package(Qt6 6.11.2 REQUIRED COMPONENTS Core Gui Quick Sql Network)
+find_package(Qt6 6.11.2 REQUIRED COMPONENTS Core Gui Quick Sql Network Svg)
 if(VOIDONE_BUILD_TESTS)
     find_package(Qt6 6.11.2 REQUIRED COMPONENTS Test)
 endif()
@@ -184,7 +184,7 @@ qt_add_qml_module(VoidOne
         assets/ui/icons/folder.svg
         assets/ui/icons/file.svg
 )
-target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick)
+target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick Qt6::Svg)
 if(WIN32)
     target_link_libraries(VoidOne PRIVATE Dbghelp)
 endif()
