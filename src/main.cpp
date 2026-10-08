@@ -115,6 +115,17 @@ bool initializeEnterpriseLogging()
     return g_logFile.open(QIODevice::WriteOnly | QIODevice::Text);
 }
 
+void writeBootstrapMarker()
+{
+    QMutexLocker locker(&g_logMutex);
+    if (!g_logFile.isOpen())
+        return;
+
+    QTextStream stream(&g_logFile);
+    stream << "[Bootstrap] VoidOne process starting." << Qt::endl;
+    stream.flush();
+}
+
 #ifdef Q_OS_WIN
 bool writeWindowsMiniDump(EXCEPTION_POINTERS *exceptionInfo)
 {
@@ -218,8 +229,12 @@ int main(int argc, char *argv[])
     // A Windows GUI executable has no attached console by design, so QPA/plugin
     // failures can otherwise look like a completely silent process exit.
     if (!initializeEnterpriseLogging())
-        fprintf(stderr, "[CRITICAL] Failed to initialize early file logging backend.\\n");
+        fprintf(stderr, "[CRITICAL] Failed to initialize early file logging backend.\n");
     qInstallMessageHandler(enterpriseMessageHandler);
+
+    // Write the CI bootstrap marker directly to the log file so it remains
+    // deterministic even if Qt message filtering changes on Windows.
+    writeBootstrapMarker();
 
     qInfo() << "[Bootstrap] VoidOne process starting.";
     qInfo() << "[Bootstrap] Executable:" << QCoreApplication::applicationFilePath();
@@ -238,7 +253,7 @@ int main(int argc, char *argv[])
     }
 
     QCommandLineParser parser;
-    parser.setApplicationDescription("VoidOne — Open-source native PC game launcher.");
+    parser.setApplicationDescription("VoidOne — Free and source-available native PC gaming platform.");
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOption(QCommandLineOption({"d", "diagnostics"},
