@@ -1,231 +1,201 @@
 /****************************************************************************
-**  V O I D O N E   -   Native Free & Source-Available Game Platform
-**  QML / C++ desktop application UI
-**  Copyright (C) 2026 VoidOne_app | SPDX-License-Identifier: LicenseRef-VoidOne-Community-License-1.0
+**  V O I D O N E   -   Free & Source-Available PC Gaming Platform
+**  Platform Shell v2
+**  Copyright (C) 2026 VoidOne
 ****************************************************************************/
 
 import QtQuick
 import QtQuick.Window
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Effects
 
 Window {
     id: root
 
-    // Responsive automatic screen sizing based on 85% of available display area
-    width: Screen.desktopAvailableWidth * 0.85
-    height: Screen.desktopAvailableHeight * 0.85
-    minimumWidth: 1024
-    minimumHeight: 680
-
+    width: Screen.desktopAvailableWidth * 0.86
+    height: Screen.desktopAvailableHeight * 0.86
+    minimumWidth: 1040
+    minimumHeight: 700
     visible: true
-    title: qsTr("VoidOne — Game Library")
-
+    title: qsTr("VoidOne")
     color: theme.background
 
-    // ---------------------------------------------------------
-    // 1. Quantum Enterprise Design System & Palette
-    // ---------------------------------------------------------
+    property string currentPage: "home"
+    property bool sidebarCompact: false
+
     QtObject {
         id: theme
-        property color background: "#05070a"
-        property color surface: "#0a0f18"
-        property color surfaceElevated: "#111826"
-        property color surfaceGlass: "#800a0f18"
-
-        property color primary: "#00f0ff"
-        property color primaryGlow: "#33f3ff"
-        property color primaryTransparent: "#1a00f0ff"
-
-        property color accentPurple: "#9d4edd"
-        property color textPrimary: "#f8fafc"
-        property color textSecondary: "#64748b"
-
-        property color success: "#10b981"
-        property color warning: "#f59e0b"
-        property color danger: "#ef4444"
-
-        property int radiusBase: 12
-        property int radiusLarge: 16
+        property color background: "#070a0f"
+        property color sidebar: "#0a0f16"
+        property color surface: "#0d141d"
+        property color surface2: "#111b26"
+        property color surface3: "#152331"
+        property color cyan: "#00e5ff"
+        property color cyanSoft: "#00e5ff18"
+        property color cyanLine: "#00e5ff42"
+        property color text: "#eef5fa"
+        property color muted: "#74889c"
+        property color dim: "#415365"
+        property color success: "#38d996"
     }
 
-    // Dynamic RTL/LTR Smart Detection Engine
-    LayoutMirroring.enabled: typeof trManager !== "undefined" && trManager !== null ? (trManager.currentLanguage === "fa" || trManager.currentLanguage === "ar") : false
-    LayoutMirroring.childrenInherit: true
-
-    property string currentPage: "library"
-
-    // ---------------------------------------------------------
-    // 2. Advanced Enterprise Toast Telemetry Popup Engine
-    // ---------------------------------------------------------
-    function showNotification(message, isError = false, isWarning = false) {
-        toastText.text = message
-        if (isError) {
-            toastBg.color = theme.danger
-            toastIndicator.color = "#ffffff"
-        } else if (isWarning) {
-            toastBg.color = theme.warning
-            toastIndicator.color = "#000000"
-        } else {
-            toastBg.color = theme.surfaceElevated
-            toastIndicator.color = theme.primary
+    function text(key, fallback) {
+        if (typeof trManager !== "undefined" && trManager !== null && typeof trManager.getText === "function") {
+            var value = trManager.getText(key)
+            return value && value.length ? value : fallback
         }
-        toastAnim.restart()
+        return fallback
     }
 
-    // Master Layout Frame
-    ColumnLayout {
+    function showNotification(message, isError) {
+        toast.text = message
+        toastAccent.color = isError ? "#ff5f70" : theme.cyan
+        toastAnimation.restart()
+    }
+
+    Rectangle {
         anchors.fill: parent
-        spacing: 0
+        color: theme.background
 
-        // ---------------------------------------------------------
-        // 3. Status & command top bar
-        // ---------------------------------------------------------
+        // Ambient platform lighting
         Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 70
-            color: theme.surface
-            z: 10
+            width: 520
+            height: 520
+            x: parent.width - 310
+            y: -290
+            radius: 260
+            color: "#00e5ff08"
+            opacity: 0.9
+        }
 
-            // High-tech Neon Bottom Line
-            Rectangle {
-                width: parent.width
-                height: 1.5
-                anchors.bottom: parent.bottom
-                color: theme.primaryTransparent
+        Rectangle {
+            width: 420
+            height: 420
+            x: -250
+            y: parent.height - 120
+            radius: 210
+            color: "#2478ff06"
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            spacing: 0
+
+            Sidebar {
+                id: sidebar
+                Layout.fillHeight: true
+                Layout.preferredWidth: root.sidebarCompact ? 78 : 218
+                compact: root.sidebarCompact
+                currentPage: root.currentPage
+                onPageChanged: function(page) { root.currentPage = page }
             }
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 24
-                anchors.rightMargin: 24
-                spacing: 20
+            Rectangle {
+                Layout.fillHeight: true
+                width: 1
+                color: "#182635"
+            }
 
-                // Global game search
-                RowLayout {
-                    spacing: 12
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 0
 
-                    Rectangle {
-                        width: 28
-                        height: 28
-                        radius: 6
-                        color: theme.primaryTransparent
-                        border.color: theme.primary
-                        border.width: 1
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "🔍"
-                            font.pixelSize: 12
-                        }
-                    }
-
-                    TextField {
-                        id: searchInput
-                        Layout.preferredWidth: 260
-                        Layout.preferredHeight: 40
-                        placeholderText: qsTr("Search games...")
-                        color: theme.textPrimary
-                        placeholderTextColor: theme.textSecondary
-                        font.pixelSize: 13
-                        selectByMouse: true
-
-                        background: Rectangle {
-                            color: theme.background
-                            radius: theme.radiusBase
-                            border.color: searchInput.activeFocus ? theme.primary : theme.primaryTransparent
-                            border.width: searchInput.activeFocus ? 2 : 1
-
-                            Behavior on border.color { ColorAnimation { duration: 200 } }
-                        }
-
-                        onTextChanged: {
-                            if (typeof gameModel !== "undefined" && gameModel !== null && typeof gameModel.filter === "function") {
-                                gameModel.filter(text)
-                            }
-                        }
-                    }
-                }
-
-                // --- System telemetry ---
+                // Command bar
                 Rectangle {
-                    Layout.preferredWidth: 190
-                    Layout.preferredHeight: 40
-                    color: theme.background
-                    radius: 8
-                    border.color: theme.primaryTransparent
-                    border.width: 1
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 68
+                    color: "#080c12cc"
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 10
+                        anchors.leftMargin: 24
+                        anchors.rightMargin: 22
+                        spacing: 14
 
-                        Text {
-                            text: qsTr("System telemetry unavailable")
-                            color: theme.textSecondary
-                            font.pixelSize: 10
+                        ToolButton {
+                            text: root.sidebarCompact ? "»" : "«"
+                            onClicked: root.sidebarCompact = !root.sidebarCompact
+                            background: Rectangle {
+                                radius: 9
+                                color: parent.hovered ? "#13202c" : "transparent"
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: theme.muted
+                                font.pixelSize: 17
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
                         }
-                    }
-                }
-
-                Item { Layout.fillWidth: true }
-
-                // Security & System Core Telemetry Widgets
-                RowLayout {
-                    spacing: 16
-
-                    RowLayout {
-                        spacing: 8
 
                         Rectangle {
-                            width: 8
-                            height: 8
-                            radius: 4
-                            color: theme.success
+                            Layout.preferredWidth: 300
+                            Layout.preferredHeight: 38
+                            radius: 10
+                            color: "#0b1118"
+                            border.color: searchInput.activeFocus ? theme.cyanLine : "#172533"
 
-                            SequentialAnimation on opacity {
-                                loops: Animation.Infinite
-                                NumberAnimation { to: 0.1; duration: 800; easing.type: Easing.InOutSine }
-                                NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 11
+                                anchors.rightMargin: 11
+                                spacing: 8
+
+                                Text {
+                                    text: "⌕"
+                                    color: theme.dim
+                                    font.pixelSize: 19
+                                }
+
+                                TextField {
+                                    id: searchInput
+                                    Layout.fillWidth: true
+                                    placeholderText: qsTr("Search your games...")
+                                    color: theme.text
+                                    placeholderTextColor: theme.dim
+                                    background: Item {}
+                                    font.pixelSize: 12
+                                    selectByMouse: true
+                                    onTextChanged: {
+                                        if (typeof gameModel !== "undefined" && gameModel !== null)
+                                            gameModel.filter(text)
+                                    }
+                                }
                             }
                         }
 
-                        Text {
-                            text: qsTr("LOCAL MODE")
-                            color: theme.textSecondary
-                            font.pixelSize: 11
-                            font.bold: true
-                        }
-                    }
+                        Item { Layout.fillWidth: true }
 
-                    Rectangle {
-                        width: 1
-                        height: 24
-                        color: theme.primaryTransparent
-                    }
+                        Rectangle {
+                            Layout.preferredHeight: 36
+                            Layout.preferredWidth: 100
+                            radius: 10
+                            color: "#0c141c"
+                            border.color: "#172533"
 
-                    // User Identity Badge
-                    RowLayout {
-                        spacing: 10
-
-                        ColumnLayout {
-                            spacing: 1
-                            Layout.alignment: Qt.AlignRight
-
-                            Text {
-                                Layout.alignment: Qt.AlignRight
-                                text: qsTr("LOCAL USER")
-                                color: theme.textPrimary
-                                font.pixelSize: 11
-                                font.bold: true
-                            }
-
-                            Text {
-                                Layout.alignment: Qt.AlignRight
-                                text: qsTr("Offline")
-                                color: theme.primary
-                                font.pixelSize: 9
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 7
+                                Rectangle {
+                                    width: 7
+                                    height: 7
+                                    radius: 4
+                                    color: theme.success
+                                    SequentialAnimation on opacity {
+                                        loops: Animation.Infinite
+                                        NumberAnimation { to: 0.25; duration: 900 }
+                                        NumberAnimation { to: 1; duration: 900 }
+                                    }
+                                }
+                                Text {
+                                    text: qsTr("LOCAL")
+                                    color: theme.muted
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                }
                             }
                         }
 
@@ -233,304 +203,469 @@ Window {
                             width: 36
                             height: 36
                             radius: 18
-                            color: theme.primaryTransparent
-                            border.color: theme.primary
-                            border.width: 1.5
-
+                            color: theme.cyanSoft
+                            border.color: theme.cyanLine
                             Text {
                                 anchors.centerIn: parent
-                                text: "VO"
-                                color: theme.primary
-                                font.pixelSize: 13
+                                text: "V"
+                                color: theme.cyan
                                 font.bold: true
                             }
                         }
                     }
                 }
-            }
-        }
 
-        // Main Architecture Body (Sidebar + Core Viewport)
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 0
-
-            Sidebar {
-                id: sidebar
-                Layout.preferredWidth: 270
-                Layout.fillHeight: true
-                onPageChanged: function(page) { 
-                    root.currentPage = page 
-                }
-            }
-
-            Rectangle {
-                Layout.fillHeight: true
-                width: 1
-                color: theme.primaryTransparent
-            }
-
-            // ---------------------------------------------------------
-            // 4. Multi-Dimensional Stack Viewport Core
-            // ---------------------------------------------------------
-            StackLayout {
-                id: contentStack
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-
-                currentIndex: {
-                    switch (root.currentPage) {
-                        case "library": return 0
-                        case "marketplace": return 1
-                        case "settings": return 2
-                        default: return 0
-                    }
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: "#14202c"
                 }
 
-                // --- Library Viewport ---
-                Item {
-                    id: libraryPage
+                StackLayout {
+                    id: pages
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    currentIndex: root.currentPage === "home" ? 0 :
+                                  root.currentPage === "library" ? 1 :
+                                  root.currentPage === "activity" ? 2 : 3
 
-                    GridView {
-                        id: gameGrid
-                        anchors.fill: parent
-                        anchors.margins: 28
-                        cellWidth: 320
-                        cellHeight: 230
+                    // HOME
+                    Flickable {
+                        contentWidth: width
+                        contentHeight: homeColumn.implicitHeight + 48
                         clip: true
 
-                        flickDeceleration: 1800
-                        boundsBehavior: Flickable.StopAtBounds
+                        ColumnLayout {
+                            id: homeColumn
+                            width: parent.width
+                            anchors.top: parent.top
+                            anchors.topMargin: 30
+                            anchors.leftMargin: 34
+                            anchors.rightMargin: 34
+                            spacing: 24
 
-                        model: typeof gameModel !== "undefined" && gameModel !== null ? gameModel : null
+                            RowLayout {
+                                Layout.fillWidth: true
 
-                        delegate: GameCard {
-                            gameId: model.id !== undefined ? model.id : 0
-                            gameName: model.name !== undefined ? model.name : "Unknown Asset"
-                            exePath: model.exePath !== undefined ? model.exePath : ""
-                            iconPath: model.iconPath !== undefined ? model.iconPath : ""
-                            platform: model.platform !== undefined ? model.platform : "Native"
-                            itemIndex: index
-
-                            onLaunchRequested: function(path) {
-                                if (path.length === 0) {
-                                    root.showNotification(qsTr("Launch path is empty."), true)
-                                    return
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+                                    Text {
+                                        text: qsTr("Your games. Your hardware. Your rules.")
+                                        color: theme.text
+                                        font.pixelSize: 29
+                                        font.bold: true
+                                    }
+                                    Text {
+                                        text: qsTr("A local-first gaming platform that puts your library back in your hands.")
+                                        color: theme.muted
+                                        font.pixelSize: 13
+                                    }
                                 }
 
-                                root.showNotification(qsTr("Launching game..."))
-                                gameModel.launchGame(path)
+                                Button {
+                                    implicitWidth: 150
+                                    implicitHeight: 44
+                                    text: qsTr("＋  Add Game")
+                                    onClicked: addGameDialog.open()
+                                    background: Rectangle {
+                                        radius: 12
+                                        color: parent.pressed ? "#00b9cf" : theme.cyan
+                                    }
+                                    contentItem: Text {
+                                        text: parent.text
+                                        color: "#041015"
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
                             }
-                        }
-                    }
 
-                    // Quantum Empty State Matrix
-                    ColumnLayout {
-                        anchors.centerIn: parent
-                        spacing: 16
-                        visible: gameGrid.count === 0
+                            // Hero
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 220
+                                radius: 22
+                                color: "#0d151e"
+                                border.color: "#1b2b3b"
+                                clip: true
 
-                        Rectangle {
-                            Layout.alignment: Qt.AlignHCenter
-                            width: 70
-                            height: 70
-                            radius: 35
-                            color: theme.primaryTransparent
-                            border.color: theme.primary
-                            border.width: 1
+                                Rectangle {
+                                    width: 460
+                                    height: 460
+                                    x: parent.width - 250
+                                    y: -210
+                                    radius: 230
+                                    color: "#00e5ff0c"
+                                }
+
+                                Rectangle {
+                                    width: 2
+                                    height: parent.height - 48
+                                    x: 38
+                                    y: 24
+                                    color: theme.cyan
+                                }
+
+                                ColumnLayout {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 68
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width * 0.58
+                                    spacing: 12
+
+                                    Text {
+                                        text: qsTr("WELCOME BACK")
+                                        color: theme.cyan
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        font.letterSpacing: 2
+                                    }
+
+                                    Text {
+                                        text: gameModel && gameModel.count > 0 ? qsTr("Ready to play.") : qsTr("Build your library.")
+                                        color: theme.text
+                                        font.pixelSize: 31
+                                        font.bold: true
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: gameModel && gameModel.count > 0
+                                              ? qsTr("Pick a game and launch it directly from VoidOne.")
+                                              : qsTr("Scan your PC or point VoidOne at a game's folder or executable.")
+                                        color: theme.muted
+                                        font.pixelSize: 13
+                                        wrapMode: Text.WordWrap
+                                    }
+
+                                    RowLayout {
+                                        spacing: 10
+                                        Button {
+                                            text: qsTr("Open Library")
+                                            onClicked: root.currentPage = "library"
+                                            background: Rectangle {
+                                                radius: 9
+                                                color: theme.surface3
+                                                border.color: "#26394a"
+                                            }
+                                            contentItem: Text {
+                                                text: parent.text
+                                                color: theme.text
+                                                font.bold: true
+                                                horizontalAlignment: Text.AlignHCenter
+                                                verticalAlignment: Text.AlignVCenter
+                                            }
+                                        }
+                                        Text {
+                                            text: qsTr("LOCAL • PRIVATE • YOURS")
+                                            color: theme.dim
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 42
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "V"
+                                    color: "#00e5ff10"
+                                    font.pixelSize: 150
+                                    font.bold: true
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 14
+
+                                StatCard {
+                                    Layout.fillWidth: true
+                                    label: qsTr("LIBRARY")
+                                    value: gameModel ? gameModel.count : 0
+                                    detail: qsTr("games ready")
+                                }
+                                StatCard {
+                                    Layout.fillWidth: true
+                                    label: qsTr("PLATFORM")
+                                    value: "LOCAL"
+                                    detail: qsTr("no account required")
+                                }
+                                StatCard {
+                                    Layout.fillWidth: true
+                                    label: qsTr("CONTROL")
+                                    value: "100%"
+                                    detail: qsTr("your library")
+                                }
+                            }
 
                             Text {
-                                anchors.centerIn: parent
-                                text: "⚡"
-                                font.pixelSize: 28
+                                text: qsTr("RECENTLY ADDED")
+                                color: theme.muted
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.8
+                            }
+
+                            GridView {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: Math.max(190, Math.ceil((gameModel ? gameModel.count : 0) / 3) * 190)
+                                interactive: false
+                                cellWidth: width / 3
+                                cellHeight: 180
+                                model: typeof gameModel !== "undefined" ? gameModel : null
+
+                                delegate: GameCard {
+                                    width: GridView.view.cellWidth - 10
+                                    height: 168
+                                    gameId: model.id
+                                    gameName: model.name
+                                    exePath: model.exePath
+                                    iconPath: model.iconPath
+                                    platform: model.platform
+                                    itemIndex: index
+                                    compact: true
+                                    onLaunchRequested: function(path) {
+                                        gameModel.launchGame(path)
+                                        root.showNotification(qsTr("Launching game..."))
+                                    }
+                                }
                             }
                         }
+                    }
 
-                        Text {
-                            Layout.alignment: Qt.AlignHCenter
-                            text: qsTr("No games found")
-                            color: theme.textPrimary
-                            font.pixelSize: 16
-                            font.bold: true
-                        }
+                    // LIBRARY
+                    Item {
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 32
+                            spacing: 18
 
-                        Text {
-                            Layout.alignment: Qt.AlignHCenter
-                            text: qsTr("Scan your Steam library or add a game to get started.")
-                            color: theme.textSecondary
-                            font.pixelSize: 13
+                            RowLayout {
+                                Layout.fillWidth: true
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    Text {
+                                        text: qsTr("Library")
+                                        color: theme.text
+                                        font.pixelSize: 28
+                                        font.bold: true
+                                    }
+                                    Text {
+                                        text: qsTr("Everything you play, in one place.")
+                                        color: theme.muted
+                                        font.pixelSize: 12
+                                    }
+                                }
+                                Button {
+                                    text: qsTr("＋ Add Game")
+                                    onClicked: addGameDialog.open()
+                                    background: Rectangle {
+                                        radius: 10
+                                        color: theme.cyan
+                                    }
+                                    contentItem: Text {
+                                        text: parent.text
+                                        color: "#041015"
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 1
+                                color: "#14202c"
+                            }
+
+                            GridView {
+                                id: gameGrid
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                cellWidth: Math.max(240, Math.floor(width / Math.max(1, Math.floor(width / 285))))
+                                cellHeight: 190
+                                clip: true
+                                boundsBehavior: Flickable.StopAtBounds
+                                model: typeof gameModel !== "undefined" ? gameModel : null
+
+                                delegate: GameCard {
+                                    width: gameGrid.cellWidth - 12
+                                    height: 174
+                                    gameId: model.id
+                                    gameName: model.name
+                                    exePath: model.exePath
+                                    iconPath: model.iconPath
+                                    platform: model.platform
+                                    itemIndex: index
+                                    onLaunchRequested: function(path) {
+                                        gameModel.launchGame(path)
+                                        root.showNotification(qsTr("Launching game..."))
+                                    }
+                                }
+
+                                footer: Item {
+                                    width: gameGrid.width
+                                    height: 130
+                                }
+                            }
+
+                            ColumnLayout {
+                                anchors.centerIn: gameGrid
+                                visible: gameGrid.count === 0
+                                spacing: 10
+
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: "＋"
+                                    color: theme.cyan
+                                    font.pixelSize: 38
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: qsTr("Your library is empty")
+                                    color: theme.text
+                                    font.pixelSize: 18
+                                    font.bold: true
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: qsTr("Add an executable or choose a game folder.")
+                                    color: theme.muted
+                                    font.pixelSize: 12
+                                }
+                            }
                         }
                     }
-                }
 
-                // --- Marketplace Viewport ---
-                Item {
-                    id: marketplacePage
-
-                    ColumnLayout {
-                        anchors.centerIn: parent
-                        spacing: 10
-
-                        Text {
-                            Layout.alignment: Qt.AlignHCenter
-                            text: qsTr("Store integration unavailable")
-                            color: theme.primary
-                            font.pixelSize: 26
-                            font.bold: true
-                        }
-
-                        Text {
-                            Layout.alignment: Qt.AlignHCenter
-                            text: qsTr("Marketplace functionality is not implemented yet.")
-                            color: theme.textSecondary
-                            font.pixelSize: 14
+                    // ACTIVITY
+                    Item {
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 10
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: qsTr("Activity")
+                                color: theme.text
+                                font.pixelSize: 28
+                                font.bold: true
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: qsTr("Play history and platform events are coming next.")
+                                color: theme.muted
+                                font.pixelSize: 12
+                            }
                         }
                     }
-                }
 
-                // --- Settings Viewport ---
-                Item {
-                    id: settingsPage
-                    SaveBackupView { 
-                        anchors.centerIn: parent 
+                    // SETTINGS
+                    Item {
+                        SaveBackupView {
+                            anchors.centerIn: parent
+                        }
                     }
                 }
             }
         }
     }
 
-    // ---------------------------------------------------------
-    // 5. Global Enterprise Toast Alert System
-    // ---------------------------------------------------------
     Rectangle {
-        id: toastBg
-        width: Math.max(320, toastText.implicitWidth + 60)
-        height: 50
-        radius: theme.radiusBase
-        color: theme.surfaceElevated
-
-        border.color: theme.primary
-        border.width: 1.5
-
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 40
+        id: toastBox
         anchors.horizontalCenter: parent.horizontalCenter
-
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 24
+        width: Math.min(420, parent.width - 40)
+        height: 48
+        radius: 13
+        color: "#101a24f5"
+        border.color: "#203243"
         opacity: 0
         visible: opacity > 0
-        z: 99
+        z: 100
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 18
-            anchors.rightMargin: 18
-            spacing: 14
-
+            anchors.leftMargin: 14
+            anchors.rightMargin: 14
+            spacing: 10
             Rectangle {
-                id: toastIndicator
-                width: 8
-                height: 8
+                id: toastAccent
+                width: 7
+                height: 7
                 radius: 4
-                color: theme.primary
+                color: theme.cyan
             }
-
             Text {
-                id: toastText
+                id: toast
                 Layout.fillWidth: true
-                color: theme.textPrimary
+                color: theme.text
+                font.pixelSize: 12
                 font.bold: true
-                font.pixelSize: 13
                 elide: Text.ElideRight
             }
         }
 
         SequentialAnimation {
-            id: toastAnim
-            NumberAnimation { target: toastBg; property: "opacity"; to: 1; duration: 220; easing.type: Easing.OutCubic }
-            PauseAnimation { duration: 3200 }
-            NumberAnimation { target: toastBg; property: "opacity"; to: 0; duration: 350; easing.type: Easing.InCubic }
+            id: toastAnimation
+            NumberAnimation { target: toastBox; property: "opacity"; to: 1; duration: 180; easing.type: Easing.OutCubic }
+            PauseAnimation { duration: 2600 }
+            NumberAnimation { target: toastBox; property: "opacity"; to: 0; duration: 260; easing.type: Easing.InCubic }
         }
     }
 
-    // ---------------------------------------------------------
-    // 6. Global Confirmation Dialog Modal
-    // ---------------------------------------------------------
-    Rectangle {
-        id: globalDialog
-        anchors.fill: parent
-        color: "#b005070a"
-        visible: false
-        z: 1000
+    AddGameDialog {
+        id: addGameDialog
+    }
 
-        property string dialogTitle: "Alert"
-        property string dialogDesc: "Message..."
-        signal confirmed()
-
-        function openDialog(title, desc) {
-            dialogTitle = title
-            dialogDesc = desc
-            globalDialog.visible = true
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: {} // Intercept interactions with underlying UI elements
-        }
-
-        Rectangle {
-            width: 400
-            height: 180
-            anchors.centerIn: parent
-            color: theme.surface
-            radius: theme.radiusBase
-            border.color: theme.primary
-            border.width: 1.5
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 20
-                spacing: 10
-
-                Text {
-                    text: globalDialog.dialogTitle
-                    color: theme.textPrimary
-                    font.pixelSize: 16
-                    font.bold: true
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    text: globalDialog.dialogDesc
-                    color: theme.textSecondary
-                    font.pixelSize: 13
-                    wrapMode: Text.WordWrap
-                }
-
-                Item { Layout.fillHeight: true }
-
-                RowLayout {
-                    Layout.alignment: Qt.AlignRight
-                    spacing: 10
-
-                    Button {
-                        text: qsTr("Cancel")
-                        onClicked: globalDialog.visible = false
-                    }
-
-                    Button {
-                        text: qsTr("Confirm")
-                        onClicked: {
-                            globalDialog.visible = false
-                            globalDialog.confirmed()
-                        }
-                    }
-                }
-            }
-        }
+    Component {
+        id: statCardComponent
+        StatCard {}
     }
 
     Component.onCompleted: {
+        if (typeof gameModel !== "undefined" && gameModel !== null)
+            gameModel.loadGamesFromDatabase()
         showNotification(qsTr("VoidOne is ready."))
+    }
+
+    component StatCard: Rectangle {
+        implicitHeight: 92
+        radius: 15
+        color: "#0b1118"
+        border.color: "#172533"
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 15
+            spacing: 3
+            Text {
+                text: parent.parent.label
+                color: theme.dim
+                font.pixelSize: 9
+                font.bold: true
+                font.letterSpacing: 1.3
+            }
+            Text {
+                text: parent.parent.value
+                color: theme.text
+                font.pixelSize: 22
+                font.bold: true
+            }
+            Text {
+                text: parent.parent.detail
+                color: theme.muted
+                font.pixelSize: 10
+            }
+        }
+
+        property string label: ""
+        property string value: ""
+        property string detail: ""
     }
 }
