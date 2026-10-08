@@ -5,30 +5,42 @@ import QtQuick.Effects
 
 Rectangle {
     id: cardRoot
+
     required property int gameId
     required property string gameName
     required property string exePath
     required property string iconPath
     required property string platform
     required property int itemIndex
+    property bool compact: false
 
     signal launchRequested(string path)
 
-    width: 280
-    height: 190
     radius: 16
-    color: "#111827"
-    border.color: hoverArea.containsMouse ? "#00ffee" : "#00ffee40"
-    border.width: hoverArea.containsMouse ? 2 : 1
+    color: hoverArea.containsMouse ? "#111d29" : "#0c131b"
+    border.color: hoverArea.containsMouse ? "#00e5ff66" : "#172533"
+    border.width: 1
 
+    scale: hoverArea.containsMouse ? 1.018 : 1.0
+    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+    Behavior on color { ColorAnimation { duration: 150 } }
     Behavior on border.color { ColorAnimation { duration: 150 } }
 
     layer.enabled: hoverArea.containsMouse
     layer.effect: MultiEffect {
         shadowEnabled: true
-        shadowColor: "#00ffee"
-        shadowBlur: 0.4
-        shadowScale: 1.02
+        shadowColor: "#00e5ff"
+        shadowBlur: 0.22
+        shadowOpacity: 0.25
+    }
+
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 2
+        radius: 1
+        color: hoverArea.containsMouse ? "#00e5ff" : "#00e5ff20"
     }
 
     MouseArea {
@@ -36,77 +48,112 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onEntered: scaleAnim.to = 1.02
-        onExited: scaleAnim.to = 1.0
-    }
-
-    NumberAnimation on scale {
-        id: scaleAnim
-        duration: 120
-        easing.type: Easing.OutQuad
+        onDoubleClicked: cardRoot.launchRequested(cardRoot.exePath)
     }
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 10
+        anchors.margins: compact ? 13 : 16
+        spacing: compact ? 8 : 11
 
         RowLayout {
             Layout.fillWidth: true
+            spacing: 10
 
             Rectangle {
-                width: 32
-                height: 32
-                radius: 8
-                color: "#00ffee20"
-                Text {
+                width: compact ? 34 : 40
+                height: width
+                radius: compact ? 9 : 11
+                color: "#00e5ff10"
+                border.color: "#00e5ff22"
+
+                Image {
                     anchors.centerIn: parent
-                    text: platform === "Steam" ? "🎮" : "⚙️"
-                    font.pixelSize: 16
+                    width: parent.width * 0.48
+                    height: width
+                    source: "qrc:/qt/qml/VoidOne.App/assets/icons/library.svg"
+                    fillMode: Image.PreserveAspectFit
                 }
             }
 
-            Text {
+            ColumnLayout {
                 Layout.fillWidth: true
-                text: gameName
-                color: "#00ffee"
-                font.pixelSize: 16
-                font.bold: true
-                elide: Text.ElideRight
+                spacing: 2
+
+                Text {
+                    Layout.fillWidth: true
+                    text: gameName
+                    color: "#eaf2f7"
+                    font.pixelSize: compact ? 13 : 15
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    text: platform
+                    color: "#506477"
+                    font.pixelSize: 9
+                    font.bold: true
+                }
             }
 
-            // دکمه حذف بازی
-            Button {
-                implicitWidth: 28
-                implicitHeight: 28
-                background: Rectangle { color: "transparent" }
-                contentItem: Text { text: "🗑️"; font.pixelSize: 12 }
+            ToolButton {
+                implicitWidth: 26
+                implicitHeight: 26
+                text: "⋯"
                 onClicked: gameModel.deleteGame(gameId, itemIndex)
+                background: Rectangle {
+                    radius: 8
+                    color: parent.hovered ? "#ff5f7018" : "transparent"
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: "#53697c"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
             }
         }
 
         Item { Layout.fillHeight: true }
 
-        // دکمه اجرای بازی
+        Text {
+            visible: !compact
+            Layout.fillWidth: true
+            text: exePath
+            color: "#405467"
+            font.pixelSize: 9
+            elide: Text.ElideMiddle
+        }
+
         Button {
             Layout.fillWidth: true
-            height: 38
+            implicitHeight: compact ? 34 : 38
+            text: qsTr("Play")
+            onClicked: cardRoot.launchRequested(cardRoot.exePath)
+
             background: Rectangle {
-                color: parent.pressed ? "#00cccc" : "#00ffee"
-                radius: 8
+                radius: 9
+                color: parent.pressed ? "#00b8ce" : (parent.hovered ? "#19eaff" : "#00d8ef")
             }
+
             contentItem: RowLayout {
-                spacing: 8
+                spacing: 7
                 Item { Layout.fillWidth: true }
-                Text { text: "▶"; color: "#111827"; font.bold: true }
                 Text {
-                    text: trManager.getText("launch")
-                    color: "#111827"
+                    text: "▶"
+                    color: "#041015"
+                    font.pixelSize: 10
+                    font.bold: true
+                }
+                Text {
+                    text: qsTr("Play")
+                    color: "#041015"
+                    font.pixelSize: 11
                     font.bold: true
                 }
                 Item { Layout.fillWidth: true }
             }
-            onClicked: cardRoot.launchRequested(exePath)
         }
     }
 }
