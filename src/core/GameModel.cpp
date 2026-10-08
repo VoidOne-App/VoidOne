@@ -6,6 +6,7 @@
 #include <QProcess>
 #include <QSqlQuery>
 #include <QVariantMap>
+#include <QDateTime>
 #include <QRegularExpression>
 #include <algorithm>
 #include <functional>
@@ -276,6 +277,12 @@ void GameModel::launchGame(const QString &exePath)
         return;
     }
 
+    QSqlQuery stats(QSqlDatabase::database());
+    stats.prepare("UPDATE games SET play_count = play_count + 1, last_played = :now WHERE exe_path = :path");
+    stats.bindValue(":now", QDateTime::currentSecsSinceEpoch());
+    stats.bindValue(":path", absolutePath);
+    stats.exec();
+    emit gameLaunched(-1);
     qInfo() << "[VoidOne] Game launched:" << absolutePath << "PID:" << pid;
 }
 
