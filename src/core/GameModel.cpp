@@ -1,9 +1,37 @@
 #include "GameModel.h"
 
 #include <QDebug>
+#include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
+#include <algorithm>
 #include <utility>
+
+namespace {
+
+bool isBlockedExecutable(const QFileInfo &file)
+{
+    const QString lower = file.completeBaseName().toLower();
+    static const QStringList blocked = {
+        QStringLiteral("uninstall"), QStringLiteral("setup"),
+        QStringLiteral("install"), QStringLiteral("installer"),
+        QStringLiteral("vcredist"), QStringLiteral("dxsetup"),
+        QStringLiteral("dotnet"), QStringLiteral("crash"),
+        QStringLiteral("crashhandler"), QStringLiteral("updater"),
+        QStringLiteral("update"), QStringLiteral("patcher"),
+        QStringLiteral("helper"), QStringLiteral("service"),
+        QStringLiteral("agent"), QStringLiteral("bootstrapper")
+    };
+
+    for (const QString &token : blocked) {
+        if (lower.contains(token))
+            return true;
+    }
+    return false;
+}
+
+} // namespace
 
 GameModel::GameModel(QObject *parent) : QAbstractListModel(parent) {}
 
@@ -62,7 +90,7 @@ bool GameModel::addNewGame(const QString &name, const QString &exePath, const QS
 
     const QFileInfo exeInfo(trimmedExePath);
     if (!exeInfo.isFile() || exeInfo.isSymLink()) {
-        qWarning() << "[VoidOne] Refusing to add invalid executable:" << trimmedExePath;
+        qWarning() << "[VoidOne] Refusing invalid game executable:" << trimmedExePath;
         return false;
     }
 
@@ -73,7 +101,7 @@ bool GameModel::addNewGame(const QString &name, const QString &exePath, const QS
     }
 #else
     if (!exeInfo.isExecutable()) {
-        qWarning() << "[VoidOne] Refusing non-executable file:" << trimmedExePath;
+        qWarning() << "[VoidOne] Refusing non-executable target:" << trimmedExePath;
         return false;
     }
 #endif
@@ -85,6 +113,101 @@ bool GameModel::addNewGame(const QString &name, const QString &exePath, const QS
 
     loadGamesFromDatabase();
     return true;
+}
+
+QStringList GameModel::suggestExecutables(const QString &folderPath) const
+{
+    const QString cleanPath = folderPath.trimmed();
+    if (cleanPath.isEmpty())
+        return {};
+
+    const QDir root(cleanPath);
+    if (!root.exists())
+        return {};
+
+    struct Candidate {
+        int score = 0;
+        qint64 size = 0;
+        QString path;
+    };
+
+    QList<Candidate> candidates;
+    const QString folderName = root.dirName().toLower();
+
+#if defined(Q_OS_WIN)
+    const QStringList filters = {QStringLiteral("*.exe")};
+    const QDir::Filters fileFilters = QDir::Files | QDir::NoDotAndDotDot | QDir::NoSymLinks;
+#else
+    const QStringList filters = {QStringLiteral("*")};
+    const QDir::Filters fileFilters = QDir::Files | QDir::Executable |
+                                      QDir::NoDotAndDotDot | QDir::NoSymLinks;
+#endif
+
+    std::function<void(const QDir &, int)> scan =
+        [&](const QDir &dir, int depth) {
+            const QFileInfoList files = dir.entryInfoList(filters, fileFilters, QDir::Name);
+            for (const QFileInfo &file : files) {
+                if (isBlockedExecutable(file))
+                    continue;
+
+#if !defined(Q_OS_WIN)
+                if (!file.isExecutable())
+                    continue;
+#endif
+
+                const QString stem = file.completeBaseName().toLower();
+                int score = 0;
+
+                if (depth == 0)
+                    score += 30;
+                else if (depth == 1)
+                    score += 18;
+                else
+                    score += 8;
+
+                if (stem == folderName)
+                    score += 80;
+                else if (!folderName.isEmpty() && stem.contains(folderName))
+                    score += 30;
+
+                // Prefer substantial binaries over tiny helper programs.
+                if (file.size() > 50 * 1024 * 1024)
+                    score += 20;
+                else if (file.size() > 10 * 1024 * 1024)
+                    score += 10;
+
+                candidates.append({score, file.size(), file.absoluteFilePath()});
+            }
+
+            if (depth >= 2)
+                return;
+
+            const QFileInfoList dirs = dir.entryInfoList(
+                QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks, QDir::Name);
+
+            for (const QFileInfo &child : dirs)
+                scan(QDir(child.absoluteFilePath()), depth + 1);
+        };
+
+    scan(root, 0);
+
+    std::sort(candidates.begin(), candidates.end(), [](const Candidate &a, const Candidate &b) {
+        if (a.score != b.score)
+            return a.score > b.score;
+        if (a.size != b.size)
+            return a.size > b.size;
+        return a.path < b.path;
+    });
+
+    QStringList result;
+    for (const Candidate &candidate : std::as_const(candidates)) {
+        if (!result.contains(candidate.path))
+            result.append(candidate.path);
+        if (result.size() >= 12)
+            break;
+    }
+
+    return result;
 }
 
 bool GameModel::deleteGame(int id, int index)
