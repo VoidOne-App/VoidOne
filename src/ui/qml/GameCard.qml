@@ -13,6 +13,10 @@ Rectangle {
     required property string platform
     required property int itemIndex
     property bool compact: false
+    property bool favorite: false
+    property int playCount: 0
+    property string source: ""
+    signal detailsRequested()
 
     signal launchRequested(string path)
 
@@ -97,11 +101,13 @@ Rectangle {
                 }
             }
 
+            Text { visible: cardRoot.favorite; text: "★"; color: "#00e5ff"; font.pixelSize: 13 }
+
             ToolButton {
                 implicitWidth: 26
                 implicitHeight: 26
                 text: "⋯"
-                onClicked: gameModel.deleteGame(gameId, itemIndex)
+                onClicked: cardRoot.detailsRequested()
                 background: Rectangle {
                     radius: 8
                     color: parent.hovered ? "#ff5f7018" : "transparent"
