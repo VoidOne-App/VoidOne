@@ -89,7 +89,11 @@ void GameModel::loadGamesFromDatabase()
 {
     beginResetModel();
     m_allGames = Database::getAllGames();
-    m_games = m_allGames;
+    m_games.clear();
+    for (const auto &game : std::as_const(m_allGames)) {
+        if (!game.hidden)
+            m_games.append(game);
+    }
     endResetModel();
     emit countChanged();
 }
@@ -283,6 +287,14 @@ void GameModel::launchGame(const QString &exePath)
             arguments = QProcess::splitCommand(savedArgs);
     }
 
+    int launchedId = -1;
+    for (const auto &game : std::as_const(m_allGames)) {
+        if (QFileInfo(game.exePath).absoluteFilePath() == absolutePath) {
+            launchedId = game.id;
+            break;
+        }
+    }
+
     qint64 pid = -1;
     if (!QProcess::startDetached(absolutePath, arguments, workingDirectory, &pid)) {
         qWarning() << "[VoidOne] Failed to launch game:" << absolutePath;
@@ -294,7 +306,8 @@ void GameModel::launchGame(const QString &exePath)
     stats.bindValue(":now", QDateTime::currentSecsSinceEpoch());
     stats.bindValue(":path", absolutePath);
     stats.exec();
-    emit gameLaunched(-1);
+    loadGamesFromDatabase();
+    emit gameLaunched(launchedId);
     qInfo() << "[VoidOne] Game launched:" << absolutePath << "PID:" << pid;
 }
 
