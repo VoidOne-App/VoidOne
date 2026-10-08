@@ -351,9 +351,9 @@ Dialog {
                 onClicked: {
                     if (gameModel.addNewGame(nameField.text.trim(), selectedExecutable, "")) {
                         dialog.close()
-                        root.showNotification(qsTr("Game added to your library."))
+                        notificationRequested(qsTr("Game added to your library."), false)
                     } else {
-                        root.showNotification(qsTr("VoidOne could not add that game."), true)
+                        notificationRequested(qsTr("VoidOne could not add that game."), true)
                     }
                 }
                 background: Rectangle {
