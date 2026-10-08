@@ -141,7 +141,7 @@ endif()
 
 qt_add_executable(VoidOne src/main.cpp ${VOIDONE_EXE_EXTRA_SOURCES})
 qt_add_qml_module(VoidOne
-    URI VoidOne VERSION 1.0 NO_PLUGIN
+    URI VoidOne.App VERSION 1.0
     QML_FILES
         src/ui/qml/Main.qml
         src/ui/qml/GameCard.qml

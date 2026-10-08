@@ -52,7 +52,15 @@ QString appDataDirectory()
 
 QString logDirectoryPath()
 {
+#ifdef Q_OS_WIN
+    // Logs are machine-local diagnostics and must live beside the Windows
+    // LOCALAPPDATA tree used by the installer/CI smoke test. Keep the main
+    // persistent application data location unchanged for compatibility.
+    const QString localData = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    return QDir(localData).filePath("logs");
+#else
     return QDir(appDataDirectory()).filePath("logs");
+#endif
 }
 
 void enterpriseMessageHandler(QtMsgType type, const QMessageLogContext &context,
@@ -199,12 +207,28 @@ int main(int argc, char *argv[])
     registerEnterpriseSignalHandlers();
 #endif
 
-    QGuiApplication app(argc, argv);
-
+    // Set application metadata before QGuiApplication so QStandardPaths and
+    // Qt's own startup diagnostics resolve to the same per-user location.
     QCoreApplication::setOrganizationName("VoidOne_app");
     QCoreApplication::setOrganizationDomain("voidone.app");
     QCoreApplication::setApplicationName("VoidOne");
     QCoreApplication::setApplicationVersion(VOIDONE_VERSION_DISPLAY);
+
+    // Install the message handler before QGuiApplication is constructed.
+    // A Windows GUI executable has no attached console by design, so QPA/plugin
+    // failures can otherwise look like a completely silent process exit.
+    if (!initializeEnterpriseLogging())
+        fprintf(stderr, "[CRITICAL] Failed to initialize early file logging backend.\\n");
+    qInstallMessageHandler(enterpriseMessageHandler);
+
+    qInfo() << "[Bootstrap] VoidOne process starting.";
+    qInfo() << "[Bootstrap] Executable:" << QCoreApplication::applicationFilePath();
+    qInfo() << "[Bootstrap] Working directory:" << QDir::currentPath();
+    qInfo() << "[Bootstrap] QT_QPA_PLATFORM:" << qEnvironmentVariable("QT_QPA_PLATFORM");
+    qInfo() << "[Bootstrap] QT_PLUGIN_PATH:" << qEnvironmentVariable("QT_PLUGIN_PATH");
+    qInfo() << "[Bootstrap] QML2_IMPORT_PATH:" << qEnvironmentVariable("QML2_IMPORT_PATH");
+
+    QGuiApplication app(argc, argv);
 
     // AppDataLocation must exist before anything such as QLockFile uses it.
     const QString appDataDir = appDataDirectory();
@@ -220,10 +244,6 @@ int main(int argc, char *argv[])
     parser.addOption(QCommandLineOption({"d", "diagnostics"},
         "Run system telemetry and diagnostic suite on startup."));
     parser.process(app);
-
-    if (!initializeEnterpriseLogging())
-        fprintf(stderr, "[CRITICAL] Failed to initialize file logging backend.\n");
-    qInstallMessageHandler(enterpriseMessageHandler);
 
     qInfo() << "============================================================";
     qInfo() << "              VOIDONE LAUNCHER INITIALIZING                ";
@@ -269,7 +289,7 @@ int main(int argc, char *argv[])
             QCoreApplication::exit(-1);
         }, Qt::QueuedConnection);
 
-        engine.loadFromModule("VoidOne", "Main");
+        engine.loadFromModule("VoidOne.App", "Main");
         if (engine.rootObjects().isEmpty()) {
             qCritical() << "[UI-FATAL] No root QML object was created.";
             return -1;

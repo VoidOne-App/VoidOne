@@ -60,9 +60,9 @@ QStringList discoverSteamRoots()
 
     // Steam commonly stores its install path in the Windows registry.
     const QStringList registryKeys = {
-        QStringLiteral(R"(HKEY_CURRENT_USERSoftwareValveSteam)"),
-        QStringLiteral(R"(HKEY_LOCAL_MACHINESOFTWAREWOW6432NodeValveSteam)"),
-        QStringLiteral(R"(HKEY_LOCAL_MACHINESOFTWAREValveSteam)")
+        QStringLiteral(R"(HKEY_CURRENT_USER\Software\Valve\Steam)"),
+        QStringLiteral(R"(HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam)"),
+        QStringLiteral(R"(HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam)")
     };
     for (const QString &key : registryKeys) {
         QSettings settings(key, QSettings::NativeFormat);

@@ -61,7 +61,7 @@ jobs:
           $output = & cmd.exe /d /s /c "`"$vsDevCmd`" -arch=amd64 && set" 2>&1
           if ($LASTEXITCODE -ne 0) { throw "VsDevCmd failed: $LASTEXITCODE" }
 
-          $persist = @('PATH','INCLUDE','LIB','LIBPATH','VCToolsInstallDir','VCToolsVersion','VCToolsRedistDir','WindowsSdkDir','WindowsSDKVersion','UniversalCRTSdkDir','UCRTVersion','VSCMD_ARG_TGT_ARCH')
+          $persist = @('PATH','INCLUDE','LIB','LIBPATH','VCINSTALLDIR','VCToolsInstallDir','VCToolsVersion','VCToolsRedistDir','WindowsSdkDir','WindowsSDKVersion','UniversalCRTSdkDir','UCRTVersion','VSCMD_ARG_TGT_ARCH')
           foreach ($line in $output) {
             $text = [string]$line
             $i = $text.IndexOf('=')
@@ -245,6 +245,106 @@ jobs:
           $header = (& dumpbin /headers package\VoidOne.exe 2>&1) -join "`n"
           if ($LASTEXITCODE -ne 0 -or $header -notmatch 'machine \(x64\)') { throw 'VoidOne.exe is not an x64 MSVC binary.' }
 
+      - name: Prepare launcher startup diagnostics
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item startup-diagnostics -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item startup-diagnostics -ItemType Directory -Force | Out-Null
+          $packageExe = Join-Path $env:GITHUB_WORKSPACE 'package\VoidOne.exe'
+          $dependents = (& dumpbin /dependents $packageExe 2>&1) -join ([Environment]::NewLine)
+          $dependents | Tee-Object -FilePath startup-diagnostics\VoidOne-dependents.txt | Write-Host
+          Get-ChildItem package -Recurse -File |
+            Sort-Object FullName |
+            Select-Object -ExpandProperty FullName |
+            Out-File startup-diagnostics\package-files.txt -Encoding utf8
+
+      - name: Smoke test packaged launcher startup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $packageDir = Join-Path $env:GITHUB_WORKSPACE 'package'
+          $logDir = Join-Path $env:LOCALAPPDATA 'VoidOne_app\VoidOne\logs'
+          $roamingLogDir = Join-Path $env:APPDATA 'VoidOne_app\VoidOne\logs'
+          Remove-Item $logDir, $roamingLogDir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item $logDir -ItemType Directory -Force | Out-Null
+
+          $env:QT_LOGGING_RULES = '*.debug=true'
+          $process = Start-Process -FilePath (Join-Path $packageDir 'VoidOne.exe') -WorkingDirectory $packageDir -PassThru
+          try {
+            $deadline = (Get-Date).AddSeconds(20)
+            do {
+              Start-Sleep -Milliseconds 250
+              $process.Refresh()
+              if ((Get-ChildItem $logDir, $roamingLogDir -Filter 'voidone_enterprise.log' -File -ErrorAction SilentlyContinue)) { break }
+            } while ((Get-Date) -lt $deadline)
+
+            if ($process.HasExited) {
+              $code = $process.ExitCode
+              foreach ($dir in @($logDir, $roamingLogDir)) {
+                $logs = Get-ChildItem $dir -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime
+                foreach ($log in $logs) {
+                  Write-Host "===== $($log.FullName) ====="
+                  Get-Content $log.FullName
+                  Copy-Item $log.FullName startup-diagnostics -Force
+                }
+              }
+              Get-ChildItem $logDir, $roamingLogDir -Filter '*.dmp' -File -ErrorAction SilentlyContinue |
+                Copy-Item -Destination startup-diagnostics -Force -ErrorAction SilentlyContinue
+              throw "VoidOne exited during startup with code $code."
+            }
+
+            $logFile = Join-Path $logDir 'voidone_enterprise.log'
+            if (-not (Test-Path $logFile)) {
+              throw 'VoidOne remained running but did not create its startup log.'
+            }
+
+            $logText = Get-Content $logFile -Raw
+            if ($logText -notmatch '\[Bootstrap\] VoidOne process starting\.') {
+              throw 'VoidOne startup log did not contain the bootstrap marker.'
+            }
+            if ($logText -match '\[UI-FATAL\]|\[Database\].*failed|\[Memory-FATAL\]|\[Exception-FATAL\]') {
+              Write-Host $logText
+              throw 'VoidOne reported a fatal startup error.'
+            }
+
+            Write-Host 'VoidOne packaged launcher stayed alive and reached the event loop.'
+            Write-Host $logText
+          }
+          finally {
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+              $process.WaitForExit(5000)
+            }
+          }
+
+      - name: Collect launcher startup diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          foreach ($dir in @(
+            (Join-Path $env:LOCALAPPDATA 'VoidOne_app\VoidOne\logs'),
+            (Join-Path $env:APPDATA 'VoidOne_app\VoidOne\logs')
+          )) {
+            if (Test-Path $dir) {
+              Get-ChildItem $dir -File | Copy-Item -Destination startup-diagnostics -Force
+            }
+          }
+          Write-Host '=== Startup diagnostics ==='
+          Get-ChildItem startup-diagnostics -File -ErrorAction SilentlyContinue |
+            Sort-Object Name |
+            Select-Object Name,Length,LastWriteTime |
+            Format-Table -AutoSize
+
+      - name: Upload launcher startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: VoidOne-${{ steps.version.outputs.value }}-StartupDiagnostics
+          path: startup-diagnostics
+          if-no-files-found: warn
+          retention-days: 14
       - name: Validate canonical payload
         shell: pwsh
         run: |

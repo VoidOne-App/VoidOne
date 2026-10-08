@@ -15,7 +15,7 @@ Rectangle {
             Layout.fillWidth: true
             height: 90
             color: "#0a0d12"
-            border.bottom.color: "#00ffee20"
+            border.color: "#00ffee20"
 
             Column {
                 anchors.centerIn: parent
@@ -40,25 +40,25 @@ Rectangle {
 
                 SidebarButton {
                     Layout.fillWidth: true
-                    icon: "🏠"
-                    label: trManager.currentLanguage === "fa" ? "کتابخانه" : "Library"
-                    selected: currentPage === "library"
+                    voIcon: "🏠"
+                    voLabel: trManager.currentLanguage === "fa" ? "کتابخانه" : "Library"
+                    voSelected: currentPage === "library"
                     onClicked: pageChanged("library")
                 }
 
                 SidebarButton {
                     Layout.fillWidth: true
-                    icon: "🛒"
-                    label: trManager.currentLanguage === "fa" ? "فروشگاه" : "Marketplace"
-                    selected: currentPage === "marketplace"
+                    voIcon: "🛒"
+                    voLabel: trManager.currentLanguage === "fa" ? "فروشگاه" : "Marketplace"
+                    voSelected: currentPage === "marketplace"
                     onClicked: pageChanged("marketplace")
                 }
 
                 SidebarButton {
                     Layout.fillWidth: true
-                    icon: "⚙️"
-                    label: trManager.getText("settings")
-                    selected: currentPage === "settings"
+                    voIcon: "⚙️"
+                    voLabel: trManager.getText("settings")
+                    voSelected: currentPage === "settings"
                     onClicked: pageChanged("settings")
                 }
             }
