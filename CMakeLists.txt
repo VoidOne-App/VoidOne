@@ -153,6 +153,7 @@ qt_add_qml_module(VoidOne
         src/ui/qml/SystemTelemetryWidget.qml
         src/ui/qml/AddGameDialog.qml
         src/ui/qml/ActionButton.qml
+        src/ui/qml/GameDetailsDialog.qml
     RESOURCES
         assets/ui/icons/home.svg
         assets/ui/icons/library.svg
