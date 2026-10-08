@@ -75,7 +75,7 @@ Rectangle {
                     anchors.centerIn: parent
                     width: parent.width * 0.48
                     height: width
-                    source: "qrc:/qt/qml/VoidOne.App/assets/icons/library.svg"
+                    source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
                     fillMode: Image.PreserveAspectFit
                 }
             }
