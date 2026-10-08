@@ -115,15 +115,26 @@ bool initializeEnterpriseLogging()
     return g_logFile.open(QIODevice::WriteOnly | QIODevice::Text);
 }
 
-void writeBootstrapMarker()
+bool writeBootstrapMarker()
 {
     QMutexLocker locker(&g_logMutex);
     if (!g_logFile.isOpen())
-        return;
+        return false;
 
-    QTextStream stream(&g_logFile);
-    stream << "[Bootstrap] VoidOne process starting." << Qt::endl;
-    stream.flush();
+    static const QByteArray marker = "[Bootstrap] VoidOne process starting.\n";
+    if (g_logFile.write(marker) != marker.size())
+        return false;
+    if (!g_logFile.flush())
+        return false;
+
+    const QString markerPath = QDir(logDirectoryPath()).filePath("voidone_bootstrap.ok");
+    QFile markerFile(markerPath);
+    if (!markerFile.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+        return false;
+    static const QByteArray status = "VoidOne bootstrap reached.\n";
+    if (markerFile.write(status) != status.size())
+        return false;
+    return markerFile.flush();
 }
 
 #ifdef Q_OS_WIN
@@ -234,7 +245,8 @@ int main(int argc, char *argv[])
 
     // Write the CI bootstrap marker directly to the log file so it remains
     // deterministic even if Qt message filtering changes on Windows.
-    writeBootstrapMarker();
+    if (!writeBootstrapMarker())
+        fprintf(stderr, "[CRITICAL] Failed to write VoidOne bootstrap marker.\n");
 
     qInfo() << "[Bootstrap] VoidOne process starting.";
     qInfo() << "[Bootstrap] Executable:" << QCoreApplication::applicationFilePath();
@@ -253,7 +265,7 @@ int main(int argc, char *argv[])
     }
 
     QCommandLineParser parser;
-    parser.setApplicationDescription("VoidOne — Free and source-available native PC gaming platform.");
+    parser.setApplicationDescription("VoidOne - Native PC Gaming Platform.");
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOption(QCommandLineOption({"d", "diagnostics"},
@@ -261,7 +273,7 @@ int main(int argc, char *argv[])
     parser.process(app);
 
     qInfo() << "============================================================";
-    qInfo() << "              VOIDONE LAUNCHER INITIALIZING                ";
+    qInfo() << "              VOIDONE PLATFORM INITIALIZING                ";
     qInfo() << "Version          :" << QCoreApplication::applicationVersion();
     qInfo() << "Qt               :" << QT_VERSION_STR;
     qInfo() << "Operating System :" << QSysInfo::prettyProductName();

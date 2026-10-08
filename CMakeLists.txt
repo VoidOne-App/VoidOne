@@ -1,16 +1,23 @@
 cmake_minimum_required(VERSION 3.25.0)
 
-set(VOIDONE_VERSION_OVERRIDE "0.0.1" CACHE STRING "Override application version (normally supplied by CI/tag)")
-set(VOIDONE_VERSION_INPUT "${VOIDONE_VERSION_OVERRIDE}")
+set(VOIDONE_VERSION_OVERRIDE "" CACHE STRING "Override application version; leave empty to derive from VCS/CI")
+if(VOIDONE_VERSION_OVERRIDE)
+    set(VOIDONE_VERSION_INPUT "${VOIDONE_VERSION_OVERRIDE}")
+elseif(DEFINED ENV{GITHUB_REF_TYPE} AND "$ENV{GITHUB_REF_TYPE}" STREQUAL "tag" AND DEFINED ENV{GITHUB_REF_NAME})
+    string(REGEX REPLACE "^v" "" VOIDONE_VERSION_INPUT "$ENV{GITHUB_REF_NAME}")
+elseif(DEFINED ENV{VOIDONE_VERSION})
+    set(VOIDONE_VERSION_INPUT "$ENV{VOIDONE_VERSION}")
+else()
+    set(VOIDONE_VERSION_INPUT "0.0.0-dev.local")
+endif()
 string(REGEX MATCH "^[0-9]+\.[0-9]+\.[0-9]+" VOIDONE_VERSION_BASE "${VOIDONE_VERSION_INPUT}")
 if(NOT VOIDONE_VERSION_BASE)
-    message(WARNING "Invalid VOIDONE_VERSION_OVERRIDE='${VOIDONE_VERSION_INPUT}'; falling back to 0.0.1")
-    set(VOIDONE_VERSION_BASE "0.0.1")
+    message(FATAL_ERROR "Invalid VoidOne version '${VOIDONE_VERSION_INPUT}'. Expected X.Y.Z or X.Y.Z-prerelease.")
 endif()
 
 project(VoidOne
     VERSION "${VOIDONE_VERSION_BASE}"
-    DESCRIPTION "Free and source-available native PC gaming platform"
+    DESCRIPTION "VoidOne - Native PC Gaming Platform"
     HOMEPAGE_URL "https://github.com/VoidOne-App/VoidOne"
     LANGUAGES CXX C
 )
@@ -61,7 +68,14 @@ if(VOIDONE_ENABLE_LTO AND CMAKE_BUILD_TYPE STREQUAL "Release")
     include(CheckIPOSupported)
     check_ipo_supported(RESULT _ipo_supported OUTPUT _ipo_error)
     if(_ipo_supported)
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+        if(MSVC)
+            # MSVC LTCG can promote C4702 diagnostics emitted from Qt headers
+            # during link-time code generation to fatal errors under /WX.
+            # Keep Release optimization enabled, but avoid LTCG on MSVC.
+            message(STATUS "LTO disabled for MSVC Release builds to avoid Qt/QtQml C4702 LTCG failures")
+        else()
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+        endif()
     else()
         message(WARNING "LTO requested but unsupported: ${_ipo_error}")
     endif()
@@ -82,6 +96,12 @@ qt_standard_project_setup(REQUIRES 6.11.2)
 function(voidone_apply_compile_policy target)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4 /permissive- /guard:cf /EHsc)
+        # Qt QML cache/AOT output can trigger MSVC C4702 (unreachable code) in
+        # Qt headers under /WX. This is a toolchain-generated diagnostic, not a
+        # warning from VoidOne source code.
+        if("${target}" STREQUAL "VoidOne")
+            target_compile_options(${target} PRIVATE /wd4702)
+        endif()
         if(CMAKE_BUILD_TYPE STREQUAL "Release")
             # Keep Release builds fast while giving the linker maximum safe
             # visibility into unused code/data. /O2 already enables /GF and
@@ -134,7 +154,7 @@ if(WIN32)
     set(VOIDONE_RC_PATH "${CMAKE_CURRENT_BINARY_DIR}/voidone.rc")
     if(EXISTS "${APP_ICON_PATH}")
         set(VOIDONE_RC_VERSION "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0")
-        file(WRITE "${VOIDONE_RC_PATH}" "#include <winver.h>\nIDI_ICON1 ICON DISCARDABLE \"${APP_ICON_PATH}\"\nVS_VERSION_INFO VERSIONINFO\n FILEVERSION ${VOIDONE_RC_VERSION}\n PRODUCTVERSION ${VOIDONE_RC_VERSION}\n FILEFLAGSMASK 0x3fL\n FILEFLAGS 0x0L\n FILEOS 0x40004L\n FILETYPE 0x1L\n FILESUBTYPE 0x0L\nBEGIN\n BLOCK \"StringFileInfo\"\n BEGIN\n  BLOCK \"040904b0\"\n  BEGIN\n   VALUE \"CompanyName\", \"VoidOne\"\n   VALUE \"FileDescription\", \"${PROJECT_DESCRIPTION}\"\n   VALUE \"FileVersion\", \"${VOIDONE_VERSION_DISPLAY}\"\n   VALUE \"InternalName\", \"VoidOne\"\n   VALUE \"OriginalFilename\", \"VoidOne.exe\"\n   VALUE \"ProductName\", \"VoidOne\"\n   VALUE \"ProductVersion\", \"${VOIDONE_VERSION_DISPLAY}\"\n  END\n END\n BLOCK \"VarFileInfo\"\n BEGIN\n  VALUE \"Translation\", 0x409, 1200\n END\nEND\n")
+        file(WRITE "${VOIDONE_RC_PATH}" "#include <winver.h>\nIDI_ICON1 ICON DISCARDABLE \"${APP_ICON_PATH}\"\nVS_VERSION_INFO VERSIONINFO\n FILEVERSION ${VOIDONE_RC_VERSION}\n PRODUCTVERSION ${VOIDONE_RC_VERSION}\n FILEFLAGSMASK 0x3fL\n FILEFLAGS 0x0L\n FILEOS 0x40004L\n FILETYPE 0x1L\n FILESUBTYPE 0x0L\nBEGIN\n BLOCK \"StringFileInfo\"\n BEGIN\n  BLOCK \"040904b0\"\n  BEGIN\n   VALUE \"CompanyName\", \"VoidOne_app\"\n   VALUE \"FileDescription\", \"VoidOne - Native PC Gaming Platform\"\n   VALUE \"FileVersion\", \"${VOIDONE_VERSION_DISPLAY}\"\n   VALUE \"InternalName\", \"VoidOne\"\n   VALUE \"OriginalFilename\", \"VoidOne.exe\"\n   VALUE \"ProductName\", \"VoidOne\"\n   VALUE \"ProductVersion\", \"${VOIDONE_VERSION_DISPLAY}\"\n   VALUE \"LegalCopyright\", \"Copyright (c) 2026 VoidOne_app\"\n   VALUE \"Comments\", \"Free and source-available native PC gaming platform\"\n  END\n END\n BLOCK \"VarFileInfo\"\n BEGIN\n  VALUE \"Translation\", 0x409, 1200\n END\nEND\n")
         list(APPEND VOIDONE_EXE_EXTRA_SOURCES "${VOIDONE_RC_PATH}")
     endif()
 endif()
@@ -151,6 +171,17 @@ qt_add_qml_module(VoidOne
         src/ui/qml/EnterpriseDialog.qml
         src/ui/qml/MusicControllerWidget.qml
         src/ui/qml/SystemTelemetryWidget.qml
+        src/ui/qml/AddGameDialog.qml
+        src/ui/qml/ActionButton.qml
+        src/ui/qml/GameDetailsDialog.qml
+    RESOURCES
+        assets/ui/icons/home.svg
+        assets/ui/icons/library.svg
+        assets/ui/icons/activity.svg
+        assets/ui/icons/settings.svg
+        assets/ui/icons/add.svg
+        assets/ui/icons/folder.svg
+        assets/ui/icons/file.svg
 )
 target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick)
 if(WIN32)
@@ -181,7 +212,7 @@ if(WIN32)
 endif()
 
 set(CPACK_PACKAGE_NAME "VoidOne")
-set(CPACK_PACKAGE_VENDOR "VoidOne")
+set(CPACK_PACKAGE_VENDOR "VoidOne_app")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "VoidOne PC Gaming Platform (${VOIDONE_VERSION_DISPLAY})")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "VoidOne")

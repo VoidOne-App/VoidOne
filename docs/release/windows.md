@@ -16,7 +16,7 @@ Example:
 v0.0.2-beta.1
 ```
 
-Pull-request builds do not publish releases and use an ephemeral development version based on the commit SHA.
+Pull-request and non-tag builds do not publish releases and use an ephemeral development version based on the commit SHA. Tagged releases use the tag (with a leading `v` removed) as the authoritative version.
 
 ## Pipeline
 

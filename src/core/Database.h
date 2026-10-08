@@ -12,6 +12,14 @@ struct GameRecord {
     QString exePath;
     QString iconPath;
     QString platform;
+    QString source;
+    QString workingDir;
+    QString launchArgs;
+    qint64 playSeconds = 0;
+    int playCount = 0;
+    qint64 lastPlayed = 0;
+    bool favorite = false;
+    bool hidden = false;
 };
 
 Q_DECLARE_METATYPE(GameRecord)

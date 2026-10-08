@@ -268,6 +268,8 @@ void SteamScannerWorker::doScan()
 
                 rec.exePath = findMainExecutable(gameDir, rec.name);
                 rec.platform = QStringLiteral("Steam");
+                rec.source = QStringLiteral("Steam");
+                rec.workingDir = QFileInfo(rec.exePath).absolutePath();
 
                 if (rec.name.isEmpty() || rec.exePath.isEmpty()) {
                     qWarning() << "[VoidOne] Skipping Steam game with no usable executable:"
