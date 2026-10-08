@@ -426,12 +426,16 @@ Window {
                                     exePath: model.exePath
                                     iconPath: model.iconPath
                                     platform: model.platform
+                                    source: model.source
+                                    favorite: model.favorite
+                                    playCount: model.playCount
                                     itemIndex: index
                                     compact: true
                                     onLaunchRequested: function(path) {
                                         gameModel.launchGame(path)
                                         root.showNotification(qsTr("Launching game..."))
                                     }
+                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
                                 }
                             }
                         }
@@ -502,11 +506,15 @@ Window {
                                     exePath: model.exePath
                                     iconPath: model.iconPath
                                     platform: model.platform
+                                    source: model.source
+                                    favorite: model.favorite
+                                    playCount: model.playCount
                                     itemIndex: index
                                     onLaunchRequested: function(path) {
                                         gameModel.launchGame(path)
                                         root.showNotification(qsTr("Launching game..."))
                                     }
+                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
                                 }
 
                                 footer: Item {
@@ -617,6 +625,10 @@ Window {
             PauseAnimation { duration: 2600 }
             NumberAnimation { target: toastBox; property: "opacity"; to: 0; duration: 260; easing.type: Easing.InCubic }
         }
+    }
+
+    GameDetailsDialog {
+        id: gameDetails
     }
 
     AddGameDialog {
