@@ -12,8 +12,7 @@ else()
 endif()
 string(REGEX MATCH "^[0-9]+\.[0-9]+\.[0-9]+" VOIDONE_VERSION_BASE "${VOIDONE_VERSION_INPUT}")
 if(NOT VOIDONE_VERSION_BASE)
-    message(WARNING "Invalid VOIDONE_VERSION_OVERRIDE='${VOIDONE_VERSION_INPUT}'; falling back to 0.0.1")
-    set(VOIDONE_VERSION_BASE "0.0.1")
+    message(FATAL_ERROR "Invalid VoidOne version '${VOIDONE_VERSION_INPUT}'. Expected X.Y.Z or X.Y.Z-prerelease.")
 endif()
 
 project(VoidOne
@@ -213,7 +212,7 @@ if(WIN32)
 endif()
 
 set(CPACK_PACKAGE_NAME "VoidOne")
-set(CPACK_PACKAGE_VENDOR "VoidOne")
+set(CPACK_PACKAGE_VENDOR "VoidOne_app")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "VoidOne PC Gaming Platform (${VOIDONE_VERSION_DISPLAY})")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "VoidOne")
