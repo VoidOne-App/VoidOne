@@ -215,7 +215,7 @@ ctest --preset ci-windows
 
 ## 📜 مجوز
 
-VoidOne تحت **MIT License** منتشر می‌شود.
+VoidOne تحت **VoidOne Community License v1.0** منتشر می‌شود.
 
 ---
 
@@ -225,6 +225,6 @@ VoidOne تحت **MIT License** منتشر می‌شود.
 
 **ساخته‌شده توسط یک گیمر. مهندسی‌شده مثل یک پلتفرم. توسعه‌یافته در فضای باز.**
 
-♾️ Free & Open Source · 🚫 No Ads · 🔒 Privacy First · 🧠 Optional AI
+♾️ Free & Free & Source-Available · 🚫 No Ads · 🔒 Privacy First · 🧠 Optional AI
 
 </div>
