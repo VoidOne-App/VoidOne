@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
     }
 
     QCommandLineParser parser;
-    parser.setApplicationDescription("VoidOne — Free and source-available native PC gaming platform.");
+    parser.setApplicationDescription("VoidOne - Native PC Gaming Platform.");
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOption(QCommandLineOption({"d", "diagnostics"},
@@ -261,7 +261,7 @@ int main(int argc, char *argv[])
     parser.process(app);
 
     qInfo() << "============================================================";
-    qInfo() << "              VOIDONE LAUNCHER INITIALIZING                ";
+    qInfo() << "              VOIDONE PLATFORM INITIALIZING                ";
     qInfo() << "Version          :" << QCoreApplication::applicationVersion();
     qInfo() << "Qt               :" << QT_VERSION_STR;
     qInfo() << "Operating System :" << QSysInfo::prettyProductName();
