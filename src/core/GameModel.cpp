@@ -275,7 +275,7 @@ void GameModel::launchGame(const QString &exePath)
     const QString absolutePath = targetInfo.absoluteFilePath();
     QString workingDirectory = targetInfo.absolutePath();
     QStringList arguments;
-    QSqlQuery options(QSqlDatabase::database());
+    QSqlQuery options(QSqlDatabase::database(QStringLiteral("voidone-main"), false));
     options.prepare("SELECT launch_args, working_dir FROM games WHERE exe_path = :path");
     options.bindValue(":path", absolutePath);
     if (options.exec() && options.next()) {
@@ -301,7 +301,7 @@ void GameModel::launchGame(const QString &exePath)
         return;
     }
 
-    QSqlQuery stats(QSqlDatabase::database());
+    QSqlQuery stats(QSqlDatabase::database(QStringLiteral("voidone-main"), false));
     stats.prepare("UPDATE games SET play_count = play_count + 1, last_played = :now WHERE exe_path = :path");
     stats.bindValue(":now", QDateTime::currentSecsSinceEpoch());
     stats.bindValue(":path", absolutePath);
@@ -316,16 +316,15 @@ void GameModel::filter(const QString &searchText)
     const QString needle = searchText.trimmed();
 
     beginResetModel();
-    if (needle.isEmpty()) {
-        m_games = m_allGames;
-    } else {
-        m_games.clear();
-        for (const auto &game : std::as_const(m_allGames)) {
-            if (game.name.contains(needle, Qt::CaseInsensitive)
-                || game.platform.contains(needle, Qt::CaseInsensitive)
-                || game.exePath.contains(needle, Qt::CaseInsensitive)) {
-                m_games.append(game);
-            }
+    m_games.clear();
+    for (const auto &game : std::as_const(m_allGames)) {
+        if (game.hidden)
+            continue;
+        if (needle.isEmpty()
+            || game.name.contains(needle, Qt::CaseInsensitive)
+            || game.platform.contains(needle, Qt::CaseInsensitive)
+            || game.exePath.contains(needle, Qt::CaseInsensitive)) {
+            m_games.append(game);
         }
     }
     endResetModel();
@@ -335,7 +334,7 @@ void GameModel::filter(const QString &searchText)
 
 void GameModel::setFavorite(int id, bool favorite)
 {
-    QSqlQuery q(QSqlDatabase::database());
+    QSqlQuery q(QSqlDatabase::database(QStringLiteral("voidone-main"), false));
     q.prepare("UPDATE games SET favorite=:favorite WHERE id=:id");
     q.bindValue(":favorite", favorite ? 1 : 0); q.bindValue(":id", id);
     if (q.exec()) loadGamesFromDatabase();
