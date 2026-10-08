@@ -30,12 +30,13 @@ Rectangle {
                 color: "#00e5ff12"
                 border.color: "#00e5ff38"
 
-                Text {
+                Image {
                     anchors.centerIn: parent
-                    text: "V"
-                    color: "#00e5ff"
-                    font.pixelSize: 18
-                    font.bold: true
+                    width: 27
+                    height: 27
+                    source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
                 }
             }
 
