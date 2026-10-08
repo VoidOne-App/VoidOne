@@ -61,7 +61,14 @@ if(VOIDONE_ENABLE_LTO AND CMAKE_BUILD_TYPE STREQUAL "Release")
     include(CheckIPOSupported)
     check_ipo_supported(RESULT _ipo_supported OUTPUT _ipo_error)
     if(_ipo_supported)
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+        if(MSVC)
+            # MSVC LTCG can promote C4702 diagnostics emitted from Qt headers
+            # during link-time code generation to fatal errors under /WX.
+            # Keep Release optimization enabled, but avoid LTCG on MSVC.
+            message(STATUS "LTO disabled for MSVC Release builds to avoid Qt/QtQml C4702 LTCG failures")
+        else()
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+        endif()
     else()
         message(WARNING "LTO requested but unsupported: ${_ipo_error}")
     endif()
