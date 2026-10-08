@@ -217,6 +217,8 @@ jobs:
           $parts = $base.Split('.')
           "value=$version" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "windows_value=$($parts[0]).$($parts[1]).$($parts[2]).0" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "VOIDONE_VERSION=$version" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+          "VOIDONE_VERSION_WINDOWS=$($parts[0]).$($parts[1]).$($parts[2]).0" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
 
       # ---------------------------------------------------------------------
       # Stage 3: configure -> build -> test in one canonical build tree
@@ -225,7 +227,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVOIDONE_BUILD_TESTS=ON -DVOIDONE_GENERATE_INSTALLER=OFF '-DVOIDONE_VERSION_OVERRIDE:STRING=${{ steps.version.outputs.value }}'
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVOIDONE_BUILD_TESTS=ON -DVOIDONE_GENERATE_INSTALLER=OFF
           if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
 
       - name: Build application and tests
