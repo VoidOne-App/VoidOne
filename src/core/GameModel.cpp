@@ -4,6 +4,8 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QSqlQuery>
+#include <QVariantMap>
 #include <QRegularExpression>
 #include <algorithm>
 #include <functional>
@@ -56,6 +58,14 @@ QVariant GameModel::data(const QModelIndex &index, int role) const
     case ExePathRole: return game.exePath;
     case IconPathRole: return game.iconPath;
     case PlatformRole: return game.platform;
+    case SourceRole: return game.source;
+    case WorkingDirRole: return game.workingDir;
+    case LaunchArgsRole: return game.launchArgs;
+    case PlaySecondsRole: return game.playSeconds;
+    case PlayCountRole: return game.playCount;
+    case LastPlayedRole: return game.lastPlayed;
+    case FavoriteRole: return game.favorite;
+    case HiddenRole: return game.hidden;
     default: return {};
     }
 }
@@ -67,7 +77,10 @@ QHash<int, QByteArray> GameModel::roleNames() const
         {NameRole, "name"},
         {ExePathRole, "exePath"},
         {IconPathRole, "iconPath"},
-        {PlatformRole, "platform"}
+        {PlatformRole, "platform"},
+        {SourceRole, "source"}, {WorkingDirRole, "workingDir"}, {LaunchArgsRole, "launchArgs"},
+        {PlaySecondsRole, "playSeconds"}, {PlayCountRole, "playCount"}, {LastPlayedRole, "lastPlayed"},
+        {FavoriteRole, "favorite"}, {HiddenRole, "hidden"}
     };
 }
 
@@ -107,8 +120,13 @@ bool GameModel::addNewGame(const QString &name, const QString &exePath, const QS
     }
 #endif
 
-    GameRecord game{-1, trimmedName, exeInfo.absoluteFilePath(),
-                    iconPath.trimmed(), QStringLiteral("Custom")};
+    GameRecord game;
+    game.name = trimmedName;
+    game.exePath = exeInfo.absoluteFilePath();
+    game.iconPath = iconPath.trimmed();
+    game.platform = QStringLiteral("Custom");
+    game.source = QStringLiteral("Local");
+    game.workingDir = exeInfo.absolutePath();
     if (!Database::addGame(game))
         return false;
 
@@ -280,4 +298,41 @@ void GameModel::filter(const QString &searchText)
     }
     endResetModel();
     emit countChanged();
+}
+
+
+void GameModel::setFavorite(int id, bool favorite)
+{
+    QSqlQuery q(QSqlDatabase::database());
+    q.prepare("UPDATE games SET favorite=:favorite WHERE id=:id");
+    q.bindValue(":favorite", favorite ? 1 : 0); q.bindValue(":id", id);
+    if (q.exec()) loadGamesFromDatabase();
+}
+
+void GameModel::hideGame(int id, bool hidden)
+{
+    QSqlQuery q(QSqlDatabase::database());
+    q.prepare("UPDATE games SET hidden=:hidden WHERE id=:id");
+    q.bindValue(":hidden", hidden ? 1 : 0); q.bindValue(":id", id);
+    if (q.exec()) loadGamesFromDatabase();
+}
+
+void GameModel::updateLaunchOptions(int id, const QString &args, const QString &workingDir)
+{
+    QSqlQuery q(QSqlDatabase::database());
+    q.prepare("UPDATE games SET launch_args=:args, working_dir=:dir WHERE id=:id");
+    q.bindValue(":args", args); q.bindValue(":dir", workingDir); q.bindValue(":id", id);
+    if (q.exec()) loadGamesFromDatabase();
+}
+
+QVariantMap GameModel::getGameDetails(int id) const
+{
+    QVariantMap r;
+    for (const GameRecord &g : m_allGames) if (g.id == id) {
+        r["id"]=g.id; r["name"]=g.name; r["exePath"]=g.exePath; r["iconPath"]=g.iconPath;
+        r["platform"]=g.platform; r["source"]=g.source; r["workingDir"]=g.workingDir;
+        r["launchArgs"]=g.launchArgs; r["playSeconds"]=g.playSeconds; r["playCount"]=g.playCount;
+        r["lastPlayed"]=g.lastPlayed; r["favorite"]=g.favorite; r["hidden"]=g.hidden; break;
+    }
+    return r;
 }
