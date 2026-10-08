@@ -16,7 +16,15 @@ public:
         NameRole,
         ExePathRole,
         IconPathRole,
-        PlatformRole
+        PlatformRole,
+        SourceRole,
+        WorkingDirRole,
+        LaunchArgsRole,
+        PlaySecondsRole,
+        PlayCountRole,
+        LastPlayedRole,
+        FavoriteRole,
+        HiddenRole
     };
 
     explicit GameModel(QObject *parent = nullptr);
@@ -30,10 +38,15 @@ public:
     Q_INVOKABLE QStringList suggestExecutables(const QString &folderPath) const;
     Q_INVOKABLE bool deleteGame(int id, int index);
     Q_INVOKABLE void launchGame(const QString &exePath);
+    Q_INVOKABLE void setFavorite(int id, bool favorite);
+    Q_INVOKABLE void hideGame(int id, bool hidden);
+    Q_INVOKABLE void updateLaunchOptions(int id, const QString &args, const QString &workingDir);
+    Q_INVOKABLE QVariantMap getGameDetails(int id) const;
     Q_INVOKABLE void filter(const QString &searchText);
 
 signals:
     void countChanged();
+    void gameLaunched(int id);
 
 private:
     QVector<GameRecord> m_allGames;
