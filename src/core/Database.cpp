@@ -69,12 +69,31 @@ bool prepareSchema(const QSqlDatabase &db)
             "name TEXT NOT NULL, "
             "exe_path TEXT UNIQUE, "
             "icon_path TEXT, "
-            "platform TEXT NOT NULL DEFAULT 'Custom'"
+            "platform TEXT NOT NULL DEFAULT 'Custom', "
+            "source TEXT NOT NULL DEFAULT 'Custom', "
+            "working_dir TEXT, launch_args TEXT, "
+            "play_seconds INTEGER NOT NULL DEFAULT 0, play_count INTEGER NOT NULL DEFAULT 0, "
+            "last_played INTEGER NOT NULL DEFAULT 0, favorite INTEGER NOT NULL DEFAULT 0, hidden INTEGER NOT NULL DEFAULT 0"
             ")")) {
         qCritical() << "[Database] Schema creation failed:" << schema.lastError().text();
         return false;
     }
 
+    const QStringList migrations = {
+        "ALTER TABLE games ADD COLUMN source TEXT NOT NULL DEFAULT 'Custom'",
+        "ALTER TABLE games ADD COLUMN working_dir TEXT",
+        "ALTER TABLE games ADD COLUMN launch_args TEXT",
+        "ALTER TABLE games ADD COLUMN play_seconds INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE games ADD COLUMN play_count INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE games ADD COLUMN last_played INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE games ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE games ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0"
+    };
+    for (const QString &migration : migrations) {
+        QSqlQuery migrate(db);
+        if (!migrate.exec(migration) && !migrate.lastError().text().contains("duplicate column", Qt::CaseInsensitive))
+            qWarning() << "[Database] Migration skipped:" << migrate.lastError().text();
+    }
     return true;
 }
 }
@@ -145,14 +164,17 @@ bool Database::addGame(const GameRecord &game)
 
     QSqlQuery query(db);
     query.prepare(
-        "INSERT INTO games (name, exe_path, icon_path, platform) "
-        "VALUES (:name, :exe_path, :icon_path, :platform) "
+        "INSERT INTO games (name, exe_path, icon_path, platform, source, working_dir, launch_args) "
+        "VALUES (:name, :exe_path, :icon_path, :platform, :source, :working_dir, :launch_args) "
         "ON CONFLICT(exe_path) DO UPDATE SET "
-        "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform");
+        "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform, source=excluded.source, working_dir=excluded.working_dir, launch_args=excluded.launch_args");
     query.bindValue(":name", game.name.trimmed());
     query.bindValue(":exe_path", game.exePath.trimmed());
     query.bindValue(":icon_path", game.iconPath.trimmed());
     query.bindValue(":platform", game.platform.trimmed().isEmpty() ? QStringLiteral("Custom") : game.platform.trimmed());
+    query.bindValue(":source", game.source.trimmed().isEmpty() ? QStringLiteral("Custom") : game.source.trimmed());
+    query.bindValue(":working_dir", game.workingDir.trimmed().isEmpty() ? QFileInfo(game.exePath).absolutePath() : game.workingDir.trimmed());
+    query.bindValue(":launch_args", game.launchArgs);
 
     if (!query.exec()) {
         qWarning() << "[Database] Insert/update failed:" << query.lastError().text();
@@ -179,10 +201,10 @@ bool Database::addGamesBatch(const QVector<GameRecord> &games)
 
     QSqlQuery query(db);
     query.prepare(
-        "INSERT INTO games (name, exe_path, icon_path, platform) "
-        "VALUES (:name, :exe_path, :icon_path, :platform) "
+        "INSERT INTO games (name, exe_path, icon_path, platform, source, working_dir, launch_args) "
+        "VALUES (:name, :exe_path, :icon_path, :platform, :source, :working_dir, :launch_args) "
         "ON CONFLICT(exe_path) DO UPDATE SET "
-        "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform");
+        "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform, source=excluded.source, working_dir=excluded.working_dir, launch_args=excluded.launch_args");
 
     for (const auto &game : games) {
         if (game.name.trimmed().isEmpty() || game.exePath.trimmed().isEmpty()) {
@@ -195,6 +217,9 @@ bool Database::addGamesBatch(const QVector<GameRecord> &games)
         query.bindValue(":exe_path", game.exePath.trimmed());
         query.bindValue(":icon_path", game.iconPath.trimmed());
         query.bindValue(":platform", game.platform.trimmed().isEmpty() ? QStringLiteral("Custom") : game.platform.trimmed());
+        query.bindValue(":source", game.source.trimmed().isEmpty() ? QStringLiteral("Custom") : game.source.trimmed());
+        query.bindValue(":working_dir", game.workingDir.trimmed().isEmpty() ? QStringLiteral("") : game.workingDir.trimmed());
+        query.bindValue(":launch_args", game.launchArgs);
         if (!query.exec()) {
             qWarning() << "[Database] Batch insert/update failed:" << query.lastError().text();
             db.rollback();
@@ -220,7 +245,7 @@ QVector<GameRecord> Database::getAllGames()
     }
 
     QSqlQuery query(db);
-    if (!query.exec("SELECT id, name, exe_path, icon_path, platform FROM games ORDER BY name COLLATE NOCASE ASC")) {
+    if (!query.exec("SELECT id, name, exe_path, icon_path, platform, source, working_dir, launch_args, play_seconds, play_count, last_played, favorite, hidden FROM games ORDER BY favorite DESC, name COLLATE NOCASE ASC")) {
         qWarning() << "[Database] Query failed:" << query.lastError().text();
         return games;
     }
@@ -232,6 +257,14 @@ QVector<GameRecord> Database::getAllGames()
         rec.exePath = query.value(2).toString();
         rec.iconPath = query.value(3).toString();
         rec.platform = query.value(4).toString();
+        rec.source = query.value(5).toString();
+        rec.workingDir = query.value(6).toString();
+        rec.launchArgs = query.value(7).toString();
+        rec.playSeconds = query.value(8).toLongLong();
+        rec.playCount = query.value(9).toInt();
+        rec.lastPlayed = query.value(10).toLongLong();
+        rec.favorite = query.value(11).toInt() != 0;
+        rec.hidden = query.value(12).toInt() != 0;
         games.append(rec);
     }
     return games;
