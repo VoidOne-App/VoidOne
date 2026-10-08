@@ -52,7 +52,15 @@ QString appDataDirectory()
 
 QString logDirectoryPath()
 {
+#ifdef Q_OS_WIN
+    // Logs are machine-local diagnostics and must live beside the Windows
+    // LOCALAPPDATA tree used by the installer/CI smoke test. Keep the main
+    // persistent application data location unchanged for compatibility.
+    const QString localData = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    return QDir(localData).filePath("logs");
+#else
     return QDir(appDataDirectory()).filePath("logs");
+#endif
 }
 
 void enterpriseMessageHandler(QtMsgType type, const QMessageLogContext &context,
