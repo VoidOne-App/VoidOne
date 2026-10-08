@@ -621,6 +621,7 @@ Window {
 
     AddGameDialog {
         id: addGameDialog
+        onNotificationRequested: function(message, isError) { root.showNotification(message, isError) }
     }
 
     Component {
