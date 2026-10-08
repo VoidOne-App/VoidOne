@@ -42,7 +42,7 @@
     {
       "name": "ci-windows",
       "displayName": "CI (Windows, strict)",
-      "description": "Windows CI configuration with tests, warnings-as-errors, and LTO enabled.",
+      "description": "Windows CI configuration with tests and warnings-as-errors; LTO is enabled where supported.",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
