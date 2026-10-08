@@ -131,10 +131,63 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          choco install ninja nsis -y --no-progress
-          $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS'
-          if (-not (Test-Path (Join-Path $nsis 'makensis.exe'))) { throw 'NSIS installation failed.' }
-          $nsis | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) {
+            choco install ninja -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "Ninja installation failed: $LASTEXITCODE" }
+          }
+
+          # GitHub-hosted Windows images may already contain NSIS. Prefer the
+          # runner copy so a temporary Chocolatey outage cannot break CI.
+          $makensisCandidates = @(
+            (Get-Command makensis.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+            (Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'),
+            (Join-Path ${env:ProgramFiles} 'NSIS\makensis.exe')
+          ) | Where-Object { $_ -and (Test-Path $_ -PathType Leaf) }
+
+          $makensis = $makensisCandidates | Select-Object -First 1
+
+          if (-not $makensis) {
+            # Chocolatey is only a fallback. Retry transient 5xx/feed failures
+            # before falling back to a pinned official NSIS ZIP.
+            for ($attempt = 1; $attempt -le 3 -and -not $makensis; $attempt++) {
+              try {
+                choco install nsis --version=3.10 -y --no-progress --limit-output
+                if ($LASTEXITCODE -eq 0) {
+                  $makensis = @(
+                    (Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'),
+                    (Join-Path ${env:ProgramFiles} 'NSIS\makensis.exe')
+                  ) | Where-Object { Test-Path $_ -PathType Leaf } | Select-Object -First 1
+                }
+              } catch {
+                Write-Warning "Chocolatey NSIS attempt $attempt failed: $($_.Exception.Message)"
+              }
+              if (-not $makensis -and $attempt -lt 3) { Start-Sleep -Seconds 5 }
+            }
+          }
+
+          if (-not $makensis) {
+            $nsisZip = Join-Path $env:RUNNER_TEMP 'nsis-3.10.zip'
+            $nsisRoot = Join-Path $env:RUNNER_TEMP 'nsis-3.10'
+            $url = 'https://prdownloads.sourceforge.net/nsis/nsis-3.10.zip?download'
+            try {
+              Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $nsisZip -MaximumRetryCount 3 -RetryIntervalSec 5
+            } catch {
+              throw "NSIS installation failed after runner, Chocolatey, and direct-download fallbacks: $($_.Exception.Message)"
+            }
+            if (-not (Test-Path $nsisZip -PathType Leaf) -or (Get-Item $nsisZip).Length -lt 1000000) {
+              throw 'NSIS installation failed: downloaded archive is missing or unexpectedly small.'
+            }
+            Remove-Item $nsisRoot -Recurse -Force -ErrorAction SilentlyContinue
+            Expand-Archive -Path $nsisZip -DestinationPath $nsisRoot -Force
+            $makensis = Get-ChildItem $nsisRoot -Recurse -Filter makensis.exe -File |
+              Select-Object -First 1 -ExpandProperty FullName
+            if (-not $makensis) { throw 'NSIS installation failed: makensis.exe was not found.' }
+          }
+
+          $nsisDir = Split-Path $makensis -Parent
+          $nsisDir | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+          Write-Host "Using NSIS: $makensis"
 
       - name: Verify deterministic toolchain
         shell: pwsh
