@@ -14,12 +14,15 @@ Dialog {
     property string selectedExecutable: ""
     property string selectedName: ""
     property var candidates: []
+    property bool scanning: false
+    signal notificationRequested(string message, bool isError)
 
     function reset() {
         selectedFolder = ""
         selectedExecutable = ""
         selectedName = ""
         candidates = []
+        scanning = false
         nameField.text = ""
     }
 
@@ -96,6 +99,46 @@ Dialog {
             font.pixelSize: 10
             font.bold: true
             font.letterSpacing: 1.4
+        }
+
+        DropArea {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 54
+            keys: ["text/uri-list"]
+            onEntered: dragHint.visible = true
+            onExited: dragHint.visible = false
+            onDropped: function(drop) {
+                dragHint.visible = false
+                if (drop.urls && drop.urls.length > 0) {
+                    var path = drop.urls[0].toLocalFile()
+                    if (path.toLowerCase().endsWith(".exe")) {
+                        selectedExecutable = path
+                        selectedName = path.split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
+                        nameField.text = selectedName
+                    } else {
+                        selectedFolder = path
+                        scanning = true
+                        scanAnimation.restart()
+                        scanTimer.restart()
+                    }
+                }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: 13
+                color: dragHint.visible ? "#00e5ff10" : "#080c12"
+                border.color: dragHint.visible ? "#00e5ff88" : "#172533"
+                Text {
+                    id: dragHint
+                    anchors.centerIn: parent
+                    visible: false
+                    text: qsTr("Drop a game .exe or folder here")
+                    color: "#00e5ff"
+                    font.pixelSize: 11
+                    font.bold: true
+                }
+            }
         }
 
         RowLayout {
@@ -176,8 +219,48 @@ Dialog {
             font.letterSpacing: 1.2
         }
 
+        Rectangle {
+            visible: scanning
+            Layout.fillWidth: true
+            implicitHeight: 48
+            radius: 11
+            color: "#00e5ff08"
+            border.color: "#00e5ff28"
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 10
+                Rectangle {
+                    width: 18
+                    height: 18
+                    radius: 9
+                    color: "transparent"
+                    border.color: "#00e5ff55"
+                    border.width: 2
+                    Rectangle {
+                        width: 6; height: 6; radius: 3
+                        anchors.centerIn: parent
+                        color: "#00e5ff"
+                    }
+                    RotationAnimation on rotation {
+                        id: scanAnimation
+                        from: 0; to: 360; duration: 800
+                        loops: Animation.Infinite
+                        running: scanning
+                    }
+                }
+                Text {
+                    text: qsTr("Scanning this folder for likely game executables…")
+                    color: "#9fb4c6"
+                    font.pixelSize: 11
+                    Layout.fillWidth: true
+                }
+            }
+        }
+
         ListView {
-            visible: candidates.length > 0
+            visible: candidates.length > 0 && !scanning
             Layout.fillWidth: true
             Layout.preferredHeight: Math.min(180, candidates.length * 48)
             clip: true
@@ -308,7 +391,9 @@ Dialog {
 
         onAccepted: {
             selectedFolder = folderDialog.selectedFolder.toLocalFile()
-            candidates = gameModel.suggestExecutables(selectedFolder)
+            scanning = true
+            scanAnimation.restart()
+            scanTimer.restart()
             if (candidates.length === 1) {
                 selectedExecutable = candidates[0]
                 selectedName = candidates[0].split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
@@ -317,8 +402,21 @@ Dialog {
         }
     }
 
-    Component {
-        id: actionButtonComponent
+    Timer {
+        id: scanTimer
+        interval: 80
+        repeat: false
+        onTriggered: {
+            candidates = gameModel.suggestExecutables(selectedFolder)
+            scanning = false
+            if (candidates.length === 0)
+                notificationRequested(qsTr("No likely game executable was found in that folder."), true)
+            else if (candidates.length === 1) {
+                selectedExecutable = candidates[0]
+                selectedName = candidates[0].split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
+                nameField.text = selectedName
+            }
+        }
     }
 
     Component.onCompleted: reset()
