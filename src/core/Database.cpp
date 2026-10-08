@@ -219,10 +219,10 @@ bool Database::addGamesBatch(const QVector<GameRecord> &games)
         query.bindValue(":icon_path", game.iconPath.trimmed());
         query.bindValue(":platform", game.platform.trimmed().isEmpty() ? QStringLiteral("Custom") : game.platform.trimmed());
         query.bindValue(":source", game.source.trimmed().isEmpty() ? QStringLiteral("Custom") : game.source.trimmed());
-        query.bindValue(":working_dir", game.workingDir.trimmed().isEmpty() ? QStringLiteral("") : game.workingDir.trimmed());
+        query.bindValue(":working_dir", game.workingDir.trimmed().isEmpty() ? QFileInfo(game.exePath).absolutePath() : game.workingDir.trimmed());
         query.bindValue(":launch_args", game.launchArgs);
         if (!query.exec()) {
-            qWarning() << "[Database] Batch insert/update failed:" << query.lastError().text();
+             qWarning() << "[Database] Batch insert/update failed:" << query.lastError().text();
             db.rollback();
             return false;
         }
