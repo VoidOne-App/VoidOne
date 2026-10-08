@@ -341,7 +341,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: VoidOne-\${{ steps.version.outputs.value }}-StartupDiagnostics
+          name: VoidOne-${{ steps.version.outputs.value }}-StartupDiagnostics
           path: startup-diagnostics
           if-no-files-found: warn
           retention-days: 14
