@@ -19,9 +19,9 @@
 !define LICENSE_PATH "${PROJECT_ROOT}\LICENSE"
 
 !define APP_NAME "VoidOne"
-!define COMPANY_NAME "VoidOne"
+!define COMPANY_NAME "VoidOne_app"
 !define EXE_NAME "VoidOne.exe"
-!define PUBLISHER "VoidOne"
+!define PUBLISHER "VoidOne_app"
 !define WEB_SITE "https://github.com/VoidOne-App/VoidOne"
 !define FILE_EXT "vone"
 !define PROTOCOL_SCHEME "voidone"
