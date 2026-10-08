@@ -350,10 +350,19 @@ void GameModel::hideGame(int id, bool hidden)
 
 void GameModel::updateLaunchOptions(int id, const QString &args, const QString &workingDir)
 {
-    QSqlQuery q(QSqlDatabase::database());
+    const QSqlDatabase db = QSqlDatabase::database(QStringLiteral("voidone-main"), false);
+    if (!db.isValid() || !db.isOpen()) {
+        qWarning() << "[VoidOne] Cannot update launch options: database is unavailable.";
+        return;
+    }
+    QSqlQuery q(db);
     q.prepare("UPDATE games SET launch_args=:args, working_dir=:dir WHERE id=:id");
     q.bindValue(":args", args); q.bindValue(":dir", workingDir); q.bindValue(":id", id);
-    if (q.exec()) loadGamesFromDatabase();
+    if (!q.exec()) {
+        qWarning() << "[VoidOne] Failed to update launch options:" << q.lastError().text();
+        return;
+    }
+    loadGamesFromDatabase();
 }
 
 QVariantMap GameModel::getGameDetails(int id) const
