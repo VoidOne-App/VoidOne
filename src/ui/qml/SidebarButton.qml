@@ -4,17 +4,17 @@ import QtQuick.Layouts
 
 Button {
     id: button
-    property string icon: ""
-    property string label: ""
-    property bool selected: false
-    property string badge: ""
-    property bool compact: false
+    property string voIcon: ""
+    property string voLabel: ""
+    property bool voSelected: false
+    property string voBadge: ""
+    property bool voCompact: false
 
-    implicitHeight: compact ? 38 : 46
+    implicitHeight: voCompact ? 38 : 46
     implicitWidth: parent ? parent.width : 200
 
     background: Rectangle {
-        color: selected ? "#00ffee20" : (button.hovered ? "#00ffee10" : "transparent")
+        color: voSelected ? "#00ffee20" : (button.hovered ? "#00ffee10" : "transparent")
         radius: 10
         border.color: selected ? "#00ffee" : "transparent"
         border.width: selected ? 1.5 : 0
@@ -28,16 +28,16 @@ Button {
         spacing: 10
 
         Text {
-            text: icon
-            font.pixelSize: compact ? 14 : 18
+            text: voIcon
+            font.pixelSize: voCompact ? 14 : 18
         }
 
         Text {
             Layout.fillWidth: true
-            text: label
+            text: voLabel
             color: selected ? "#00ffee" : "#00ffee80"
             font.pixelSize: 13
-            font.bold: selected
+            font.bold: voSelected
             elide: Text.ElideRight
         }
     }
