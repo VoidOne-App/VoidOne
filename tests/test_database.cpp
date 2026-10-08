@@ -80,9 +80,15 @@ void DatabaseTests::batchInsertIsAtomic()
 
     QVERIFY(Database::addGamesBatch({first, second}));
 
+    GameRecord invalid;
+    invalid.name = QStringLiteral("Invalid Batch");
+    invalid.exePath = QString();
+    QVERIFY(!Database::addGamesBatch({first, invalid}));
+
     const auto games = Database::getAllGames();
     QVERIFY(std::any_of(games.cbegin(), games.cend(), [&](const GameRecord &g) { return g.exePath == first.exePath; }));
     QVERIFY(std::any_of(games.cbegin(), games.cend(), [&](const GameRecord &g) { return g.exePath == second.exePath; }));
+    QVERIFY(std::none_of(games.cbegin(), games.cend(), [&](const GameRecord &g) { return g.name == invalid.name; }));
 }
 
 QTEST_GUILESS_MAIN(DatabaseTests)
