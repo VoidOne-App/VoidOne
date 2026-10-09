@@ -306,7 +306,7 @@ Window {
 
                                 ColumnLayout {
                                     anchors.left: parent.left
-                                    anchors.leftMargin: 68
+                                    anchors.leftMargin: root.narrowLayout ? 28 : 68
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: parent.width * (root.narrowLayout ? 0.72 : 0.58)
                                     spacing: 10
@@ -364,6 +364,7 @@ Window {
                                 }
 
                                 Text {
+                                    visible: !root.narrowLayout
                                     anchors.right: parent.right
                                     anchors.rightMargin: 42
                                     anchors.verticalCenter: parent.verticalCenter
