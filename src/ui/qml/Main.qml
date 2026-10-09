@@ -15,14 +15,15 @@ Window {
 
     width: Screen.desktopAvailableWidth * 0.86
     height: Screen.desktopAvailableHeight * 0.86
-    minimumWidth: 1040
-    minimumHeight: 700
+    minimumWidth: 900
+    minimumHeight: 600
     visible: true
     title: qsTr("VoidOne")
     color: theme.background
 
     property string currentPage: "home"
     property bool sidebarCompact: false
+    readonly property bool narrowLayout: width < 1100
 
     QtObject {
         id: theme
@@ -131,7 +132,7 @@ Window {
                         }
 
                         Rectangle {
-                            Layout.preferredWidth: 300
+                            Layout.preferredWidth: root.narrowLayout ? 190 : 300
                             Layout.preferredHeight: 38
                             radius: 10
                             color: "#0b1118"
@@ -184,11 +185,6 @@ Window {
                                     height: 7
                                     radius: 4
                                     color: theme.success
-                                    SequentialAnimation on opacity {
-                                        loops: Animation.Infinite
-                                        NumberAnimation { to: 0.25; duration: 900 }
-                                        NumberAnimation { to: 1; duration: 900 }
-                                    }
                                 }
                                 Text {
                                     text: qsTr("LOCAL")
@@ -237,12 +233,12 @@ Window {
 
                         ColumnLayout {
                             id: homeColumn
-                            width: parent.width
+                            width: Math.max(0, parent.width - 56)
                             anchors.top: parent.top
-                            anchors.topMargin: 30
-                            anchors.leftMargin: 34
-                            anchors.rightMargin: 34
-                            spacing: 24
+                            anchors.topMargin: 26
+                            anchors.left: parent.left
+                            anchors.leftMargin: 28
+                            spacing: 22
 
                             RowLayout {
                                 Layout.fillWidth: true
@@ -253,7 +249,7 @@ Window {
                                     Text {
                                         text: qsTr("Your games. Your hardware. Your rules.")
                                         color: theme.text
-                                        font.pixelSize: 29
+                                        font.pixelSize: root.narrowLayout ? 23 : 29
                                         font.bold: true
                                     }
                                     Text {
@@ -285,8 +281,8 @@ Window {
                             // Hero
                             Rectangle {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 220
-                                radius: 22
+                                Layout.preferredHeight: root.narrowLayout ? 185 : 220
+                                radius: 18
                                 color: "#0d151e"
                                 border.color: "#1b2b3b"
                                 clip: true
@@ -312,8 +308,8 @@ Window {
                                     anchors.left: parent.left
                                     anchors.leftMargin: 68
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width * 0.58
-                                    spacing: 12
+                                    width: parent.width * (root.narrowLayout ? 0.72 : 0.58)
+                                    spacing: 10
 
                                     Text {
                                         text: qsTr("WELCOME BACK")
@@ -326,7 +322,7 @@ Window {
                                     Text {
                                         text: gameModel && gameModel.count > 0 ? qsTr("Ready to play.") : qsTr("Build your library.")
                                         color: theme.text
-                                        font.pixelSize: 31
+                                        font.pixelSize: root.narrowLayout ? 25 : 31
                                         font.bold: true
                                     }
 
@@ -396,14 +392,14 @@ Window {
                                 }
                                 StatCard {
                                     Layout.fillWidth: true
-                                    label: qsTr("CONTROL")
-                                    value: "100%"
-                                    detail: qsTr("your library")
+                                    label: qsTr("LAUNCH")
+                                    value: qsTr("DIRECT")
+                                    detail: qsTr("from your library")
                                 }
                             }
 
                             Text {
-                                text: qsTr("RECENTLY ADDED")
+                                text: qsTr("YOUR LIBRARY")
                                 color: theme.muted
                                 font.pixelSize: 10
                                 font.bold: true
@@ -412,9 +408,10 @@ Window {
 
                             GridView {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: Math.max(190, Math.ceil((gameModel ? gameModel.count : 0) / 3) * 190)
+                                property int columns: width < 560 ? 1 : (width < 900 ? 2 : 3)
+                                Layout.preferredHeight: Math.max(190, Math.ceil((gameModel ? gameModel.count : 0) / columns) * 190)
                                 interactive: false
-                                cellWidth: width / 3
+                                cellWidth: width / columns
                                 cellHeight: 180
                                 model: typeof gameModel !== "undefined" ? gameModel : null
 
@@ -445,7 +442,7 @@ Window {
                     Item {
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 32
+                            anchors.margins: 24
                             spacing: 18
 
                             RowLayout {
