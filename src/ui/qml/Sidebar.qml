@@ -13,9 +13,9 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.topMargin: 18
-        anchors.bottomMargin: 16
-        spacing: 14
+        anchors.topMargin: 16
+        anchors.bottomMargin: 14
+        spacing: 12
 
         RowLayout {
             Layout.fillWidth: true
