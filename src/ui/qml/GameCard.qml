@@ -1,8 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
-
 Rectangle {
     id: cardRoot
 
@@ -20,23 +18,25 @@ Rectangle {
 
     signal launchRequested(string path)
 
-    radius: 16
-    color: hoverArea.containsMouse ? "#111d29" : "#0c131b"
-    border.color: hoverArea.containsMouse ? "#00e5ff66" : "#172533"
+    function iconUrl(path) {
+        if (!path || path.length === 0)
+            return "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+        if (path.startsWith("qrc:/") || path.startsWith("file:/") || path.startsWith("http://") || path.startsWith("https://"))
+            return path
+        if (path.startsWith(":/"))
+            return "qrc" + path
+        if (path.startsWith("/"))
+            return "file://" + path
+        return "file:///" + path.replace(/\\/g, "/")
+    }
+
+    radius: 14
+    color: hoverArea.containsMouse ? "#111e2a" : "#0c141d"
+    border.color: hoverArea.containsMouse ? "#00e5ff66" : "#1a2a39"
     border.width: 1
 
-    scale: hoverArea.containsMouse ? 1.018 : 1.0
-    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-    Behavior on color { ColorAnimation { duration: 150 } }
-    Behavior on border.color { ColorAnimation { duration: 150 } }
-
-    layer.enabled: hoverArea.containsMouse
-    layer.effect: MultiEffect {
-        shadowEnabled: true
-        shadowColor: "#00e5ff"
-        shadowBlur: 0.22
-        shadowOpacity: 0.25
-    }
+    Behavior on color { ColorAnimation { duration: 120 } }
+    Behavior on border.color { ColorAnimation { duration: 120 } }
 
     Rectangle {
         anchors.left: parent.left
@@ -72,11 +72,23 @@ Rectangle {
                 border.color: "#00e5ff22"
 
                 Image {
+                    id: gameIcon
+                    anchors.centerIn: parent
+                    width: parent.width * 0.72
+                    height: width
+                    source: cardRoot.iconUrl(cardRoot.iconPath)
+                    fillMode: Image.PreserveAspectFit
+                    visible: status === Image.Ready
+                    asynchronous: true
+                }
+
+                Image {
                     anchors.centerIn: parent
                     width: parent.width * 0.48
                     height: width
                     source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
                     fillMode: Image.PreserveAspectFit
+                    visible: gameIcon.status !== Image.Ready
                 }
             }
 
