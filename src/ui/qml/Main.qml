@@ -670,15 +670,15 @@ Window {
                                         Layout.fillWidth: true
                                         spacing: 3
                                         Text {
-                                            text: qsTr("Language")
+                                            text: qsTr("Backup panel language")
                                             color: theme.text
                                             font.pixelSize: 13
                                             font.bold: true
                                         }
                                         Text {
                                             text: trManager.currentLanguage === "fa"
-                                                  ? "فارسی"
-                                                  : "English"
+                                                  ? "فقط برچسب‌های بخش پشتیبان‌گیری به فارسی نمایش داده می‌شوند."
+                                                  : "Changes labels in the backup controls only."
                                             color: theme.muted
                                             font.pixelSize: 11
                                         }
