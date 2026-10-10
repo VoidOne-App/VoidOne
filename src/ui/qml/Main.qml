@@ -23,6 +23,7 @@ Window {
 
     property string currentPage: "home"
     property bool sidebarCompact: false
+    property string libraryFilter: "all"
     readonly property bool narrowLayout: width < 1100
 
     QtObject {
@@ -54,6 +55,19 @@ Window {
         toastAccent.color = isError ? "#ff5f70" : theme.cyan
         toastAnimation.restart()
     }
+
+    function applyPageFilter() {
+        if (typeof gameModel === "undefined" || gameModel === null)
+            return
+        if (currentPage === "activity")
+            gameModel.filterGames(searchInput.text, "recent")
+        else if (currentPage === "library")
+            gameModel.filterGames(searchInput.text, libraryFilter)
+        else
+            gameModel.filterGames(searchInput.text, "all")
+    }
+
+    onCurrentPageChanged: applyPageFilter()
 
     Rectangle {
         anchors.fill: parent
@@ -159,10 +173,7 @@ Window {
                                     background: Item {}
                                     font.pixelSize: 12
                                     selectByMouse: true
-                                    onTextChanged: {
-                                        if (typeof gameModel !== "undefined" && gameModel !== null)
-                                            gameModel.filter(text)
-                                    }
+                                    onTextChanged: root.applyPageFilter()
                                 }
                             }
                         }
@@ -171,7 +182,7 @@ Window {
 
                         Rectangle {
                             Layout.preferredHeight: 36
-                            Layout.preferredWidth: 100
+                            Layout.preferredWidth: 116
                             radius: 10
                             color: "#0c141c"
                             border.color: "#172533"
@@ -187,7 +198,7 @@ Window {
                                     color: theme.success
                                 }
                                 Text {
-                                    text: qsTr("LOCAL")
+                                    text: qsTr("LOCAL-FIRST")
                                     color: theme.muted
                                     font.pixelSize: 10
                                     font.bold: true
@@ -233,6 +244,8 @@ Window {
                         contentWidth: width
                         contentHeight: homeColumn.implicitHeight + 48
                         clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                         ColumnLayout {
                             id: homeColumn
@@ -250,15 +263,19 @@ Window {
                                     Layout.fillWidth: true
                                     spacing: 6
                                     Text {
+                                        Layout.fillWidth: true
                                         text: qsTr("Your games. Your hardware. Your rules.")
                                         color: theme.text
                                         font.pixelSize: root.narrowLayout ? 23 : 29
                                         font.bold: true
+                                        wrapMode: Text.WordWrap
                                     }
                                     Text {
+                                        Layout.fillWidth: true
                                         text: qsTr("A local-first gaming platform that puts your library back in your hands.")
                                         color: theme.muted
                                         font.pixelSize: 13
+                                        wrapMode: Text.WordWrap
                                     }
                                 }
 
@@ -392,15 +409,15 @@ Window {
                                 }
                                 StatCard {
                                     Layout.fillWidth: true
-                                    label: qsTr("PLATFORM")
-                                    value: "LOCAL"
+                                    label: qsTr("ACCOUNT")
+                                    value: qsTr("OPTIONAL")
                                     detail: qsTr("no account required")
                                 }
                                 StatCard {
                                     Layout.fillWidth: true
-                                    label: qsTr("LAUNCH")
-                                    value: qsTr("DIRECT")
-                                    detail: qsTr("from your library")
+                                    label: qsTr("CONTROL")
+                                    value: qsTr("YOURS")
+                                    detail: qsTr("local-first by design")
                                 }
                             }
 
@@ -438,7 +455,7 @@ Window {
                                         gameModel.launchGame(path)
                                         root.showNotification(qsTr("Launching game..."))
                                     }
-                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
+                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, iconPath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
                                 }
                             }
                         }
@@ -498,6 +515,50 @@ Window {
                                 color: "#14202c"
                             }
 
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: qsTr("YOUR GAMES")
+                                    color: theme.muted
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    font.letterSpacing: 1.4
+                                }
+
+                                Repeater {
+                                    model: [
+                                        { label: qsTr("All"), value: "all" },
+                                        { label: qsTr("Favorites"), value: "favorites" },
+                                        { label: qsTr("Recently played"), value: "recent" }
+                                    ]
+                                    delegate: Button {
+                                        required property var modelData
+                                        text: modelData.label
+                                        implicitHeight: 32
+                                        onClicked: {
+                                            root.libraryFilter = modelData.value
+                                            root.applyPageFilter()
+                                        }
+                                        background: Rectangle {
+                                            radius: 9
+                                            color: root.libraryFilter === modelData.value ? "#00e5ff16" : (parent.hovered ? "#101c27" : "#0a1118")
+                                            border.color: root.libraryFilter === modelData.value ? "#00e5ff58" : "#1a2a39"
+                                        }
+                                        contentItem: Text {
+                                            text: parent.text
+                                            color: root.libraryFilter === modelData.value ? theme.cyan : theme.muted
+                                            font.pixelSize: 10
+                                            font.bold: root.libraryFilter === modelData.value
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                    }
+                                }
+                            }
+
                             GridView {
                                 id: gameGrid
                                 Layout.fillWidth: true
@@ -546,7 +607,13 @@ Window {
                                 }
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    text: qsTr("Your library is empty")
+                                    text: searchInput.text.length > 0
+                                          ? qsTr("No games match this search")
+                                          : root.libraryFilter === "favorites"
+                                            ? qsTr("No favorite games yet")
+                                            : root.libraryFilter === "recent"
+                                              ? qsTr("No recently played games")
+                                              : qsTr("Your library is empty")
                                     color: theme.text
                                     font.pixelSize: 18
                                     font.bold: true
@@ -554,8 +621,12 @@ Window {
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
                                     text: searchInput.text.length > 0
-                                          ? qsTr("Try a different search term.")
-                                          : qsTr("Add an executable or choose a game folder.")
+                                          ? qsTr("Try another search or clear the search field.")
+                                          : root.libraryFilter === "favorites"
+                                            ? qsTr("Mark games as favorites with the star on each game card.")
+                                            : root.libraryFilter === "recent"
+                                              ? qsTr("Launch a game and it will appear here.")
+                                              : qsTr("Add an executable or choose a game folder.")
                                     color: theme.muted
                                     font.pixelSize: 12
                                 }
@@ -563,8 +634,15 @@ Window {
                                 Button {
                                     Layout.alignment: Qt.AlignHCenter
                                     visible: searchInput.text.length === 0
-                                    text: qsTr("＋ Add your first game")
-                                    onClicked: addGameDialog.open()
+                                    text: root.libraryFilter === "all" ? qsTr("＋ Add your first game") : qsTr("Show all games")
+                                    onClicked: {
+                                        if (root.libraryFilter !== "all") {
+                                            root.libraryFilter = "all"
+                                            root.applyPageFilter()
+                                        } else {
+                                            addGameDialog.open()
+                                        }
+                                    }
                                     background: Rectangle {
                                         radius: 10
                                         color: theme.cyan
@@ -581,23 +659,95 @@ Window {
                         }
                     }
 
-                    // ACTIVITY
+                    // ACTIVITY — actual launch history from the local game database.
                     Item {
                         ColumnLayout {
-                            anchors.centerIn: parent
-                            spacing: 10
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: qsTr("Activity")
-                                color: theme.text
-                                font.pixelSize: 28
-                                font.bold: true
+                            anchors.fill: parent
+                            anchors.margins: 24
+                            spacing: 16
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 5
+                                Text {
+                                    text: qsTr("Recently played")
+                                    color: theme.text
+                                    font.pixelSize: 28
+                                    font.bold: true
+                                }
+                                Text {
+                                    text: qsTr("Your launch history, stored locally with your game library.")
+                                    color: theme.muted
+                                    font.pixelSize: 12
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
+                                }
                             }
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: qsTr("Play history and platform events are coming next.")
-                                color: theme.muted
-                                font.pixelSize: 12
+
+                            Rectangle { Layout.fillWidth: true; height: 1; color: "#14202c" }
+
+                            GridView {
+                                id: activityGrid
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                cellWidth: Math.max(240, Math.floor(width / Math.max(1, Math.floor(width / 285))))
+                                cellHeight: 202
+                                clip: true
+                                boundsBehavior: Flickable.StopAtBounds
+                                model: typeof gameModel !== "undefined" ? gameModel : null
+                                delegate: GameCard {
+                                    width: activityGrid.cellWidth - 12
+                                    height: 190
+                                    gameId: model.id
+                                    gameName: model.name
+                                    exePath: model.exePath
+                                    iconPath: model.iconPath
+                                    platform: model.platform
+                                    source: model.source
+                                    favorite: model.favorite
+                                    playCount: model.playCount
+                                    itemIndex: index
+                                    onLaunchRequested: function(path) {
+                                        gameModel.launchGame(path)
+                                        root.showNotification(qsTr("Launching game..."))
+                                    }
+                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, iconPath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
+                                }
+                            }
+
+                            ColumnLayout {
+                                anchors.centerIn: activityGrid
+                                visible: activityGrid.count === 0
+                                spacing: 10
+                                Image {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                                    width: 44
+                                    height: 44
+                                    fillMode: Image.PreserveAspectFit
+                                    opacity: 0.75
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: qsTr("No play history yet")
+                                    color: theme.text
+                                    font.pixelSize: 18
+                                    font.bold: true
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.maximumWidth: 360
+                                    text: qsTr("Games appear here after you launch them from VoidOne. No activity is invented or sent to a server.")
+                                    color: theme.muted
+                                    font.pixelSize: 12
+                                    wrapMode: Text.WordWrap
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+                                Button {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: qsTr("Open library")
+                                    onClicked: root.currentPage = "library"
+                                }
                             }
                         }
                     }
