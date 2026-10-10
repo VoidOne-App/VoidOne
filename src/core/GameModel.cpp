@@ -177,7 +177,6 @@ QHash<int, QByteArray> GameModel::roleNames() const
 
 void GameModel::loadGamesFromDatabase()
 {
-    beginResetModel();
     m_allGames = Database::getAllGames();
 
     // Backfill missing icons for games already present in the user's library.
@@ -202,13 +201,7 @@ void GameModel::loadGamesFromDatabase()
         }
     }
 
-    m_games.clear();
-    for (const auto &game : std::as_const(m_allGames)) {
-        if (!game.hidden)
-            m_games.append(game);
-    }
-    endResetModel();
-    emit countChanged();
+    rebuildVisibleGames();
 }
 
 bool GameModel::addNewGame(const QString &name, const QString &exePath, const QString &iconPath)
@@ -428,24 +421,57 @@ void GameModel::launchGame(const QString &exePath)
 
 void GameModel::filter(const QString &searchText)
 {
-    const QString needle = searchText.trimmed();
+    m_filterText = searchText.trimmed();
+    rebuildVisibleGames();
+}
 
+void GameModel::filterGames(const QString &searchText, const QString &mode)
+{
+    const QStringList supportedModes = {
+        QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent")
+    };
+    m_filterMode = supportedModes.contains(mode) ? mode : QStringLiteral("all");
+    m_filterText = searchText.trimmed();
+    rebuildVisibleGames();
+}
+
+void GameModel::rebuildVisibleGames()
+{
     beginResetModel();
     m_games.clear();
+
     for (const auto &game : std::as_const(m_allGames)) {
         if (game.hidden)
             continue;
-        if (needle.isEmpty()
-            || game.name.contains(needle, Qt::CaseInsensitive)
-            || game.platform.contains(needle, Qt::CaseInsensitive)
-            || game.exePath.contains(needle, Qt::CaseInsensitive)) {
-            m_games.append(game);
+        if (m_filterMode == QStringLiteral("favorites") && !game.favorite)
+            continue;
+        if (m_filterMode == QStringLiteral("recent") && game.lastPlayed <= 0)
+            continue;
+        if (!m_filterText.isEmpty()
+            && !game.name.contains(m_filterText, Qt::CaseInsensitive)
+            && !game.platform.contains(m_filterText, Qt::CaseInsensitive)
+            && !game.exePath.contains(m_filterText, Qt::CaseInsensitive)
+            && !game.source.contains(m_filterText, Qt::CaseInsensitive)) {
+            continue;
         }
+        m_games.append(game);
     }
+
+    if (m_filterMode == QStringLiteral("recent")) {
+        std::stable_sort(m_games.begin(), m_games.end(),
+                         [](const GameRecord &left, const GameRecord &right) {
+            return left.lastPlayed > right.lastPlayed;
+        });
+    } else if (m_filterMode == QStringLiteral("favorites")) {
+        std::stable_sort(m_games.begin(), m_games.end(),
+                         [](const GameRecord &left, const GameRecord &right) {
+            return left.name.compare(right.name, Qt::CaseInsensitive) < 0;
+        });
+    }
+
     endResetModel();
     emit countChanged();
 }
-
 
 void GameModel::setFavorite(int id, bool favorite)
 {
