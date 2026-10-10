@@ -74,7 +74,8 @@ bool prepareSchema(const QSqlDatabase &db)
             "source TEXT NOT NULL DEFAULT 'Custom', "
             "working_dir TEXT, launch_args TEXT, "
             "play_seconds INTEGER NOT NULL DEFAULT 0, play_count INTEGER NOT NULL DEFAULT 0, "
-            "last_played INTEGER NOT NULL DEFAULT 0, favorite INTEGER NOT NULL DEFAULT 0, hidden INTEGER NOT NULL DEFAULT 0"
+            "last_played INTEGER NOT NULL DEFAULT 0, favorite INTEGER NOT NULL DEFAULT 0, hidden INTEGER NOT NULL DEFAULT 0, "
+            "steam_app_id INTEGER NOT NULL DEFAULT 0"
             ")")) {
         qCritical() << "[Database] Schema creation failed:" << schema.lastError().text();
         return false;
@@ -88,7 +89,8 @@ bool prepareSchema(const QSqlDatabase &db)
         "ALTER TABLE games ADD COLUMN play_count INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE games ADD COLUMN last_played INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE games ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0",
-        "ALTER TABLE games ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0"
+        "ALTER TABLE games ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE games ADD COLUMN steam_app_id INTEGER NOT NULL DEFAULT 0"
     };
     for (const QString &migration : migrations) {
         QSqlQuery migrate(db);
@@ -165,10 +167,10 @@ bool Database::addGame(const GameRecord &game)
 
     QSqlQuery query(db);
     query.prepare(
-        "INSERT INTO games (name, exe_path, icon_path, platform, source, working_dir, launch_args) "
-        "VALUES (:name, :exe_path, :icon_path, :platform, :source, :working_dir, :launch_args) "
+        "INSERT INTO games (name, exe_path, icon_path, platform, source, working_dir, launch_args, steam_app_id) "
+        "VALUES (:name, :exe_path, :icon_path, :platform, :source, :working_dir, :launch_args, :steam_app_id) "
         "ON CONFLICT(exe_path) DO UPDATE SET "
-        "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform, source=excluded.source, working_dir=excluded.working_dir, launch_args=excluded.launch_args");
+        "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform, source=excluded.source, working_dir=excluded.working_dir, launch_args=excluded.launch_args, steam_app_id=excluded.steam_app_id");
     query.bindValue(":name", game.name.trimmed());
     query.bindValue(":exe_path", game.exePath.trimmed());
     query.bindValue(":icon_path", game.iconPath.trimmed());
@@ -176,6 +178,7 @@ bool Database::addGame(const GameRecord &game)
     query.bindValue(":source", game.source.trimmed().isEmpty() ? QStringLiteral("Custom") : game.source.trimmed());
     query.bindValue(":working_dir", game.workingDir.trimmed().isEmpty() ? QFileInfo(game.exePath).absolutePath() : game.workingDir.trimmed());
     query.bindValue(":launch_args", game.launchArgs);
+    query.bindValue(":steam_app_id", game.steamAppId);
 
     if (!query.exec()) {
         qWarning() << "[Database] Insert/update failed:" << query.lastError().text();
@@ -202,10 +205,10 @@ bool Database::addGamesBatch(const QVector<GameRecord> &games)
 
     QSqlQuery query(db);
     query.prepare(
-        "INSERT INTO games (name, exe_path, icon_path, platform, source, working_dir, launch_args) "
-        "VALUES (:name, :exe_path, :icon_path, :platform, :source, :working_dir, :launch_args) "
+        "INSERT INTO games (name, exe_path, icon_path, platform, source, working_dir, launch_args, steam_app_id) "
+        "VALUES (:name, :exe_path, :icon_path, :platform, :source, :working_dir, :launch_args, :steam_app_id) "
         "ON CONFLICT(exe_path) DO UPDATE SET "
-        "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform, source=excluded.source, working_dir=excluded.working_dir, launch_args=excluded.launch_args");
+        "name=excluded.name, icon_path=excluded.icon_path, platform=excluded.platform, source=excluded.source, working_dir=excluded.working_dir, launch_args=excluded.launch_args, steam_app_id=excluded.steam_app_id");
 
     for (const auto &game : games) {
         if (game.name.trimmed().isEmpty() || game.exePath.trimmed().isEmpty()) {
@@ -221,6 +224,7 @@ bool Database::addGamesBatch(const QVector<GameRecord> &games)
         query.bindValue(":source", game.source.trimmed().isEmpty() ? QStringLiteral("Custom") : game.source.trimmed());
         query.bindValue(":working_dir", game.workingDir.trimmed().isEmpty() ? QFileInfo(game.exePath).absolutePath() : game.workingDir.trimmed());
         query.bindValue(":launch_args", game.launchArgs);
+        query.bindValue(":steam_app_id", game.steamAppId);
         if (!query.exec()) {
              qWarning() << "[Database] Batch insert/update failed:" << query.lastError().text();
             db.rollback();
@@ -246,7 +250,7 @@ QVector<GameRecord> Database::getAllGames()
     }
 
     QSqlQuery query(db);
-    if (!query.exec("SELECT id, name, exe_path, icon_path, platform, source, working_dir, launch_args, play_seconds, play_count, last_played, favorite, hidden FROM games ORDER BY favorite DESC, name COLLATE NOCASE ASC")) {
+    if (!query.exec("SELECT id, name, exe_path, icon_path, platform, source, working_dir, launch_args, play_seconds, play_count, last_played, favorite, hidden, steam_app_id FROM games ORDER BY favorite DESC, name COLLATE NOCASE ASC")) {
         qWarning() << "[Database] Query failed:" << query.lastError().text();
         return games;
     }
@@ -266,6 +270,7 @@ QVector<GameRecord> Database::getAllGames()
         rec.lastPlayed = query.value(10).toLongLong();
         rec.favorite = query.value(11).toInt() != 0;
         rec.hidden = query.value(12).toInt() != 0;
+        rec.steamAppId = query.value(13).toInt();
         games.append(rec);
     }
     return games;
