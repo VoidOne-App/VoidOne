@@ -391,6 +391,7 @@ Rectangle {
                 onClicked: {
                     root.saveDirPath = savePathField.text.trim()
                     root.backupDestinationPath = backupPathField.text.trim()
+                    root.refreshAutoSaveConfiguration()
                     if (!root.saveDirPath.length || !root.backupDestinationPath.length) {
                         statusText.text = root.isPersian
                                 ? "مسیر سیو و مقصد بکاپ را مشخص کن."
@@ -420,6 +421,7 @@ Rectangle {
                 onClicked: {
                     root.saveDirPath = savePathField.text.trim()
                     root.backupDestinationPath = backupPathField.text.trim()
+                    root.refreshAutoSaveConfiguration()
                     if (!root.saveDirPath.length || !root.backupDestinationPath.length) {
                         statusText.text = root.isPersian
                                 ? "مسیر سیو و مقصد بکاپ را مشخص کن."
