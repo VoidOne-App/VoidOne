@@ -568,6 +568,7 @@ Window {
                                 cellHeight: 190
                                 clip: true
                                 boundsBehavior: Flickable.StopAtBounds
+                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                                 model: typeof gameModel !== "undefined" ? gameModel : null
 
                                 delegate: GameCard {
@@ -696,6 +697,7 @@ Window {
                                 cellHeight: 202
                                 clip: true
                                 boundsBehavior: Flickable.StopAtBounds
+                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                                 model: typeof gameModel !== "undefined" ? gameModel : null
                                 delegate: GameCard {
                                     width: activityGrid.cellWidth - 12
