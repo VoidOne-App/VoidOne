@@ -1,275 +1,428 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 Rectangle {
     id: root
-    color: "#11151b"
-    implicitWidth: 600
-    implicitHeight: 450
-    radius: 12
-    border.color: "#00e5ff30"
+    color: "#0b121a"
+    implicitWidth: 640
+    implicitHeight: backupColumn.implicitHeight + 40
+    radius: 16
+    border.color: "#1b2b3a"
     border.width: 1
 
     property string saveDirPath: ""
     property string backupDestinationPath: ""
+    readonly property bool isPersian: trManager.currentLanguage === "fa"
 
     function refreshAutoSaveConfiguration() {
         saveBackupManager.configureAutoSave(saveDirPath, backupDestinationPath)
         saveBackupManager.autoSaveIntervalSeconds = intervalSpinBox.value
-        saveBackupManager.autoSaveEnabled = autoSaveSwitch.checked && saveDirPath.length > 0 && backupDestinationPath.length > 0
+        saveBackupManager.autoSaveEnabled = autoSaveSwitch.checked
+                && saveDirPath.length > 0 && backupDestinationPath.length > 0
+    }
+
+    onSaveDirPathChanged: savePathField.text = saveDirPath
+    onBackupDestinationPathChanged: backupPathField.text = backupDestinationPath
+
+    FolderDialog {
+        id: saveFolderDialog
+        title: root.isPersian ? "انتخاب پوشهٔ سیو بازی" : "Choose game save folder"
+        onAccepted: {
+            root.saveDirPath = selectedFolder.toLocalFile()
+            root.refreshAutoSaveConfiguration()
+        }
+    }
+
+    FolderDialog {
+        id: backupFolderDialog
+        title: root.isPersian ? "انتخاب مقصد بکاپ" : "Choose backup destination"
+        onAccepted: {
+            root.backupDestinationPath = selectedFolder.toLocalFile()
+            root.refreshAutoSaveConfiguration()
+        }
     }
 
     Connections {
         target: saveBackupManager
         function onBackupCompleted(success, message) {
             statusText.text = message
-            statusText.color = success ? "#00e5ff" : "#ef4444"
+            statusText.color = success ? "#38d996" : "#ff6878"
         }
     }
 
     ColumnLayout {
+        id: backupColumn
         anchors.fill: parent
         anchors.margins: 20
-        spacing: 20
+        spacing: 16
 
-        // Header & Language Switcher
         RowLayout {
             Layout.fillWidth: true
-            
-            Text {
-                text: "💾 " + (trManager.currentLanguage === "fa" ? "پشتیبان‌گیری و ذخیره خودکار سیو" : "Save Backup & Auto-Save")
-                color: "#00e5ff"
-                font.pixelSize: 18
-                font.bold: true
-                renderType: Text.NativeRendering
-            }
+            spacing: 12
 
-            Item { Layout.fillWidth: true }
-
-            // Language Toggle Button
-            Button {
-                text: trManager.currentLanguage === "en" ? "FA / فارسی" : "EN / English"
-                background: Rectangle {
-                    color: "#00e5ff20"
-                    border.color: "#00e5ff"
-                    border.width: 1
-                    radius: 8
-                }
-                contentItem: Text {
-                    text: parent.text
+            Rectangle {
+                Layout.preferredWidth: 42
+                Layout.preferredHeight: 42
+                radius: 12
+                color: "#00e5ff12"
+                border.color: "#00e5ff2a"
+                Text {
+                    anchors.centerIn: parent
+                    text: "↻"
                     color: "#00e5ff"
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
+                    font.pixelSize: 23
                     font.bold: true
                 }
-                onClicked: {
-                    trManager.currentLanguage = (trManager.currentLanguage === "en") ? "fa" : "en"
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 3
+                Text {
+                    text: root.isPersian ? "پشتیبان‌گیری از سیوها" : "Save backups"
+                    color: "#edf5fa"
+                    font.pixelSize: 17
+                    font.bold: true
+                }
+                Text {
+                    text: root.isPersian
+                          ? "پوشهٔ سیو و مقصد امن بکاپ را مشخص کن."
+                          : "Choose a save folder and a safe backup destination."
+                    color: "#8194a7"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
                 }
             }
         }
 
-        // Divider
         Rectangle {
             Layout.fillWidth: true
             height: 1
-            color: "#00e5ff20"
+            color: "#1b2b3a"
         }
 
-        // Settings Form Layout
         GridLayout {
-            columns: 2
             Layout.fillWidth: true
-            rowSpacing: 15
-            columnSpacing: 15
+            columns: root.width < 590 ? 1 : 2
+            columnSpacing: 12
+            rowSpacing: 7
 
-            // Auto Save Switch Label
             Text {
-                text: trManager.currentLanguage === "fa" ? "فعال‌سازی ذخیره خودکار لحظه‌ای:" : "Enable Real-Time Auto-Save:"
-                color: "#00e5ff80"
-                font.pixelSize: 14
+                text: root.isPersian ? "پوشهٔ سیو بازی" : "Game save folder"
+                color: "#b9c8d5"
+                font.pixelSize: 11
+                font.bold: true
+                Layout.fillWidth: true
             }
 
-            // Custom Switch
-            Switch {
-                id: autoSaveSwitch
-                checked: false
-                onCheckedChanged: {
-                    root.refreshAutoSaveConfiguration()
-                    statusText.color = "#00e5ff"
-                    statusText.text = checked
-                        ? (trManager.currentLanguage === "fa" ? "وضعیت: ذخیره خودکار فعال شد" : "Status: Auto-save enabled")
-                        : (trManager.currentLanguage === "fa" ? "وضعیت: ذخیره خودکار غیرفعال شد" : "Status: Auto-save disabled")
-                }
-                indicator: Rectangle {
-                    implicitWidth: 48
-                    implicitHeight: 24
-                    x: autoSaveSwitch.leftPadding
-                    y: parent.height / 2 - height / 2
-                    radius: 12
-                    color: autoSaveSwitch.checked ? "#00e5ff" : "#1a222d"
-                    border.color: "#00e5ff"
-                    border.width: 1
+            Item { visible: root.width >= 590; Layout.fillWidth: true; height: 1 }
 
-                    Rectangle {
-                        x: autoSaveSwitch.checked ? parent.width - width - 2 : 2
-                        y: 2
-                        width: 20
-                        height: 20
-                        radius: 10
-                        color: autoSaveSwitch.checked ? "#11151b" : "#00e5ff80"
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                TextField {
+                    id: savePathField
+                    Layout.fillWidth: true
+                    placeholderText: root.isPersian ? "مسیر پوشهٔ سیو" : "Path to save folder"
+                    text: root.saveDirPath
+                    color: "#edf5fa"
+                    placeholderTextColor: "#5f7387"
+                    selectByMouse: true
+                    onEditingFinished: {
+                        root.saveDirPath = text.trim()
+                        root.refreshAutoSaveConfiguration()
+                    }
+                    background: Rectangle {
+                        radius: 9
+                        color: "#080e14"
+                        border.color: savePathField.activeFocus ? "#00e5ff70" : "#233545"
                     }
                 }
-            }
-
-            // Interval Label
-            Text {
-                text: trManager.currentLanguage === "fa" ? "بازه زمانی (ثانیه):" : "Interval (Seconds):"
-                color: "#00e5ff80"
-                font.pixelSize: 14
-            }
-
-            // Interval SpinBox
-            SpinBox {
-                id: intervalSpinBox
-                from: 5
-                to: 3600
-                value: 30
-                editable: true
-                Layout.preferredWidth: 120
-                onValueModified: root.refreshAutoSaveConfiguration()
-            }
-
-            Text {
-                text: trManager.currentLanguage === "fa" ? "مسیر سیو بازی:" : "Save Folder:"
-                color: "#00e5ff80"
-                font.pixelSize: 14
-            }
-
-            TextField {
-                Layout.fillWidth: true
-                placeholderText: trManager.currentLanguage === "fa" ? "مثال: /home/user/Game/Saves" : "Example: /home/user/Game/Saves"
-                text: root.saveDirPath
-                color: "#f8fafc"
-                placeholderTextColor: "#64748b"
-                onEditingFinished: {
-                    root.saveDirPath = text.trim()
-                    root.refreshAutoSaveConfiguration()
+                Button {
+                    text: "…"
+                    implicitWidth: 40
+                    implicitHeight: 38
+                    onClicked: saveFolderDialog.open()
+                    background: Rectangle {
+                        radius: 9
+                        color: parent.hovered ? "#142533" : "#0d1721"
+                        border.color: "#2a3d4e"
+                    }
+                    contentItem: Text {
+                        text: parent.text
+                        color: "#dce8ef"
+                        font.pixelSize: 19
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    ToolTip.visible: hovered
+                    ToolTip.text: root.isPersian ? "انتخاب پوشه" : "Browse folder"
                 }
             }
 
             Text {
-                text: trManager.currentLanguage === "fa" ? "مقصد بکاپ:" : "Backup Destination:"
-                color: "#00e5ff80"
-                font.pixelSize: 14
+                text: root.isPersian ? "مقصد پشتیبان‌گیری" : "Backup destination"
+                color: "#b9c8d5"
+                font.pixelSize: 11
+                font.bold: true
+                Layout.fillWidth: true
             }
 
-            TextField {
+            Item { visible: root.width >= 590; Layout.fillWidth: true; height: 1 }
+
+            RowLayout {
                 Layout.fillWidth: true
-                placeholderText: trManager.currentLanguage === "fa" ? "مثال: /home/user/VoidOneBackups" : "Example: /home/user/VoidOneBackups"
-                text: root.backupDestinationPath
-                color: "#f8fafc"
-                placeholderTextColor: "#64748b"
-                onEditingFinished: {
-                    root.backupDestinationPath = text.trim()
-                    root.refreshAutoSaveConfiguration()
+                spacing: 8
+                TextField {
+                    id: backupPathField
+                    Layout.fillWidth: true
+                    placeholderText: root.isPersian ? "مسیر ذخیرهٔ بکاپ‌ها" : "Path for backups"
+                    text: root.backupDestinationPath
+                    color: "#edf5fa"
+                    placeholderTextColor: "#5f7387"
+                    selectByMouse: true
+                    onEditingFinished: {
+                        root.backupDestinationPath = text.trim()
+                        root.refreshAutoSaveConfiguration()
+                    }
+                    background: Rectangle {
+                        radius: 9
+                        color: "#080e14"
+                        border.color: backupPathField.activeFocus ? "#00e5ff70" : "#233545"
+                    }
+                }
+                Button {
+                    text: "…"
+                    implicitWidth: 40
+                    implicitHeight: 38
+                    onClicked: backupFolderDialog.open()
+                    background: Rectangle {
+                        radius: 9
+                        color: parent.hovered ? "#142533" : "#0d1721"
+                        border.color: "#2a3d4e"
+                    }
+                    contentItem: Text {
+                        text: parent.text
+                        color: "#dce8ef"
+                        font.pixelSize: 19
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    ToolTip.visible: hovered
+                    ToolTip.text: root.isPersian ? "انتخاب پوشه" : "Browse folder"
                 }
             }
         }
 
-        Item { Layout.fillHeight: true }
-
-        // Action Status / Message Box
         Rectangle {
             Layout.fillWidth: true
-            height: 40
-            color: "#0a0d12"
-            border.color: "#00e5ff30"
-            radius: 8
+            radius: 12
+            color: "#0a1017"
+            border.color: "#1b2b3a"
+            implicitHeight: optionsColumn.implicitHeight + 24
 
-            Text {
-                id: statusText
-                anchors.centerIn: parent
-                text: trManager.currentLanguage === "fa" ? "وضعیت: آماده برای پایش و پشتیبان‌گیری..." : "Status: Ready for backup monitoring..."
-                color: "#00e5ff"
-                font.pixelSize: 12
+            ColumnLayout {
+                id: optionsColumn
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 12
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 3
+                        Text {
+                            text: root.isPersian ? "پشتیبان‌گیری خودکار" : "Automatic backups"
+                            color: "#e3edf4"
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+                        Text {
+                            text: root.isPersian
+                                  ? "تا وقتی برنامه باز است، طبق بازهٔ تعیین‌شده بکاپ می‌گیرد."
+                                  : "Creates backups on the selected interval while VoidOne is running."
+                            color: "#75899c"
+                            font.pixelSize: 10
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+                    }
+                    Switch {
+                        id: autoSaveSwitch
+                        checked: saveBackupManager.autoSaveEnabled
+                        onToggled: {
+                            root.refreshAutoSaveConfiguration()
+                            if (checked && (root.saveDirPath.length === 0 || root.backupDestinationPath.length === 0)) {
+                                statusText.text = root.isPersian
+                                        ? "ابتدا هر دو مسیر را مشخص کن."
+                                        : "Choose both folders before enabling automatic backups."
+                                statusText.color = "#f5b84b"
+                            }
+                        }
+                        indicator: Rectangle {
+                            implicitWidth: 42
+                            implicitHeight: 24
+                            x: autoSaveSwitch.leftPadding
+                            y: parent.height / 2 - height / 2
+                            radius: 12
+                            color: autoSaveSwitch.checked ? "#00b8ce" : "#17232e"
+                            border.color: autoSaveSwitch.checked ? "#00e5ff" : "#3a4b5a"
+                            Rectangle {
+                                width: 18
+                                height: 18
+                                radius: 9
+                                y: 3
+                                x: autoSaveSwitch.checked ? parent.width - width - 3 : 3
+                                color: autoSaveSwitch.checked ? "#041015" : "#8ca0b1"
+                            }
+                        }
+                    }
+                }
+
+                Rectangle { Layout.fillWidth: true; height: 1; color: "#182735" }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 2
+                    rowSpacing: 6
+                    columnSpacing: 12
+
+                    Text {
+                        text: root.isPersian ? "فاصلهٔ بکاپ (ثانیه)" : "Backup interval (seconds)"
+                        color: "#a9bac8"
+                        font.pixelSize: 11
+                    }
+                    SpinBox {
+                        id: intervalSpinBox
+                        Layout.fillWidth: true
+                        from: 5
+                        to: 3600
+                        value: saveBackupManager.autoSaveIntervalSeconds
+                        editable: true
+                        onValueModified: root.refreshAutoSaveConfiguration()
+                    }
+
+                    Text {
+                        text: root.isPersian ? "حداکثر نسخه‌های نگه‌داری‌شده" : "Maximum backups to keep"
+                        color: "#a9bac8"
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                    SpinBox {
+                        Layout.fillWidth: true
+                        from: 1
+                        to: 1000
+                        value: saveBackupManager.maxBackups
+                        editable: true
+                        onValueModified: saveBackupManager.maxBackups = value
+                    }
+                }
             }
         }
 
-        // Manual Backup Action Buttons
-        RowLayout {
+        Rectangle {
             Layout.fillWidth: true
-            spacing: 15
-
-            Button {
-                Layout.fillWidth: true
-                height: 40
-                background: Rectangle {
-                    color: parent.pressed ? "#00b8ce" : "#00e5ff20"
-                    border.color: "#00e5ff"
-                    radius: 8
+            implicitHeight: statusText.implicitHeight + 18
+            radius: 9
+            color: "#080e14"
+            border.color: "#1b2b3a"
+            RowLayout {
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 8
+                Rectangle {
+                    width: 7
+                    height: 7
+                    radius: 4
+                    color: statusText.color
                 }
-                contentItem: Text {
-                    text: trManager.currentLanguage === "fa" ? "ایجاد بکاپ الان" : "Create Backup Now"
-                    color: "#00e5ff"
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    font.bold: true
-                }
-                onClicked: {
-                    root.saveDirPath = root.saveDirPath.trim()
-                    root.backupDestinationPath = root.backupDestinationPath.trim()
-
-                    if (root.saveDirPath.length === 0 || root.backupDestinationPath.length === 0) {
-                        statusText.color = "#f59e0b"
-                        statusText.text = trManager.currentLanguage === "fa"
-                            ? "وضعیت: مسیر سیو و مقصد بکاپ را وارد کنید"
-                            : "Status: Enter both save and backup paths"
-                        return
-                    }
-
-                    saveBackupManager.createBackup(root.saveDirPath, root.backupDestinationPath)
+                Text {
+                    id: statusText
+                    Layout.fillWidth: true
+                    text: root.isPersian ? "آمادهٔ پشتیبان‌گیری" : "Ready to create a backup"
+                    color: "#8ba0b2"
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
                 }
             }
+        }
 
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 10
             Button {
                 Layout.fillWidth: true
-                height: 40
+                implicitHeight: 40
+                text: root.isPersian ? "ایجاد بکاپ" : "Create backup"
+                onClicked: {
+                    root.saveDirPath = savePathField.text.trim()
+                    root.backupDestinationPath = backupPathField.text.trim()
+                    if (!root.saveDirPath.length || !root.backupDestinationPath.length) {
+                        statusText.text = root.isPersian
+                                ? "مسیر سیو و مقصد بکاپ را مشخص کن."
+                                : "Choose both the save folder and backup destination."
+                        statusText.color = "#f5b84b"
+                        return
+                    }
+                    saveBackupManager.createBackup(root.saveDirPath, root.backupDestinationPath)
+                }
                 background: Rectangle {
-                    color: "transparent"
-                    border.color: "#00e5ff50"
-                    radius: 8
+                    radius: 9
+                    color: parent.down ? "#00b8ce" : (parent.hovered ? "#27eaff" : "#00d8ef")
                 }
                 contentItem: Text {
-                    text: trManager.currentLanguage === "fa" ? "بازگردانی بکاپ" : "Restore Backup"
-                    color: "#00e5ff80"
+                    text: parent.text
+                    color: "#041015"
+                    font.pixelSize: 11
+                    font.bold: true
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
+            }
+            Button {
+                Layout.fillWidth: true
+                implicitHeight: 40
+                text: root.isPersian ? "بازگردانی آخرین بکاپ" : "Restore latest backup"
                 onClicked: {
-                    root.saveDirPath = root.saveDirPath.trim()
-                    root.backupDestinationPath = root.backupDestinationPath.trim()
-
-                    if (root.saveDirPath.length === 0 || root.backupDestinationPath.length === 0) {
-                        statusText.color = "#f59e0b"
-                        statusText.text = trManager.currentLanguage === "fa"
-                            ? "وضعیت: مسیر سیو و مقصد بکاپ را وارد کنید"
-                            : "Status: Enter both save and backup paths"
+                    root.saveDirPath = savePathField.text.trim()
+                    root.backupDestinationPath = backupPathField.text.trim()
+                    if (!root.saveDirPath.length || !root.backupDestinationPath.length) {
+                        statusText.text = root.isPersian
+                                ? "مسیر سیو و مقصد بکاپ را مشخص کن."
+                                : "Choose both folders before restoring."
+                        statusText.color = "#f5b84b"
                         return
                     }
-
-                    var latestPath = saveBackupManager.latestBackupPath(root.backupDestinationPath)
-                    if (latestPath.length === 0) {
-                        statusText.color = "#ef4444"
-                        statusText.text = trManager.currentLanguage === "fa"
-                            ? "وضعیت: هیچ بکاپی یافت نشد"
-                            : "Status: No backups found"
+                    const latest = saveBackupManager.latestBackupPath(root.backupDestinationPath)
+                    if (!latest.length) {
+                        statusText.text = root.isPersian ? "هیچ بکاپی پیدا نشد." : "No backup was found."
+                        statusText.color = "#ff6878"
                         return
                     }
-
-                    statusText.text = trManager.currentLanguage === "fa" ? "وضعیت: در حال بازگردانی بکاپ..." : "Status: Restoring backup..."
+                    statusText.text = root.isPersian
+                            ? "در حال بازگردانی…"
+                            : "Restoring backup…"
                     statusText.color = "#00e5ff"
-                    saveBackupManager.restoreBackup(latestPath, root.saveDirPath)
+                    saveBackupManager.restoreBackup(latest, root.saveDirPath)
+                }
+                background: Rectangle {
+                    radius: 9
+                    color: parent.hovered ? "#142533" : "#0b121a"
+                    border.color: "#2a3d4e"
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: "#c4d2dd"
+                    font.pixelSize: 11
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
         }
