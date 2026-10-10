@@ -14,6 +14,8 @@ Rectangle {
 
     property string saveDirPath: saveBackupManager.saveDirPath
     property string backupDestinationPath: saveBackupManager.backupDestinationPath
+    property string pendingRestorePath: ""
+    property string pendingRestoreTarget: ""
     readonly property bool isPersian: trManager.currentLanguage === "fa"
 
     function refreshAutoSaveConfiguration() {
@@ -41,6 +43,20 @@ Rectangle {
         onAccepted: {
             root.backupDestinationPath = selectedFolder.toLocalFile()
             root.refreshAutoSaveConfiguration()
+        }
+    }
+
+    MessageDialog {
+        id: restoreConfirmation
+        title: root.isPersian ? "تأیید بازگردانی سیو" : "Confirm save restore"
+        text: root.isPersian
+              ? "بازگردانی، پوشهٔ سیو فعلی را جایگزین می‌کند. قبل از ادامه مطمئن شو."
+              : "Restoring replaces the current save folder. Make sure you want to continue."
+        buttons: MessageDialog.Yes | MessageDialog.Cancel
+        onAccepted: {
+            statusText.text = root.isPersian ? "در حال بازگردانی…" : "Restoring backup…"
+            statusText.color = "#00e5ff"
+            saveBackupManager.restoreBackup(root.pendingRestorePath, root.pendingRestoreTarget)
         }
     }
 
@@ -417,11 +433,9 @@ Rectangle {
                         statusText.color = "#ff6878"
                         return
                     }
-                    statusText.text = root.isPersian
-                            ? "در حال بازگردانی…"
-                            : "Restoring backup…"
-                    statusText.color = "#00e5ff"
-                    saveBackupManager.restoreBackup(latest, root.saveDirPath)
+                    root.pendingRestorePath = latest
+                    root.pendingRestoreTarget = root.saveDirPath
+                    restoreConfirmation.open()
                 }
                 background: Rectangle {
                     radius: 9
