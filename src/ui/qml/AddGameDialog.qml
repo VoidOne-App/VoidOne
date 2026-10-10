@@ -354,7 +354,20 @@ Dialog {
 
             Button {
                 text: qsTr("Cancel")
+                implicitHeight: 40
                 onClicked: dialog.close()
+                background: Rectangle {
+                    radius: 10
+                    color: parent.hovered ? "#142331" : "#0a1118"
+                    border.color: "#263a4b"
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: "#b9c8d5"
+                    font.pixelSize: 11
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
             }
 
             Button {
