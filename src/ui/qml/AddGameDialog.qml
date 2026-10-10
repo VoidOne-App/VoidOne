@@ -404,7 +404,7 @@ Dialog {
     NativeDialogs.FileDialog {
         id: exeDialog
         title: qsTr("Choose a game executable")
-        fileMode: FileDialog.OpenFile
+        fileMode: NativeDialogs.FileDialog.OpenFile
         nameFilters: ["Windows executable (*.exe)", "All files (*)"]
 
         onAccepted: {
