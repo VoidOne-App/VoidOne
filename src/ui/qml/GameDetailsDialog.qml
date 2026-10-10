@@ -140,9 +140,58 @@ Dialog {
             id: tabs
             Layout.fillWidth: true
             Layout.topMargin: 12
-            TabButton { text: qsTr("Overview") }
-            TabButton { text: qsTr("Launch Options") }
-            TabButton { text: qsTr("Files") }
+            Layout.leftMargin: 16
+            Layout.rightMargin: 16
+            spacing: 6
+            background: Rectangle { color: "#0b1118"; radius: 10 }
+            TabButton {
+                text: qsTr("Overview")
+                background: Rectangle {
+                    radius: 8
+                    color: tabs.currentIndex === 0 ? "#00e5ff14" : "transparent"
+                    border.color: tabs.currentIndex === 0 ? "#00e5ff35" : "transparent"
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: tabs.currentIndex === 0 ? "#00e5ff" : "#71869a"
+                    font.pixelSize: 11
+                    font.bold: tabs.currentIndex === 0
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+            TabButton {
+                text: qsTr("Launch Options")
+                background: Rectangle {
+                    radius: 8
+                    color: tabs.currentIndex === 1 ? "#00e5ff14" : "transparent"
+                    border.color: tabs.currentIndex === 1 ? "#00e5ff35" : "transparent"
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: tabs.currentIndex === 1 ? "#00e5ff" : "#71869a"
+                    font.pixelSize: 11
+                    font.bold: tabs.currentIndex === 1
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+            TabButton {
+                text: qsTr("Installation")
+                background: Rectangle {
+                    radius: 8
+                    color: tabs.currentIndex === 2 ? "#00e5ff14" : "transparent"
+                    border.color: tabs.currentIndex === 2 ? "#00e5ff35" : "transparent"
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: tabs.currentIndex === 2 ? "#00e5ff" : "#71869a"
+                    font.pixelSize: 11
+                    font.bold: tabs.currentIndex === 2
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
         }
 
         StackLayout {
@@ -181,9 +230,21 @@ Dialog {
                         }
                         Item { Layout.fillWidth: true }
                         Button {
-                            text: qsTr("Hide")
+                            text: qsTr("Hide from library")
                             implicitHeight: 40
                             onClicked: { gameModel.hideGame(gameId, true); dialog.close() }
+                            background: Rectangle {
+                                radius: 10
+                                color: parent.hovered ? "#26151d" : "#0a1118"
+                                border.color: parent.hovered ? "#6b3543" : "#26313e"
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: "#d7a4af"
+                                font.pixelSize: 11
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
                         }
                     }
                 }
@@ -201,8 +262,21 @@ Dialog {
                     Item { Layout.fillHeight: true }
                     Button {
                         Layout.alignment: Qt.AlignRight
+                        implicitHeight: 40
                         text: qsTr("Save Options")
                         onClicked: { gameModel.updateLaunchOptions(gameId, argsField.text, dirField.text); dialog.close() }
+                        background: Rectangle {
+                            radius: 10
+                            color: parent.hovered ? "#20eaff" : "#00d8ef"
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#041015"
+                            font.pixelSize: 11
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
                     }
                 }
             }
