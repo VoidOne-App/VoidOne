@@ -95,6 +95,8 @@ Window {
         anchors.fill: parent
         color: theme.background
 
+        AmbientBackdrop { anchors.fill: parent }
+
         // Ambient platform lighting
         Rectangle {
             width: 520
