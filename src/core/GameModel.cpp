@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QSqlError>
 #include <QSqlQuery>
 #include <QVariantMap>
 #include <QDateTime>
