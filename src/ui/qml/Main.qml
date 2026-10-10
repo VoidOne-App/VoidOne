@@ -1183,6 +1183,25 @@ Window {
         }
     }
 
+    // Keyboard-first navigation for players who prefer to keep their hands on the keyboard.
+    Shortcut {
+        sequence: "Ctrl+K"
+        context: Qt.ApplicationShortcut
+        onActivated: {
+            searchInput.forceActiveFocus()
+            searchInput.selectAll()
+        }
+    }
+    Shortcut { sequence: "Ctrl+1"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "home" }
+    Shortcut { sequence: "Ctrl+2"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "library" }
+    Shortcut { sequence: "Ctrl+3"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "activity" }
+    Shortcut { sequence: "Ctrl+,"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "settings" }
+    Shortcut {
+        sequence: "Ctrl+Shift+A"
+        context: Qt.ApplicationShortcut
+        onActivated: addGameDialog.open()
+    }
+
     GameDetailsDialog {
         id: gameDetails
         onNotificationRequested: function(message, isError) {
