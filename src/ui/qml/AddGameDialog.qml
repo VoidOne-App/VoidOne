@@ -421,9 +421,18 @@ Dialog {
 
         onAccepted: {
             selectedFolder = folderDialog.selectedFolder.toLocalFile()
-            scanning = true
-            scanAnimation.restart()
-            scanTimer.restart()
+            selectedExecutable = ""
+            selectedName = ""
+            nameField.text = ""
+            candidates = []
+            if (!selectedFolder.length) {
+                scanning = false
+                notificationRequested(qsTr("The selected folder path could not be read. Try choosing the folder again."), true)
+            } else {
+                scanning = true
+                scanAnimation.restart()
+                scanTimer.restart()
+            }
         }
     }
 
