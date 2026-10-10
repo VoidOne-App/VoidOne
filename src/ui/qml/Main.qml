@@ -449,6 +449,7 @@ Window {
                                     source: model.source
                                     favorite: model.favorite
                                     playCount: model.playCount
+                                    lastPlayed: model.lastPlayed
                                     itemIndex: index
                                     compact: true
                                     onLaunchRequested: function(path) {
@@ -580,6 +581,7 @@ Window {
                                     source: model.source
                                     favorite: model.favorite
                                     playCount: model.playCount
+                                    lastPlayed: model.lastPlayed
                                     itemIndex: index
                                     onLaunchRequested: function(path) {
                                         gameModel.launchGame(path)
@@ -706,6 +708,7 @@ Window {
                                     source: model.source
                                     favorite: model.favorite
                                     playCount: model.playCount
+                                    lastPlayed: model.lastPlayed
                                     itemIndex: index
                                     onLaunchRequested: function(path) {
                                         gameModel.launchGame(path)
@@ -878,6 +881,14 @@ Window {
                                 font.letterSpacing: 1.5
                             }
 
+                            Text {
+                                text: qsTr("PREFERENCES")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
+                            }
+
                             // Language preferences
                             Rectangle {
                                 Layout.fillWidth: true
@@ -946,6 +957,14 @@ Window {
                                         }
                                     }
                                 }
+                            }
+
+                            Text {
+                                text: qsTr("LOCAL LIBRARY")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
                             }
 
                             // Library tools: real Steam scan action, no pretend preferences.
