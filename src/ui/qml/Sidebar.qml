@@ -137,14 +137,16 @@ Rectangle {
                 Rectangle {
                     width: 32
                     height: 32
-                    radius: 16
+                    radius: 11
                     color: "#00e5ff12"
-                    Text {
+                    border.color: "#00e5ff28"
+                    Image {
                         anchors.centerIn: parent
-                        text: "MK"
-                        color: "#00e5ff"
-                        font.pixelSize: 9
-                        font.bold: true
+                        width: 22
+                        height: 22
+                        source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
                     }
                 }
 
