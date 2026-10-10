@@ -229,7 +229,7 @@ Window {
                                 anchors.centerIn: parent
                                 width: 22
                                 height: 22
-                                source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                                source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
                                 fillMode: Image.PreserveAspectFit
                                 smooth: true
                                 asynchronous: true
@@ -403,7 +403,7 @@ Window {
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: 150
                                     height: 150
-                                    source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                                    source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
                                     fillMode: Image.PreserveAspectFit
                                     opacity: 0.12
                                     asynchronous: true
@@ -752,7 +752,7 @@ Window {
                                 spacing: 10
                                 Image {
                                     Layout.alignment: Qt.AlignHCenter
-                                    source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                                    source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
                                     width: 44
                                     height: 44
                                     fillMode: Image.PreserveAspectFit
@@ -853,7 +853,7 @@ Window {
                                             anchors.centerIn: parent
                                             width: 20
                                             height: 20
-                                            source: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/settings.svg"
+                                            source: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/settings.svg"
                                             fillMode: Image.PreserveAspectFit
                                         }
                                     }
@@ -1012,7 +1012,7 @@ Window {
                                             anchors.centerIn: parent
                                             width: 21
                                             height: 21
-                                            source: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/library.svg"
+                                            source: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/library.svg"
                                             fillMode: Image.PreserveAspectFit
                                         }
                                     }
@@ -1102,7 +1102,7 @@ Window {
                                             anchors.centerIn: parent
                                             width: 25
                                             height: 25
-                                            source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                                            source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
                                             fillMode: Image.PreserveAspectFit
                                         }
                                     }
