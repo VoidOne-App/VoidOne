@@ -50,6 +50,15 @@ Rectangle {
             statusText.text = message
             statusText.color = success ? "#38d996" : "#ff6878"
         }
+        function onAutoSaveEnabledChanged(enabled) {
+            autoSaveSwitch.checked = enabled
+        }
+        function onAutoSaveIntervalChanged(seconds) {
+            intervalSpinBox.value = seconds
+        }
+        function onMaxBackupsChanged(count) {
+            maxBackupsSpinBox.value = count
+        }
     }
 
     ColumnLayout {
@@ -313,6 +322,7 @@ Rectangle {
                         Layout.fillWidth: true
                     }
                     SpinBox {
+                        id: maxBackupsSpinBox
                         Layout.fillWidth: true
                         from: 1
                         to: 1000
