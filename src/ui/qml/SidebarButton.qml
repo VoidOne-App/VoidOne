@@ -26,17 +26,15 @@ Button {
     }
 
     contentItem: Item {
-        Image {
+        AnimatedIcon {
             id: navIcon
             x: button.compact ? (parent.width - width) / 2 : 17
             anchors.verticalCenter: parent.verticalCenter
             width: 20
             height: 20
             source: button.iconSource
-            opacity: button.voSelected ? 1 : 0.68
-            fillMode: Image.PreserveAspectFit
-            asynchronous: true
-            smooth: true
+            iconOpacity: button.voSelected ? 1 : (button.hovered ? 0.9 : 0.68)
+            hovered: button.hovered
         }
 
         Text {
