@@ -609,6 +609,9 @@ Window {
                         contentWidth: width
                         contentHeight: settingsColumn.implicitHeight + 48
                         boundsBehavior: Flickable.StopAtBounds
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                        }
 
                         ColumnLayout {
                             id: settingsColumn
@@ -681,6 +684,8 @@ Window {
                                                   : "Changes labels in the backup controls only."
                                             color: theme.muted
                                             font.pixelSize: 11
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
                                         }
                                     }
 
