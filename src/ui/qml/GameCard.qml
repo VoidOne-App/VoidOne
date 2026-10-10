@@ -80,6 +80,8 @@ Rectangle {
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
                     smooth: true
+                    scale: cardHover.hovered ? 1.06 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                     visible: status === Image.Ready
                 }
 
