@@ -21,6 +21,7 @@ Dialog {
     property string launchArgs: ""
     property int playCount: 0
     property bool favorite: false
+    signal notificationRequested(string message, bool isError)
 
     function iconUrl(path) {
         if (!path || path.length === 0)
@@ -152,7 +153,14 @@ Dialog {
                         Button {
                             text: qsTr("▶  Play")
                             Layout.preferredWidth: 130; implicitHeight: 40
-                            onClicked: { gameModel.launchGame(exePath); dialog.close() }
+                            onClicked: {
+                                if (gameModel.launchGame(exePath)) {
+                                    dialog.close()
+                                    notificationRequested(qsTr("Launch request sent."), false)
+                                } else {
+                                    notificationRequested(qsTr("Could not start game. Check the executable path."), true)
+                                }
+                            }
                             background: Rectangle { radius: 10; color: "#00d8ef" }
                             contentItem: Text { text: parent.text; color: "#041015"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         }
