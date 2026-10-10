@@ -8,7 +8,7 @@ Rectangle {
     implicitWidth: 600
     implicitHeight: 450
     radius: 12
-    border.color: "#00ffee30"
+    border.color: "#00e5ff30"
     border.width: 1
 
     property string saveDirPath: ""
@@ -24,7 +24,7 @@ Rectangle {
         target: saveBackupManager
         function onBackupCompleted(success, message) {
             statusText.text = message
-            statusText.color = success ? "#00ffee" : "#ef4444"
+            statusText.color = success ? "#00e5ff" : "#ef4444"
         }
     }
 
@@ -39,7 +39,7 @@ Rectangle {
             
             Text {
                 text: "💾 " + (trManager.currentLanguage === "fa" ? "پشتیبان‌گیری و ذخیره خودکار سیو" : "Save Backup & Auto-Save")
-                color: "#00ffee"
+                color: "#00e5ff"
                 font.pixelSize: 18
                 font.bold: true
                 renderType: Text.NativeRendering
@@ -51,14 +51,14 @@ Rectangle {
             Button {
                 text: trManager.currentLanguage === "en" ? "FA / فارسی" : "EN / English"
                 background: Rectangle {
-                    color: "#00ffee20"
-                    border.color: "#00ffee"
+                    color: "#00e5ff20"
+                    border.color: "#00e5ff"
                     border.width: 1
                     radius: 8
                 }
                 contentItem: Text {
                     text: parent.text
-                    color: "#00ffee"
+                    color: "#00e5ff"
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     font.bold: true
@@ -73,7 +73,7 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             height: 1
-            color: "#00ffee20"
+            color: "#00e5ff20"
         }
 
         // Settings Form Layout
@@ -86,7 +86,7 @@ Rectangle {
             // Auto Save Switch Label
             Text {
                 text: trManager.currentLanguage === "fa" ? "فعال‌سازی ذخیره خودکار لحظه‌ای:" : "Enable Real-Time Auto-Save:"
-                color: "#00ffee80"
+                color: "#00e5ff80"
                 font.pixelSize: 14
             }
 
@@ -96,7 +96,7 @@ Rectangle {
                 checked: false
                 onCheckedChanged: {
                     root.refreshAutoSaveConfiguration()
-                    statusText.color = "#00ffee"
+                    statusText.color = "#00e5ff"
                     statusText.text = checked
                         ? (trManager.currentLanguage === "fa" ? "وضعیت: ذخیره خودکار فعال شد" : "Status: Auto-save enabled")
                         : (trManager.currentLanguage === "fa" ? "وضعیت: ذخیره خودکار غیرفعال شد" : "Status: Auto-save disabled")
@@ -107,8 +107,8 @@ Rectangle {
                     x: autoSaveSwitch.leftPadding
                     y: parent.height / 2 - height / 2
                     radius: 12
-                    color: autoSaveSwitch.checked ? "#00ffee" : "#1a222d"
-                    border.color: "#00ffee"
+                    color: autoSaveSwitch.checked ? "#00e5ff" : "#1a222d"
+                    border.color: "#00e5ff"
                     border.width: 1
 
                     Rectangle {
@@ -117,7 +117,7 @@ Rectangle {
                         width: 20
                         height: 20
                         radius: 10
-                        color: autoSaveSwitch.checked ? "#11151b" : "#00ffee80"
+                        color: autoSaveSwitch.checked ? "#11151b" : "#00e5ff80"
                     }
                 }
             }
@@ -125,7 +125,7 @@ Rectangle {
             // Interval Label
             Text {
                 text: trManager.currentLanguage === "fa" ? "بازه زمانی (ثانیه):" : "Interval (Seconds):"
-                color: "#00ffee80"
+                color: "#00e5ff80"
                 font.pixelSize: 14
             }
 
@@ -142,7 +142,7 @@ Rectangle {
 
             Text {
                 text: trManager.currentLanguage === "fa" ? "مسیر سیو بازی:" : "Save Folder:"
-                color: "#00ffee80"
+                color: "#00e5ff80"
                 font.pixelSize: 14
             }
 
@@ -160,7 +160,7 @@ Rectangle {
 
             Text {
                 text: trManager.currentLanguage === "fa" ? "مقصد بکاپ:" : "Backup Destination:"
-                color: "#00ffee80"
+                color: "#00e5ff80"
                 font.pixelSize: 14
             }
 
@@ -184,14 +184,14 @@ Rectangle {
             Layout.fillWidth: true
             height: 40
             color: "#0a0d12"
-            border.color: "#00ffee30"
+            border.color: "#00e5ff30"
             radius: 8
 
             Text {
                 id: statusText
                 anchors.centerIn: parent
                 text: trManager.currentLanguage === "fa" ? "وضعیت: آماده برای پایش و پشتیبان‌گیری..." : "Status: Ready for backup monitoring..."
-                color: "#00ffee"
+                color: "#00e5ff"
                 font.pixelSize: 12
             }
         }
@@ -205,13 +205,13 @@ Rectangle {
                 Layout.fillWidth: true
                 height: 40
                 background: Rectangle {
-                    color: parent.pressed ? "#00cccc" : "#00ffee20"
-                    border.color: "#00ffee"
+                    color: parent.pressed ? "#00b8ce" : "#00e5ff20"
+                    border.color: "#00e5ff"
                     radius: 8
                 }
                 contentItem: Text {
                     text: trManager.currentLanguage === "fa" ? "ایجاد بکاپ الان" : "Create Backup Now"
-                    color: "#00ffee"
+                    color: "#00e5ff"
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     font.bold: true
@@ -237,12 +237,12 @@ Rectangle {
                 height: 40
                 background: Rectangle {
                     color: "transparent"
-                    border.color: "#00ffee50"
+                    border.color: "#00e5ff50"
                     radius: 8
                 }
                 contentItem: Text {
                     text: trManager.currentLanguage === "fa" ? "بازگردانی بکاپ" : "Restore Backup"
-                    color: "#00ffee80"
+                    color: "#00e5ff80"
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
@@ -268,7 +268,7 @@ Rectangle {
                     }
 
                     statusText.text = trManager.currentLanguage === "fa" ? "وضعیت: در حال بازگردانی بکاپ..." : "Status: Restoring backup..."
-                    statusText.color = "#00ffee"
+                    statusText.color = "#00e5ff"
                     saveBackupManager.restoreBackup(latestPath, root.saveDirPath)
                 }
             }
