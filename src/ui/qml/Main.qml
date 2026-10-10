@@ -603,15 +603,25 @@ Window {
                     }
 
                     // SETTINGS
-                    Item {
+                    Flickable {
+                        id: settingsFlickable
+                        clip: true
+                        contentWidth: width
+                        contentHeight: settingsColumn.implicitHeight + 48
+                        boundsBehavior: Flickable.StopAtBounds
+
                         ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 24
-                            spacing: 16
+                            id: settingsColumn
+                            width: Math.max(0, settingsFlickable.width - 48)
+                            anchors.top: parent.top
+                            anchors.topMargin: 24
+                            anchors.left: parent.left
+                            anchors.leftMargin: 24
+                            spacing: 18
 
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: 4
+                                spacing: 5
                                 Text {
                                     text: qsTr("Settings")
                                     color: theme.text
@@ -619,24 +629,209 @@ Window {
                                     font.bold: true
                                 }
                                 Text {
-                                    text: qsTr("Manage local save backups and automatic backup behavior.")
+                                    text: qsTr("Configure VoidOne's real features and local preferences.")
                                     color: theme.muted
                                     font.pixelSize: 12
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
                                 }
+                            }
+
+                            // Language preferences
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: languageRow.implicitHeight + 28
+                                radius: 14
+                                color: theme.surface
+                                border.color: "#1b2b3a"
+
+                                RowLayout {
+                                    id: languageRow
+                                    anchors.fill: parent
+                                    anchors.margins: 14
+                                    spacing: 14
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 40
+                                        Layout.preferredHeight: 40
+                                        radius: 11
+                                        color: theme.cyanSoft
+                                        border.color: theme.cyanLine
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "文"
+                                            color: theme.cyan
+                                            font.pixelSize: 18
+                                            font.bold: true
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+                                        Text {
+                                            text: qsTr("Language")
+                                            color: theme.text
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            text: trManager.currentLanguage === "fa"
+                                                  ? "فارسی"
+                                                  : "English"
+                                            color: theme.muted
+                                            font.pixelSize: 11
+                                        }
+                                    }
+
+                                    Button {
+                                        text: trManager.currentLanguage === "en" ? "فارسی" : "English"
+                                        onClicked: trManager.currentLanguage =
+                                                   trManager.currentLanguage === "en" ? "fa" : "en"
+                                        background: Rectangle {
+                                            radius: 9
+                                            color: parent.hovered ? "#142b37" : "#0b1720"
+                                            border.color: theme.cyanLine
+                                        }
+                                        contentItem: Text {
+                                            text: parent.text
+                                            color: theme.cyan
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Library tools: real Steam scan action, no pretend preferences.
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: libraryRow.implicitHeight + 28
+                                radius: 14
+                                color: theme.surface
+                                border.color: "#1b2b3a"
+
+                                RowLayout {
+                                    id: libraryRow
+                                    anchors.fill: parent
+                                    anchors.margins: 14
+                                    spacing: 14
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 40
+                                        Layout.preferredHeight: 40
+                                        radius: 11
+                                        color: theme.cyanSoft
+                                        border.color: theme.cyanLine
+                                        Image {
+                                            anchors.centerIn: parent
+                                            width: 21
+                                            height: 21
+                                            source: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/library.svg"
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+                                        Text {
+                                            text: qsTr("Game library")
+                                            color: theme.text
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            text: qsTr("Scan detected Steam libraries for installed games.")
+                                            color: theme.muted
+                                            font.pixelSize: 11
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+
+                                    Button {
+                                        text: qsTr("Scan Steam")
+                                        onClicked: {
+                                            steamScanner.startAsyncScan()
+                                            root.showNotification(qsTr("Scanning installed Steam games..."))
+                                        }
+                                        background: Rectangle {
+                                            radius: 9
+                                            color: parent.hovered ? "#142b37" : "#0b1720"
+                                            border.color: "#2a4051"
+                                        }
+                                        contentItem: Text {
+                                            text: parent.text
+                                            color: theme.text
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                    }
+                                }
+                            }
+
+                            SaveBackupView {
+                                Layout.fillWidth: true
+                                Layout.maximumWidth: 900
                             }
 
                             Rectangle {
                                 Layout.fillWidth: true
-                                height: 1
-                                color: "#14202c"
-                            }
+                                implicitHeight: aboutRow.implicitHeight + 28
+                                radius: 14
+                                color: theme.surface
+                                border.color: "#1b2b3a"
 
-                            SaveBackupView {
-                                Layout.alignment: Qt.AlignHCenter
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                Layout.maximumWidth: 820
-                                Layout.minimumHeight: 360
+                                RowLayout {
+                                    id: aboutRow
+                                    anchors.fill: parent
+                                    anchors.margins: 14
+                                    spacing: 14
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 40
+                                        Layout.preferredHeight: 40
+                                        radius: 11
+                                        color: theme.cyanSoft
+                                        border.color: theme.cyanLine
+                                        Image {
+                                            anchors.centerIn: parent
+                                            width: 25
+                                            height: 25
+                                            source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+                                        Text {
+                                            text: qsTr("About VoidOne")
+                                            color: theme.text
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            text: qsTr("Local-first. Private by design. Your games stay yours.")
+                                            color: theme.muted
+                                            font.pixelSize: 11
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+
+                                    Text {
+                                        text: "v" + Qt.application.version
+                                        color: theme.dim
+                                        font.pixelSize: 10
+                                    }
+                                }
                             }
                         }
                     }
