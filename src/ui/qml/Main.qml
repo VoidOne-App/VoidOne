@@ -585,7 +585,7 @@ Window {
                                         gameModel.launchGame(path)
                                         root.showNotification(qsTr("Launching game..."))
                                     }
-                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
+                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, iconPath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
                                 }
 
                                 footer: Item {
@@ -790,6 +790,94 @@ Window {
                                 }
                             }
 
+                            Text {
+                                text: qsTr("INTERFACE")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: navigationRow.implicitHeight + 28
+                                radius: 14
+                                color: theme.surface
+                                border.color: "#1b2b3a"
+
+                                RowLayout {
+                                    id: navigationRow
+                                    anchors.fill: parent
+                                    anchors.margins: 14
+                                    spacing: 14
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 40
+                                        Layout.preferredHeight: 40
+                                        radius: 11
+                                        color: theme.cyanSoft
+                                        border.color: theme.cyanLine
+                                        Image {
+                                            anchors.centerIn: parent
+                                            width: 20
+                                            height: 20
+                                            source: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/settings.svg"
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+                                        Text {
+                                            text: qsTr("Sidebar layout")
+                                            color: theme.text
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            text: root.sidebarCompact
+                                                  ? qsTr("Icon-only navigation is active.")
+                                                  : qsTr("Show navigation labels for easier scanning.")
+                                            color: theme.muted
+                                            font.pixelSize: 11
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+
+                                    Switch {
+                                        checked: root.sidebarCompact
+                                        onToggled: root.sidebarCompact = checked
+                                        indicator: Rectangle {
+                                            implicitWidth: 42
+                                            implicitHeight: 24
+                                            x: parent.leftPadding
+                                            y: parent.height / 2 - height / 2
+                                            radius: 12
+                                            color: root.sidebarCompact ? theme.cyan : "#17232e"
+                                            border.color: root.sidebarCompact ? theme.cyan : "#3a4b5a"
+                                            Rectangle {
+                                                width: 18
+                                                height: 18
+                                                radius: 9
+                                                y: 3
+                                                x: root.sidebarCompact ? parent.width - width - 3 : 3
+                                                color: root.sidebarCompact ? "#041015" : "#8ca0b1"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: qsTr("LOCAL LIBRARY")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
+                            }
+
                             // Language preferences
                             Rectangle {
                                 Layout.fillWidth: true
@@ -930,9 +1018,25 @@ Window {
                                 }
                             }
 
+                            Text {
+                                text: qsTr("SAVE MANAGEMENT")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
+                            }
+
                             SaveBackupView {
                                 Layout.fillWidth: true
                                 Layout.maximumWidth: 900
+                            }
+
+                            Text {
+                                text: qsTr("ABOUT")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
                             }
 
                             Rectangle {
