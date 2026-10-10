@@ -356,6 +356,13 @@ bool GameModel::deleteGame(int id, int index)
     return true;
 }
 
+bool GameModel::removeGameById(int id)
+{
+    if (id <= 0 || !Database::removeGame(id))
+        return false;
+    loadGamesFromDatabase();
+    return true;
+}
 bool GameModel::launchGame(const QString &exePath)
 {
     const QString trimmedPath = exePath.trimmed();
