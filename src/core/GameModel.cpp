@@ -9,6 +9,12 @@
 #include <QVariantMap>
 #include <QDateTime>
 #include <QRegularExpression>
+#include <QCryptographicHash>
+#include <QIcon>
+#include <QFileIconProvider>
+#include <QStandardPaths>
+#include <QPixmap>
+#include <QDir>
 #include <algorithm>
 #include <functional>
 #include <utility>
@@ -34,6 +40,38 @@ bool isBlockedExecutable(const QFileInfo &file)
             return true;
     }
     return false;
+}
+
+QString extractExecutableIcon(const QString &executablePath)
+{
+    const QFileInfo executable(executablePath);
+    if (!executable.isFile() || executable.isSymLink())
+        return {};
+
+    const QString dataRoot = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (dataRoot.isEmpty())
+        return {};
+
+    QDir iconDirectory(QDir(dataRoot).filePath(QStringLiteral("game-icons")));
+    if (!iconDirectory.exists() && !QDir().mkpath(iconDirectory.absolutePath()))
+        return {};
+
+    const QByteArray digest = QCryptographicHash::hash(
+        executable.absoluteFilePath().toUtf8(), QCryptographicHash::Sha256).toHex();
+    const QString iconPath = iconDirectory.filePath(QString::fromLatin1(digest) + QStringLiteral(".png"));
+    if (QFileInfo::exists(iconPath))
+        return iconPath;
+
+    QFileIconProvider provider;
+    const QIcon icon = provider.icon(executable);
+    if (icon.isNull())
+        return {};
+
+    const QPixmap pixmap = icon.pixmap(96, 96);
+    if (pixmap.isNull() || !pixmap.save(iconPath, "PNG"))
+        return {};
+
+    return iconPath;
 }
 
 } // namespace
@@ -90,6 +128,29 @@ void GameModel::loadGamesFromDatabase()
 {
     beginResetModel();
     m_allGames = Database::getAllGames();
+
+    // Backfill missing icons for games already present in the user's library.
+    // The cache is stored in app data; the executable and database schema stay untouched.
+    const QSqlDatabase db = QSqlDatabase::database(QStringLiteral("voidone-main"), false);
+    for (GameRecord &game : m_allGames) {
+        if (!game.iconPath.isEmpty() && QFileInfo::exists(game.iconPath))
+            continue;
+
+        const QString extractedIcon = extractExecutableIcon(game.exePath);
+        if (extractedIcon.isEmpty())
+            continue;
+
+        game.iconPath = extractedIcon;
+        if (db.isValid() && db.isOpen()) {
+            QSqlQuery update(db);
+            update.prepare("UPDATE games SET icon_path = :icon WHERE id = :id");
+            update.bindValue(":icon", extractedIcon);
+            update.bindValue(":id", game.id);
+            if (!update.exec())
+                qWarning() << "[VoidOne] Could not persist cached game icon:" << update.lastError().text();
+        }
+    }
+
     m_games.clear();
     for (const auto &game : std::as_const(m_allGames)) {
         if (!game.hidden)
@@ -130,6 +191,8 @@ bool GameModel::addNewGame(const QString &name, const QString &exePath, const QS
     game.name = trimmedName;
     game.exePath = exeInfo.absoluteFilePath();
     game.iconPath = iconPath.trimmed();
+    if (game.iconPath.isEmpty() || !QFileInfo::exists(game.iconPath))
+        game.iconPath = extractExecutableIcon(game.exePath);
     game.platform = QStringLiteral("Custom");
     game.source = QStringLiteral("Local");
     game.workingDir = exeInfo.absolutePath();
