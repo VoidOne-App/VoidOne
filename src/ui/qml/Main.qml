@@ -573,10 +573,13 @@ Window {
                                 }
                             }
 
-                            GridView {
-                                id: gameGrid
+                            Item {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
+
+                                GridView {
+                                    id: gameGrid
+                                    anchors.fill: parent
                                 cellWidth: Math.max(240, Math.floor(width / Math.max(1, Math.floor(width / 285))))
                                 cellHeight: 190
                                 clip: true
@@ -612,9 +615,9 @@ Window {
                                 }
                             }
 
-                            ColumnLayout {
-                                anchors.centerIn: gameGrid
-                                visible: gameGrid.count === 0
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    visible: gameGrid.count === 0
                                 spacing: 10
 
                                 Text {
@@ -673,6 +676,7 @@ Window {
                                         verticalAlignment: Text.AlignVCenter
                                     }
                                 }
+                                }
                             }
                         }
                     }
@@ -704,10 +708,13 @@ Window {
 
                             Rectangle { Layout.fillWidth: true; height: 1; color: "#14202c" }
 
-                            GridView {
-                                id: activityGrid
+                            Item {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
+
+                                GridView {
+                                    id: activityGrid
+                                    anchors.fill: parent
                                 cellWidth: Math.max(240, Math.floor(width / Math.max(1, Math.floor(width / 285))))
                                 cellHeight: 202
                                 clip: true
@@ -737,9 +744,9 @@ Window {
                                 }
                             }
 
-                            ColumnLayout {
-                                anchors.centerIn: activityGrid
-                                visible: activityGrid.count === 0
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    visible: activityGrid.count === 0
                                 spacing: 10
                                 Image {
                                     Layout.alignment: Qt.AlignHCenter
@@ -769,6 +776,7 @@ Window {
                                     Layout.alignment: Qt.AlignHCenter
                                     text: qsTr("Open library")
                                     onClicked: root.currentPage = "library"
+                                }
                                 }
                             }
                         }
