@@ -153,13 +153,13 @@ Rectangle {
                     Layout.fillWidth: true
                     spacing: 1
                     Text {
-                        text: qsTr("Local player")
+                        text: qsTr("Local profile")
                         color: "#d9e4ec"
                         font.pixelSize: 10
                         font.bold: true
                     }
                     Text {
-                        text: qsTr("Offline mode")
+                        text: qsTr("Library stays yours")
                         color: "#4e6578"
                         font.pixelSize: 9
                     }
