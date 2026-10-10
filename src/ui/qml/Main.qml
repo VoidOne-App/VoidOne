@@ -206,7 +206,7 @@ Window {
                                     width: 7
                                     height: 7
                                     radius: 4
-                                    color: theme.success
+                                    color: theme.cyan
                                 }
                                 Text {
                                     text: qsTr("LOCAL-FIRST")
