@@ -22,7 +22,7 @@ Rectangle {
 
     function iconUrl(path) {
         if (!path || path.length === 0)
-            return "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+            return "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
         if (path.startsWith("qrc:/") || path.startsWith("file:/") || path.startsWith("http://") || path.startsWith("https://"))
             return path
         if (path.startsWith(":/"))
@@ -87,7 +87,7 @@ Rectangle {
                     anchors.centerIn: parent
                     width: parent.width * 0.62
                     height: width
-                    source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                    source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
                     visible: gameIcon.status !== Image.Ready
