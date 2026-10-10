@@ -34,7 +34,7 @@ Rectangle {
                     anchors.centerIn: parent
                     width: 27
                     height: 27
-                    source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                    source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
                     fillMode: Image.PreserveAspectFit
                     smooth: true
                 }
@@ -76,7 +76,7 @@ Rectangle {
             SidebarButton {
                 Layout.fillWidth: true
                 compact: root.compact
-                iconSource: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/home.svg"
+                iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/home.svg"
                 voLabel: qsTr("Home")
                 voSelected: root.currentPage === "home"
                 onClicked: root.pageChanged("home")
@@ -85,7 +85,7 @@ Rectangle {
             SidebarButton {
                 Layout.fillWidth: true
                 compact: root.compact
-                iconSource: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/library.svg"
+                iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/library.svg"
                 voLabel: qsTr("Library")
                 voSelected: root.currentPage === "library"
                 onClicked: root.pageChanged("library")
@@ -94,7 +94,7 @@ Rectangle {
             SidebarButton {
                 Layout.fillWidth: true
                 compact: root.compact
-                iconSource: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/activity.svg"
+                iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/activity.svg"
                 voLabel: qsTr("Activity")
                 voSelected: root.currentPage === "activity"
                 onClicked: root.pageChanged("activity")
@@ -114,7 +114,7 @@ Rectangle {
         SidebarButton {
             Layout.fillWidth: true
             compact: root.compact
-            iconSource: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/settings.svg"
+            iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/settings.svg"
             voLabel: qsTr("Settings")
             voSelected: root.currentPage === "settings"
             onClicked: root.pageChanged("settings")
@@ -144,7 +144,7 @@ Rectangle {
                         anchors.centerIn: parent
                         width: 22
                         height: 22
-                        source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                        source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
                     }
