@@ -144,7 +144,7 @@ target_include_directories(voidone_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
     "${VOIDONE_GENERATED_DIR}"
 )
-target_link_libraries(voidone_core PUBLIC Qt6::Core Qt6::Sql Qt6::Network)
+target_link_libraries(voidone_core PUBLIC Qt6::Core Qt6::Gui Qt6::Sql Qt6::Network)
 target_precompile_headers(voidone_core PRIVATE <QObject> <QString> <QList> <memory> <vector> <string>)
 voidone_apply_compile_policy(voidone_core)
 
