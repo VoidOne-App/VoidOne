@@ -406,11 +406,6 @@ Dialog {
             scanning = true
             scanAnimation.restart()
             scanTimer.restart()
-            if (candidates.length === 1) {
-                selectedExecutable = candidates[0]
-                selectedName = candidates[0].split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
-                nameField.text = selectedName
-            }
         }
     }
 
