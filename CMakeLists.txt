@@ -186,7 +186,7 @@ qt_add_qml_module(VoidOne
 )
 target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick Qt6::Svg)
 if(WIN32)
-    target_link_libraries(VoidOne PRIVATE Dbghelp)
+    target_link_libraries(VoidOne PRIVATE Dbghelp Shell32)
 endif()
 voidone_apply_compile_policy(VoidOne)
 
