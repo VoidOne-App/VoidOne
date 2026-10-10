@@ -14,6 +14,7 @@ Rectangle {
     property bool compact: false
     property bool favorite: false
     property int playCount: 0
+    property double lastPlayed: 0
     property string source: ""
 
     signal detailsRequested()
@@ -122,6 +123,15 @@ Rectangle {
                           : qsTr("Not launched yet")
                     color: "#4f667a"
                     font.pixelSize: 10
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    visible: !cardRoot.compact && cardRoot.lastPlayed > 0
+                    Layout.fillWidth: true
+                    text: qsTr("Last played · %1").arg(Qt.formatDateTime(new Date(cardRoot.lastPlayed * 1000), "MMM d, h:mm AP"))
+                    color: "#5d7488"
+                    font.pixelSize: 9
                     elide: Text.ElideRight
                 }
             }
