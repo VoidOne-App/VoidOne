@@ -43,14 +43,19 @@ public:
     Q_INVOKABLE void updateLaunchOptions(int id, const QString &args, const QString &workingDir);
     Q_INVOKABLE QVariantMap getGameDetails(int id) const;
     Q_INVOKABLE void filter(const QString &searchText);
+    Q_INVOKABLE void filterGames(const QString &searchText, const QString &mode);
 
 signals:
     void countChanged();
     void gameLaunched(int id);
 
 private:
+    void rebuildVisibleGames();
+
     QVector<GameRecord> m_allGames;
     QVector<GameRecord> m_games;
+    QString m_filterText;
+    QString m_filterMode = QStringLiteral("all");
 };
 
 #endif // GAMEMODEL_H
