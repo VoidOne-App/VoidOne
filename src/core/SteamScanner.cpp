@@ -262,6 +262,10 @@ void SteamScannerWorker::doScan()
                     continue;
 
                 GameRecord rec;
+                const QRegularExpression appIdRx(QStringLiteral("appmanifest_(\\d+)\\.acf"),
+                                                 QRegularExpression::CaseInsensitiveOption);
+                const auto appIdMatch = appIdRx.match(fileInfo.fileName());
+                rec.steamAppId = appIdMatch.hasMatch() ? appIdMatch.captured(1).toInt() : 0;
                 rec.name = nameMatch.captured(1).trimmed();
                 const QString gameDir =
                     QDir(steamappsPath).filePath("common/" + dirMatch.captured(1));
