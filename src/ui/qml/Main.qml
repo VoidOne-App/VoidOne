@@ -874,14 +874,6 @@ Window {
                             }
 
                             Text {
-                                text: qsTr("LOCAL LIBRARY")
-                                color: theme.dim
-                                font.pixelSize: 10
-                                font.bold: true
-                                font.letterSpacing: 1.5
-                            }
-
-                            Text {
                                 text: qsTr("PREFERENCES")
                                 color: theme.dim
                                 font.pixelSize: 10
