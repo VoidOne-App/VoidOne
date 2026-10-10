@@ -354,29 +354,29 @@ bool GameModel::deleteGame(int id, int index)
     return true;
 }
 
-void GameModel::launchGame(const QString &exePath)
+bool GameModel::launchGame(const QString &exePath)
 {
     const QString trimmedPath = exePath.trimmed();
     if (trimmedPath.isEmpty()) {
         qWarning() << "[VoidOne] Refusing to launch an empty game path.";
-        return;
+        return false;
     }
 
     const QFileInfo targetInfo(trimmedPath);
     if (!targetInfo.isFile() || targetInfo.isSymLink()) {
         qWarning() << "[VoidOne] Refusing to launch non-file or symlink:" << trimmedPath;
-        return;
+        return false;
     }
 
 #if defined(Q_OS_WIN)
     if (!targetInfo.fileName().endsWith(".exe", Qt::CaseInsensitive)) {
         qWarning() << "[VoidOne] Refusing non-executable Windows target:" << trimmedPath;
-        return;
+        return false;
     }
 #else
     if (!targetInfo.isExecutable()) {
         qWarning() << "[VoidOne] Refusing non-executable target:" << trimmedPath;
-        return;
+        return false;
     }
 #endif
 
@@ -406,7 +406,7 @@ void GameModel::launchGame(const QString &exePath)
     qint64 pid = -1;
     if (!QProcess::startDetached(absolutePath, arguments, workingDirectory, &pid)) {
         qWarning() << "[VoidOne] Failed to launch game:" << absolutePath;
-        return;
+        return false;
     }
 
     QSqlQuery stats(QSqlDatabase::database(QStringLiteral("voidone-main"), false));
@@ -417,6 +417,7 @@ void GameModel::launchGame(const QString &exePath)
     loadGamesFromDatabase();
     emit gameLaunched(launchedId);
     qInfo() << "[VoidOne] Game launched:" << absolutePath << "PID:" << pid;
+    return true;
 }
 
 void GameModel::filter(const QString &searchText)
