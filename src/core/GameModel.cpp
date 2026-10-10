@@ -491,18 +491,47 @@ void GameModel::rebuildVisibleGames()
 
 void GameModel::setFavorite(int id, bool favorite)
 {
-    QSqlQuery q(QSqlDatabase::database(QStringLiteral("voidone-main"), false));
-    q.prepare("UPDATE games SET favorite=:favorite WHERE id=:id");
-    q.bindValue(":favorite", favorite ? 1 : 0); q.bindValue(":id", id);
-    if (q.exec()) {
-        if (q.numRowsAffected() == 0)
-            qWarning() << "[VoidOne] Favorite update matched no game row for id:" << id;
-        loadGamesFromDatabase();
-    } else {
-        qWarning() << "[VoidOne] Favorite update failed:" << q.lastError().text();
+    const QSqlDatabase db = QSqlDatabase::database(QStringLiteral("voidone-main"), false);
+    if (!db.isValid() || !db.isOpen()) {
+        qWarning() << "[VoidOne] Favorite update requested while the database is unavailable.";
+        return;
+    }
+
+    QSqlQuery query(db);
+    query.prepare("UPDATE games SET favorite = :favorite WHERE id = :id");
+    query.bindValue(":favorite", favorite ? 1 : 0);
+    query.bindValue(":id", id);
+    if (!query.exec()) {
+        qWarning() << "[VoidOne] Favorite update failed:" << query.lastError().text();
+        return;
+    }
+    if (query.numRowsAffected() == 0) {
+        qWarning() << "[VoidOne] Favorite update matched no game row for id:" << id;
+        return;
+    }
+
+    for (GameRecord &game : m_allGames) {
+        if (game.id == id) {
+            game.favorite = favorite;
+            break;
+        }
+    }
+
+    // Update the visible role in place instead of resetting the whole model.
+    // This keeps the clicked card stable and avoids losing its interaction mid-click.
+    if (m_filterMode == QStringLiteral("favorites") && !favorite) {
+        rebuildVisibleGames();
+        return;
+    }
+
+    for (int row = 0; row < m_games.size(); ++row) {
+        if (m_games[row].id == id) {
+            m_games[row].favorite = favorite;
+            emit dataChanged(index(row, 0), index(row, 0), {FavoriteRole});
+            return;
+        }
     }
 }
-
 void GameModel::hideGame(int id, bool hidden)
 {
     QSqlQuery q(QSqlDatabase::database(QStringLiteral("voidone-main"), false));
