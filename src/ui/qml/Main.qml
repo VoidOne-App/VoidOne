@@ -68,6 +68,8 @@ Window {
     }
 
     function applyPageFilter() {
+        if (typeof searchInput === "undefined" || searchInput === null)
+            return
         if (typeof gameModel === "undefined" || gameModel === null)
             return
         if (currentPage === "activity")
