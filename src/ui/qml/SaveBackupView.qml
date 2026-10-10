@@ -104,21 +104,16 @@ Rectangle {
             color: "#1b2b3a"
         }
 
-        GridLayout {
+        ColumnLayout {
             Layout.fillWidth: true
-            columns: root.width < 590 ? 1 : 2
-            columnSpacing: 12
-            rowSpacing: 7
+            spacing: 7
 
             Text {
                 text: root.isPersian ? "پوشهٔ سیو بازی" : "Game save folder"
                 color: "#b9c8d5"
                 font.pixelSize: 11
                 font.bold: true
-                Layout.fillWidth: true
             }
-
-            Item { visible: root.width >= 590; Layout.fillWidth: true; height: 1 }
 
             RowLayout {
                 Layout.fillWidth: true
@@ -162,16 +157,18 @@ Rectangle {
                     ToolTip.text: root.isPersian ? "انتخاب پوشه" : "Browse folder"
                 }
             }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 7
 
             Text {
                 text: root.isPersian ? "مقصد پشتیبان‌گیری" : "Backup destination"
                 color: "#b9c8d5"
                 font.pixelSize: 11
                 font.bold: true
-                Layout.fillWidth: true
             }
-
-            Item { visible: root.width >= 590; Layout.fillWidth: true; height: 1 }
 
             RowLayout {
                 Layout.fillWidth: true
@@ -256,13 +253,14 @@ Rectangle {
                         id: autoSaveSwitch
                         checked: saveBackupManager.autoSaveEnabled
                         onToggled: {
-                            root.refreshAutoSaveConfiguration()
                             if (checked && (root.saveDirPath.length === 0 || root.backupDestinationPath.length === 0)) {
+                                checked = false
                                 statusText.text = root.isPersian
                                         ? "ابتدا هر دو مسیر را مشخص کن."
                                         : "Choose both folders before enabling automatic backups."
                                 statusText.color = "#f5b84b"
                             }
+                            root.refreshAutoSaveConfiguration()
                         }
                         indicator: Rectangle {
                             implicitWidth: 42
