@@ -117,8 +117,14 @@ Dialog {
                         selectedExecutable = path
                         selectedName = path.split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
                         nameField.text = selectedName
+                        selectedFolder = ""
+                        candidates = []
                     } else {
                         selectedFolder = path
+                        selectedExecutable = ""
+                        selectedName = ""
+                        nameField.text = ""
+                        candidates = []
                         scanning = true
                         scanAnimation.restart()
                         scanTimer.restart()
@@ -292,8 +298,7 @@ Dialog {
                     onClicked: {
                         selectedExecutable = modelData
                         selectedName = modelData.split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
-                        if (!nameField.text.length)
-                            nameField.text = selectedName
+                        nameField.text = selectedName
                     }
                 }
 
@@ -430,7 +435,7 @@ Dialog {
             candidates = gameModel.suggestExecutables(selectedFolder)
             scanning = false
             if (candidates.length === 0)
-                notificationRequested(qsTr("No likely game executable was found in that folder."), true)
+                notificationRequested(qsTr("No likely game executable was found in: ") + selectedFolder, true)
             else if (candidates.length === 1) {
                 selectedExecutable = candidates[0]
                 selectedName = candidates[0].split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
@@ -439,5 +444,6 @@ Dialog {
         }
     }
 
+    onOpened: reset()
     Component.onCompleted: reset()
 }
