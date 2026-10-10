@@ -41,6 +41,7 @@ public:
     Q_INVOKABLE void setFavorite(int id, bool favorite);
     Q_INVOKABLE void hideGame(int id, bool hidden);
     Q_INVOKABLE void updateLaunchOptions(int id, const QString &args, const QString &workingDir);
+    Q_INVOKABLE bool updateGamePath(int id, const QString &newExecutablePath);
     Q_INVOKABLE QVariantMap getGameDetails(int id) const;
     Q_INVOKABLE void filter(const QString &searchText);
     Q_INVOKABLE void filterGames(const QString &searchText, const QString &mode);
