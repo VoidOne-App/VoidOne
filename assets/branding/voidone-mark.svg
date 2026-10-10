@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" role="img" aria-labelledby="title desc">
+  <title id="title">VoidOne</title>
+  <desc id="desc">VoidOne master gaming-platform mark.</desc>
+  <path fill="#22d3ee" fill-rule="evenodd" d="M250 56C357 56 444 143 444 250S357 444 250 444 56 357 56 250c0-52 20-101 54-138l48 42c-23 27-37 60-37 96 0 71 58 129 129 129s129-58 129-129-58-129-129-129c-36 0-69 14-96 37l-42-48c37-34 86-54 138-54Zm-138 54c37-34 86-54 138-54h46l-19 65h-27c-36 0-69 14-96 37l-42-48Z"/>
+  <path fill="#22d3ee" fill-rule="evenodd" d="M250 151l29 29h41v41l29 29-29 29v41h-41l-29 29-29-29h-41v-41l-29-29 29-29v-41h41l29-29Zm0 48-51 51 51 51 51-51-51-51Z"/>
+  <path fill="#080A0F" d="M240 176h20v38h-20zm46 64h38v20h-38zm-46 46h20v38h-20zm-64-46h38v20h-38z"/>
+  <path fill="#080A0F" d="m250 224 26 26-26 26-26-26 26-26Z"/>
+</svg>

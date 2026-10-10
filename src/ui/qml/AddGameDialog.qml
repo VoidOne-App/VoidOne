@@ -61,7 +61,7 @@ Dialog {
                     anchors.centerIn: parent
                     width: 23
                     height: 23
-                    source: "qrc:/qt/qml/VoidOne.App/assets/icons/add.svg"
+                    source: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/add.svg"
                     fillMode: Image.PreserveAspectFit
                 }
             }
@@ -102,21 +102,29 @@ Dialog {
         }
 
         DropArea {
+            id: gameDropArea
+            property bool dragActive: false
             Layout.fillWidth: true
-            Layout.preferredHeight: 54
+            Layout.preferredHeight: 62
             keys: ["text/uri-list"]
-            onEntered: dragHint.visible = true
-            onExited: dragHint.visible = false
+            onEntered: dragActive = true
+            onExited: dragActive = false
             onDropped: function(drop) {
-                dragHint.visible = false
+                dragActive = false
                 if (drop.urls && drop.urls.length > 0) {
                     var path = drop.urls[0].toLocalFile()
                     if (path.toLowerCase().endsWith(".exe")) {
                         selectedExecutable = path
                         selectedName = path.split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
                         nameField.text = selectedName
+                        selectedFolder = ""
+                        candidates = []
                     } else {
                         selectedFolder = path
+                        selectedExecutable = ""
+                        selectedName = ""
+                        nameField.text = ""
+                        candidates = []
                         scanning = true
                         scanAnimation.restart()
                         scanTimer.restart()
@@ -127,16 +135,26 @@ Dialog {
             Rectangle {
                 anchors.fill: parent
                 radius: 13
-                color: dragHint.visible ? "#00e5ff10" : "#080c12"
-                border.color: dragHint.visible ? "#00e5ff88" : "#172533"
-                Text {
-                    id: dragHint
+                color: gameDropArea.dragActive ? "#00e5ff14" : "#080c12"
+                border.color: gameDropArea.dragActive ? "#00e5ff88" : "#233545"
+                RowLayout {
                     anchors.centerIn: parent
-                    visible: false
-                    text: qsTr("Drop a game .exe or folder here")
-                    color: "#00e5ff"
-                    font.pixelSize: 11
-                    font.bold: true
+                    spacing: 9
+                    Image {
+                        width: 18
+                        height: 18
+                        source: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/folder.svg"
+                        fillMode: Image.PreserveAspectFit
+                        opacity: 0.8
+                    }
+                    Text {
+                        text: gameDropArea.dragActive
+                              ? qsTr("Release to add this game")
+                              : qsTr("Drop a game .exe or folder here")
+                        color: gameDropArea.dragActive ? "#00e5ff" : "#8296a9"
+                        font.pixelSize: 11
+                        font.bold: gameDropArea.dragActive
+                    }
                 }
             }
         }
@@ -149,7 +167,7 @@ Dialog {
                 Layout.fillWidth: true
                 title: qsTr("Select .exe")
                 subtitle: qsTr("Add one game directly")
-                iconSource: "qrc:/qt/qml/VoidOne.App/assets/icons/file.svg"
+                iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/file.svg"
                 onClicked: exeDialog.open()
             }
 
@@ -157,7 +175,7 @@ Dialog {
                 Layout.fillWidth: true
                 title: qsTr("Select folder")
                 subtitle: qsTr("Let VoidOne find executables")
-                iconSource: "qrc:/qt/qml/VoidOne.App/assets/icons/folder.svg"
+                iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/folder.svg"
                 onClicked: folderDialog.open()
             }
         }
@@ -280,8 +298,7 @@ Dialog {
                     onClicked: {
                         selectedExecutable = modelData
                         selectedName = modelData.split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
-                        if (!nameField.text.length)
-                            nameField.text = selectedName
+                        nameField.text = selectedName
                     }
                 }
 
@@ -342,7 +359,20 @@ Dialog {
 
             Button {
                 text: qsTr("Cancel")
+                implicitHeight: 40
                 onClicked: dialog.close()
+                background: Rectangle {
+                    radius: 10
+                    color: parent.hovered ? "#142331" : "#0a1118"
+                    border.color: "#263a4b"
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: "#b9c8d5"
+                    font.pixelSize: 11
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
             }
 
             Button {
@@ -374,7 +404,7 @@ Dialog {
     NativeDialogs.FileDialog {
         id: exeDialog
         title: qsTr("Choose a game executable")
-        fileMode: FileDialog.OpenFile
+        fileMode: NativeDialogs.FileDialog.OpenFile
         nameFilters: ["Windows executable (*.exe)", "All files (*)"]
 
         onAccepted: {
@@ -391,13 +421,17 @@ Dialog {
 
         onAccepted: {
             selectedFolder = folderDialog.selectedFolder.toLocalFile()
-            scanning = true
-            scanAnimation.restart()
-            scanTimer.restart()
-            if (candidates.length === 1) {
-                selectedExecutable = candidates[0]
-                selectedName = candidates[0].split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
-                nameField.text = selectedName
+            selectedExecutable = ""
+            selectedName = ""
+            nameField.text = ""
+            candidates = []
+            if (!selectedFolder.length) {
+                scanning = false
+                notificationRequested(qsTr("The selected folder path could not be read. Try choosing the folder again."), true)
+            } else {
+                scanning = true
+                scanAnimation.restart()
+                scanTimer.restart()
             }
         }
     }
@@ -410,7 +444,7 @@ Dialog {
             candidates = gameModel.suggestExecutables(selectedFolder)
             scanning = false
             if (candidates.length === 0)
-                notificationRequested(qsTr("No likely game executable was found in that folder."), true)
+                notificationRequested(qsTr("No likely game executable was found in: ") + selectedFolder, true)
             else if (candidates.length === 1) {
                 selectedExecutable = candidates[0]
                 selectedName = candidates[0].split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
@@ -419,5 +453,6 @@ Dialog {
         }
     }
 
+    onOpened: reset()
     Component.onCompleted: reset()
 }

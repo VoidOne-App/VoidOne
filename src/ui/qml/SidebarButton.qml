@@ -25,25 +25,27 @@ Button {
         Behavior on color { ColorAnimation { duration: 140 } }
     }
 
-    contentItem: RowLayout {
-        anchors.fill: parent
-        anchors.leftMargin: compact ? 17 : 17
-        anchors.rightMargin: compact ? 17 : 13
-        spacing: 12
-
-        Image {
-            Layout.preferredWidth: 20
-            Layout.preferredHeight: 20
+    contentItem: Item {
+        AnimatedIcon {
+            id: navIcon
+            x: button.compact ? (parent.width - width) / 2 : 17
+            anchors.verticalCenter: parent.verticalCenter
+            width: 20
+            height: 20
             source: button.iconSource
-            opacity: button.voSelected ? 1 : 0.65
-            fillMode: Image.PreserveAspectFit
+            iconOpacity: button.voSelected ? 1 : (button.hovered ? 0.9 : 0.68)
+            hovered: button.hovered
         }
 
         Text {
-            visible: !compact
-            Layout.fillWidth: true
+            visible: !button.compact
+            anchors.left: navIcon.right
+            anchors.leftMargin: 12
+            anchors.right: selectedMarker.left
+            anchors.rightMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
             text: button.voLabel
-            color: button.voSelected ? "#eaf8fc" : "#74889c"
+            color: button.voSelected ? "#eaf8fc" : "#8193a5"
             font.pixelSize: 12
             font.bold: button.voSelected
             elide: Text.ElideRight
@@ -52,8 +54,12 @@ Button {
         }
 
         Rectangle {
-            visible: !compact && button.voSelected
-            width: 4
+            id: selectedMarker
+            visible: !button.compact && button.voSelected
+            anchors.right: parent.right
+            anchors.rightMargin: 13
+            anchors.verticalCenter: parent.verticalCenter
+            width: 3
             height: 18
             radius: 2
             color: "#00e5ff"

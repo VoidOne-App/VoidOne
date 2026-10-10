@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
+#include <QSettings>
 #include <algorithm>
 
 namespace {
@@ -84,7 +85,24 @@ bool pathsOverlap(const QString &firstPath, const QString &secondPath)
 SaveBackupManager::SaveBackupManager(QObject *parent)
     : QObject(parent), m_autoSaveTimer(new QTimer(this))
 {
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("backups"));
+    m_targetSaveDir = settings.value(QStringLiteral("saveDirPath")).toString();
+    m_destinationDir = settings.value(QStringLiteral("destinationPath")).toString();
+    m_intervalSeconds = std::clamp(settings.value(QStringLiteral("intervalSeconds"), 60).toInt(), 5, 3600);
+    m_maxBackups = std::clamp(settings.value(QStringLiteral("maxBackups"), 20).toInt(), 1, 1000);
+
+    const bool requestedAutoSave = settings.value(QStringLiteral("autoSaveEnabled"), false).toBool();
+    m_autoSaveEnabled = requestedAutoSave
+            && QDir(m_targetSaveDir).exists()
+            && !m_destinationDir.trimmed().isEmpty();
+    if (requestedAutoSave != m_autoSaveEnabled)
+        settings.setValue(QStringLiteral("autoSaveEnabled"), m_autoSaveEnabled);
+    settings.endGroup();
+
     connect(m_autoSaveTimer, &QTimer::timeout, this, &SaveBackupManager::performAutoSave);
+    if (m_autoSaveEnabled)
+        m_autoSaveTimer->start(m_intervalSeconds * 1000);
 }
 
 bool SaveBackupManager::createBackup(const QString &saveDirPath, const QString &backupDestinationPath)
@@ -208,6 +226,9 @@ void SaveBackupManager::setAutoSaveEnabled(bool enabled)
         m_autoSaveTimer->start(m_intervalSeconds * 1000);
     else
         m_autoSaveTimer->stop();
+
+    QSettings settings;
+    settings.setValue(QStringLiteral("backups/autoSaveEnabled"), m_autoSaveEnabled);
     emit autoSaveEnabledChanged(m_autoSaveEnabled);
 }
 
@@ -216,9 +237,12 @@ void SaveBackupManager::setAutoSaveIntervalSeconds(int seconds)
     if (seconds <= 0 || m_intervalSeconds == seconds)
         return;
 
-    m_intervalSeconds = seconds;
+    m_intervalSeconds = std::clamp(seconds, 5, 3600);
     if (m_autoSaveEnabled)
         m_autoSaveTimer->start(m_intervalSeconds * 1000);
+
+    QSettings settings;
+    settings.setValue(QStringLiteral("backups/intervalSeconds"), m_intervalSeconds);
     emit autoSaveIntervalChanged(m_intervalSeconds);
 }
 
@@ -231,13 +255,26 @@ void SaveBackupManager::setMaxBackups(int count)
     m_maxBackups = bounded;
     if (!m_destinationDir.isEmpty())
         pruneOldBackups(m_destinationDir);
+
+    QSettings settings;
+    settings.setValue(QStringLiteral("backups/maxBackups"), m_maxBackups);
     emit maxBackupsChanged(m_maxBackups);
 }
 
 void SaveBackupManager::configureAutoSave(const QString &saveDirPath, const QString &backupDestinationPath)
 {
-    m_targetSaveDir = saveDirPath.trimmed();
-    m_destinationDir = backupDestinationPath.trimmed();
+    const QString savePath = saveDirPath.trimmed();
+    const QString destinationPath = backupDestinationPath.trimmed();
+    if (m_targetSaveDir == savePath && m_destinationDir == destinationPath)
+        return;
+
+    m_targetSaveDir = savePath;
+    m_destinationDir = destinationPath;
+
+    QSettings settings;
+    settings.setValue(QStringLiteral("backups/saveDirPath"), m_targetSaveDir);
+    settings.setValue(QStringLiteral("backups/destinationPath"), m_destinationDir);
+    emit pathsChanged();
 }
 
 void SaveBackupManager::performAutoSave()

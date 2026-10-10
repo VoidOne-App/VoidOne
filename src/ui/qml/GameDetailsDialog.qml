@@ -14,15 +14,39 @@ Dialog {
     property int gameId: -1
     property string gameName: ""
     property string exePath: ""
+    property string iconPath: ""
     property string platform: ""
     property string source: ""
     property string workingDir: ""
     property string launchArgs: ""
     property int playCount: 0
     property bool favorite: false
+    signal notificationRequested(string message, bool isError)
 
-    function openFor(id, name, exe, plat, src, dir, args, count, fav) {
-        gameId=id; gameName=name; exePath=exe; platform=plat; source=src; workingDir=dir
+    function folderUrl(path) {
+        if (!path || path.length === 0)
+            return ""
+        if (path.startsWith("file://"))
+            return path
+        if (path.startsWith("/"))
+            return "file://" + path
+        return "file:///" + path.replace(/\\/g, "/")
+    }
+
+    function iconUrl(path) {
+        if (!path || path.length === 0)
+            return "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
+        if (path.startsWith("qrc:/") || path.startsWith("file:/"))
+            return path
+        if (path.startsWith(":/"))
+            return "qrc" + path
+        if (path.startsWith("/"))
+            return "file://" + path
+        return "file:///" + path.replace(/\\/g, "/")
+    }
+
+    function openFor(id, name, exe, icon, plat, src, dir, args, count, fav) {
+        gameId=id; gameName=name; exePath=exe; iconPath=icon; platform=plat; source=src; workingDir=dir
         launchArgs=args; playCount=count; favorite=fav
         argsField.text=args
         dirField.text=dir
@@ -65,14 +89,33 @@ Dialog {
                 Rectangle {
                     width: 70; height: 70; radius: 17
                     color: "#00e5ff10"; border.color: "#00e5ff32"
-                    Text { anchors.centerIn: parent; text: "V"; color: "#00e5ff"; font.pixelSize: 30; font.bold: true }
+                    Image {
+                        id: detailsGameIcon
+                        anchors.centerIn: parent
+                        width: 48
+                        height: 48
+                        source: dialog.iconUrl(dialog.iconPath)
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        smooth: true
+                        visible: status === Image.Ready
+                    }
+                    Image {
+                        anchors.centerIn: parent
+                        width: 40
+                        height: 40
+                        source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        visible: detailsGameIcon.status !== Image.Ready
+                    }
                 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 5
-                    Text { text: gameName; color: "#f0f6fa"; font.pixelSize: 25; font.bold: true; elide: Text.ElideRight }
-                    Text { text: platform + "  •  " + source; color: "#71869a"; font.pixelSize: 11 }
+                    Text { Layout.fillWidth: true; text: gameName; color: "#f0f6fa"; font.pixelSize: 25; font.bold: true; elide: Text.ElideRight }
+                    Text { Layout.fillWidth: true; text: platform + "  •  " + source; color: "#71869a"; font.pixelSize: 11; elide: Text.ElideRight }
                     Text { text: playCount + " " + qsTr("launches"); color: "#4e6579"; font.pixelSize: 10 }
                 }
 
@@ -97,9 +140,58 @@ Dialog {
             id: tabs
             Layout.fillWidth: true
             Layout.topMargin: 12
-            TabButton { text: qsTr("Overview") }
-            TabButton { text: qsTr("Launch Options") }
-            TabButton { text: qsTr("Files") }
+            Layout.leftMargin: 16
+            Layout.rightMargin: 16
+            spacing: 6
+            background: Rectangle { color: "#0b1118"; radius: 10 }
+            TabButton {
+                text: qsTr("Overview")
+                background: Rectangle {
+                    radius: 8
+                    color: tabs.currentIndex === 0 ? "#00e5ff14" : "transparent"
+                    border.color: tabs.currentIndex === 0 ? "#00e5ff35" : "transparent"
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: tabs.currentIndex === 0 ? "#00e5ff" : "#71869a"
+                    font.pixelSize: 11
+                    font.bold: tabs.currentIndex === 0
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+            TabButton {
+                text: qsTr("Launch Options")
+                background: Rectangle {
+                    radius: 8
+                    color: tabs.currentIndex === 1 ? "#00e5ff14" : "transparent"
+                    border.color: tabs.currentIndex === 1 ? "#00e5ff35" : "transparent"
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: tabs.currentIndex === 1 ? "#00e5ff" : "#71869a"
+                    font.pixelSize: 11
+                    font.bold: tabs.currentIndex === 1
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+            TabButton {
+                text: qsTr("Installation")
+                background: Rectangle {
+                    radius: 8
+                    color: tabs.currentIndex === 2 ? "#00e5ff14" : "transparent"
+                    border.color: tabs.currentIndex === 2 ? "#00e5ff35" : "transparent"
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: tabs.currentIndex === 2 ? "#00e5ff" : "#71869a"
+                    font.pixelSize: 11
+                    font.bold: tabs.currentIndex === 2
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
         }
 
         StackLayout {
@@ -120,20 +212,51 @@ Dialog {
                         Button {
                             text: qsTr("▶  Play")
                             Layout.preferredWidth: 130; implicitHeight: 40
-                            onClicked: { gameModel.launchGame(exePath); dialog.close() }
+                            onClicked: {
+                                if (gameModel.launchGame(exePath)) {
+                                    dialog.close()
+                                    notificationRequested(qsTr("Launch request sent."), false)
+                                } else {
+                                    notificationRequested(qsTr("Could not start game. Check the executable path."), true)
+                                }
+                            }
                             background: Rectangle { radius: 10; color: "#00d8ef" }
                             contentItem: Text { text: parent.text; color: "#041015"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         }
                         Button {
                             text: qsTr("Open Folder")
                             implicitHeight: 40
-                            onClicked: Qt.openUrlExternally("file:///" + workingDir.replace(/\\/g, "/"))
+                            onClicked: Qt.openUrlExternally(dialog.folderUrl(workingDir))
+                            background: Rectangle {
+                                radius: 10
+                                color: parent.hovered ? "#142331" : "#0a1118"
+                                border.color: "#263a4b"
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: "#b9c8d5"
+                                font.pixelSize: 11
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
                         }
                         Item { Layout.fillWidth: true }
                         Button {
-                            text: qsTr("Hide")
+                            text: qsTr("Hide from library")
                             implicitHeight: 40
                             onClicked: { gameModel.hideGame(gameId, true); dialog.close() }
+                            background: Rectangle {
+                                radius: 10
+                                color: parent.hovered ? "#26151d" : "#0a1118"
+                                border.color: parent.hovered ? "#6b3543" : "#26313e"
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: "#d7a4af"
+                                font.pixelSize: 11
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
                         }
                     }
                 }
@@ -144,15 +267,53 @@ Dialog {
                     anchors.fill: parent; anchors.margins: 24; spacing: 14
                     Text { text: qsTr("COMMAND"); color: "#4d6377"; font.pixelSize: 10; font.bold: true; font.letterSpacing: 1.4 }
                     Text { text: qsTr("Arguments"); color: "#71869a"; font.pixelSize: 11 }
-                    TextField { id: argsField; Layout.fillWidth: true; placeholderText: qsTr("e.g. -windowed -novid"); selectByMouse: true }
+                    TextField {
+                        id: argsField
+                        Layout.fillWidth: true
+                        implicitHeight: 40
+                        placeholderText: qsTr("e.g. -windowed -novid")
+                        selectByMouse: true
+                        color: "#eaf2f8"
+                        placeholderTextColor: "#506277"
+                        background: Rectangle {
+                            radius: 9
+                            color: "#080d13"
+                            border.color: argsField.activeFocus ? "#00e5ff66" : "#172635"
+                        }
+                    }
                     Text { text: qsTr("Working directory"); color: "#71869a"; font.pixelSize: 11 }
-                    TextField { id: dirField; Layout.fillWidth: true; selectByMouse: true }
+                    TextField {
+                        id: dirField
+                        Layout.fillWidth: true
+                        implicitHeight: 40
+                        selectByMouse: true
+                        color: "#eaf2f8"
+                        placeholderTextColor: "#506277"
+                        background: Rectangle {
+                            radius: 9
+                            color: "#080d13"
+                            border.color: dirField.activeFocus ? "#00e5ff66" : "#172635"
+                        }
+                    }
                     Text { Layout.fillWidth: true; text: qsTr("Use this for games that need a custom working directory or startup arguments."); color: "#4e6579"; font.pixelSize: 10; wrapMode: Text.WordWrap }
                     Item { Layout.fillHeight: true }
                     Button {
                         Layout.alignment: Qt.AlignRight
+                        implicitHeight: 40
                         text: qsTr("Save Options")
                         onClicked: { gameModel.updateLaunchOptions(gameId, argsField.text, dirField.text); dialog.close() }
+                        background: Rectangle {
+                            radius: 10
+                            color: parent.hovered ? "#20eaff" : "#00d8ef"
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#041015"
+                            font.pixelSize: 11
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
                     }
                 }
             }
@@ -167,8 +328,21 @@ Dialog {
                     Item { Layout.fillHeight: true }
                     Button {
                         Layout.alignment: Qt.AlignRight
+                        implicitHeight: 40
                         text: qsTr("Open Folder")
-                        onClicked: Qt.openUrlExternally("file:///" + workingDir.replace(/\\/g, "/"))
+                        onClicked: Qt.openUrlExternally(dialog.folderUrl(workingDir))
+                        background: Rectangle {
+                            radius: 10
+                            color: parent.hovered ? "#142331" : "#0a1118"
+                            border.color: "#263a4b"
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#b9c8d5"
+                            font.pixelSize: 11
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
                     }
                 }
             }

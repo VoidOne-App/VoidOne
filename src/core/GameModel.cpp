@@ -4,13 +4,24 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QSqlError>
 #include <QSqlQuery>
 #include <QVariantMap>
 #include <QDateTime>
+#include <QDesktopServices>
+#include <QUrl>
 #include <QRegularExpression>
+#include <QCryptographicHash>
+#include <QImage>
+#include <QStandardPaths>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <shellapi.h>
+#endif
 #include <algorithm>
 #include <functional>
 #include <utility>
+#include <cstring>
 
 namespace {
 
@@ -33,6 +44,87 @@ bool isBlockedExecutable(const QFileInfo &file)
             return true;
     }
     return false;
+}
+
+QString extractExecutableIcon(const QString &executablePath)
+{
+    const QFileInfo executable(executablePath);
+    if (!executable.isFile() || executable.isSymLink())
+        return {};
+
+    const QString dataRoot = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (dataRoot.isEmpty())
+        return {};
+
+    QDir iconDirectory(QDir(dataRoot).filePath(QStringLiteral("game-icons")));
+    if (!iconDirectory.exists() && !QDir().mkpath(iconDirectory.absolutePath()))
+        return {};
+
+    const QByteArray digest = QCryptographicHash::hash(
+        executable.absoluteFilePath().toUtf8(), QCryptographicHash::Sha256).toHex();
+    const QString iconPath = iconDirectory.filePath(QString::fromLatin1(digest) + QStringLiteral(".png"));
+    if (QFileInfo::exists(iconPath))
+        return iconPath;
+
+#ifdef Q_OS_WIN
+    SHFILEINFOW fileInfo{};
+    const DWORD_PTR result = SHGetFileInfoW(
+        reinterpret_cast<LPCWSTR>(executable.absoluteFilePath().utf16()),
+        0, &fileInfo, sizeof(fileInfo), SHGFI_ICON | SHGFI_LARGEICON);
+    if (result == 0 || fileInfo.hIcon == nullptr)
+        return {};
+
+    constexpr int iconSize = 96;
+    BITMAPINFO bitmapInfo{};
+    bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bitmapInfo.bmiHeader.biWidth = iconSize;
+    bitmapInfo.bmiHeader.biHeight = -iconSize;
+    bitmapInfo.bmiHeader.biPlanes = 1;
+    bitmapInfo.bmiHeader.biBitCount = 32;
+    bitmapInfo.bmiHeader.biCompression = BI_RGB;
+
+    HDC screenDc = GetDC(nullptr);
+    if (screenDc == nullptr) {
+        DestroyIcon(fileInfo.hIcon);
+        return {};
+    }
+
+    void *pixels = nullptr;
+    HBITMAP bitmap = CreateDIBSection(screenDc, &bitmapInfo, DIB_RGB_COLORS,
+                                      &pixels, nullptr, 0);
+    HDC memoryDc = CreateCompatibleDC(screenDc);
+    if (bitmap == nullptr || memoryDc == nullptr || pixels == nullptr) {
+        if (memoryDc != nullptr)
+            DeleteDC(memoryDc);
+        if (bitmap != nullptr)
+            DeleteObject(bitmap);
+        ReleaseDC(nullptr, screenDc);
+        DestroyIcon(fileInfo.hIcon);
+        return {};
+    }
+
+    HGDIOBJ previousObject = SelectObject(memoryDc, bitmap);
+    std::memset(pixels, 0, iconSize * iconSize * 4);
+    const BOOL drawn = DrawIconEx(memoryDc, 0, 0, fileInfo.hIcon,
+                                  iconSize, iconSize, 0, nullptr, DI_NORMAL);
+    QImage image(static_cast<uchar *>(pixels), iconSize, iconSize,
+                 iconSize * 4, QImage::Format_ARGB32);
+    const QImage cachedImage = image.copy();
+
+    SelectObject(memoryDc, previousObject);
+    DeleteDC(memoryDc);
+    DeleteObject(bitmap);
+    ReleaseDC(nullptr, screenDc);
+    DestroyIcon(fileInfo.hIcon);
+
+    if (!drawn || cachedImage.isNull() || !cachedImage.save(iconPath, "PNG"))
+        return {};
+    return iconPath;
+#else
+    Q_UNUSED(executable)
+    Q_UNUSED(iconPath)
+    return {};
+#endif
 }
 
 } // namespace
@@ -87,15 +179,31 @@ QHash<int, QByteArray> GameModel::roleNames() const
 
 void GameModel::loadGamesFromDatabase()
 {
-    beginResetModel();
     m_allGames = Database::getAllGames();
-    m_games.clear();
-    for (const auto &game : std::as_const(m_allGames)) {
-        if (!game.hidden)
-            m_games.append(game);
+
+    // Backfill missing icons for games already present in the user's library.
+    // The cache is stored in app data; the executable and database schema stay untouched.
+    const QSqlDatabase db = QSqlDatabase::database(QStringLiteral("voidone-main"), false);
+    for (GameRecord &game : m_allGames) {
+        if (!game.iconPath.isEmpty() && QFileInfo::exists(game.iconPath))
+            continue;
+
+        const QString extractedIcon = extractExecutableIcon(game.exePath);
+        if (extractedIcon.isEmpty())
+            continue;
+
+        game.iconPath = extractedIcon;
+        if (db.isValid() && db.isOpen()) {
+            QSqlQuery update(db);
+            update.prepare("UPDATE games SET icon_path = :icon WHERE id = :id");
+            update.bindValue(":icon", extractedIcon);
+            update.bindValue(":id", game.id);
+            if (!update.exec())
+                qWarning() << "[VoidOne] Could not persist cached game icon:" << update.lastError().text();
+        }
     }
-    endResetModel();
-    emit countChanged();
+
+    rebuildVisibleGames();
 }
 
 bool GameModel::addNewGame(const QString &name, const QString &exePath, const QString &iconPath)
@@ -129,6 +237,8 @@ bool GameModel::addNewGame(const QString &name, const QString &exePath, const QS
     game.name = trimmedName;
     game.exePath = exeInfo.absoluteFilePath();
     game.iconPath = iconPath.trimmed();
+    if (game.iconPath.isEmpty() || !QFileInfo::exists(game.iconPath))
+        game.iconPath = extractExecutableIcon(game.exePath);
     game.platform = QStringLiteral("Custom");
     game.source = QStringLiteral("Local");
     game.workingDir = exeInfo.absolutePath();
@@ -203,7 +313,7 @@ QStringList GameModel::suggestExecutables(const QString &folderPath) const
                 candidates.append({score, file.size(), file.absoluteFilePath()});
             }
 
-            if (depth >= 2)
+            if (depth >= 4)
                 return;
 
             const QFileInfoList dirs = dir.entryInfoList(
@@ -246,29 +356,36 @@ bool GameModel::deleteGame(int id, int index)
     return true;
 }
 
-void GameModel::launchGame(const QString &exePath)
+bool GameModel::removeGameById(int id)
+{
+    if (id <= 0 || !Database::removeGame(id))
+        return false;
+    loadGamesFromDatabase();
+    return true;
+}
+bool GameModel::launchGame(const QString &exePath)
 {
     const QString trimmedPath = exePath.trimmed();
     if (trimmedPath.isEmpty()) {
         qWarning() << "[VoidOne] Refusing to launch an empty game path.";
-        return;
+        return false;
     }
 
     const QFileInfo targetInfo(trimmedPath);
     if (!targetInfo.isFile() || targetInfo.isSymLink()) {
         qWarning() << "[VoidOne] Refusing to launch non-file or symlink:" << trimmedPath;
-        return;
+        return false;
     }
 
 #if defined(Q_OS_WIN)
     if (!targetInfo.fileName().endsWith(".exe", Qt::CaseInsensitive)) {
         qWarning() << "[VoidOne] Refusing non-executable Windows target:" << trimmedPath;
-        return;
+        return false;
     }
 #else
     if (!targetInfo.isExecutable()) {
         qWarning() << "[VoidOne] Refusing non-executable target:" << trimmedPath;
-        return;
+        return false;
     }
 #endif
 
@@ -288,17 +405,30 @@ void GameModel::launchGame(const QString &exePath)
     }
 
     int launchedId = -1;
+    int steamAppId = 0;
+    QString gameSource;
     for (const auto &game : std::as_const(m_allGames)) {
         if (QFileInfo(game.exePath).absoluteFilePath() == absolutePath) {
             launchedId = game.id;
+            steamAppId = game.steamAppId;
+            gameSource = game.source;
             break;
         }
     }
 
     qint64 pid = -1;
-    if (!QProcess::startDetached(absolutePath, arguments, workingDirectory, &pid)) {
+    bool launchAccepted = false;
+    if (steamAppId > 0 && gameSource.compare(QStringLiteral("Steam"), Qt::CaseInsensitive) == 0) {
+        const QUrl steamUrl(QStringLiteral("steam://rungameid/%1").arg(steamAppId));
+        launchAccepted = QDesktopServices::openUrl(steamUrl);
+        if (!launchAccepted)
+            qWarning() << "[VoidOne] Steam protocol launch failed; trying executable directly:" << steamUrl;
+    }
+    if (!launchAccepted)
+        launchAccepted = QProcess::startDetached(absolutePath, arguments, workingDirectory, &pid);
+    if (!launchAccepted) {
         qWarning() << "[VoidOne] Failed to launch game:" << absolutePath;
-        return;
+        return false;
     }
 
     QSqlQuery stats(QSqlDatabase::database(QStringLiteral("voidone-main"), false));
@@ -309,51 +439,160 @@ void GameModel::launchGame(const QString &exePath)
     loadGamesFromDatabase();
     emit gameLaunched(launchedId);
     qInfo() << "[VoidOne] Game launched:" << absolutePath << "PID:" << pid;
+    return true;
 }
 
 void GameModel::filter(const QString &searchText)
 {
-    const QString needle = searchText.trimmed();
+    m_filterText = searchText.trimmed();
+    rebuildVisibleGames();
+}
 
+void GameModel::filterGames(const QString &searchText, const QString &mode)
+{
+    const QStringList supportedModes = {
+        QStringLiteral("all"), QStringLiteral("favorites"), QStringLiteral("recent")
+    };
+    m_filterMode = supportedModes.contains(mode) ? mode : QStringLiteral("all");
+    m_filterText = searchText.trimmed();
+    rebuildVisibleGames();
+}
+
+void GameModel::rebuildVisibleGames()
+{
     beginResetModel();
     m_games.clear();
+
     for (const auto &game : std::as_const(m_allGames)) {
         if (game.hidden)
             continue;
-        if (needle.isEmpty()
-            || game.name.contains(needle, Qt::CaseInsensitive)
-            || game.platform.contains(needle, Qt::CaseInsensitive)
-            || game.exePath.contains(needle, Qt::CaseInsensitive)) {
-            m_games.append(game);
+        if (m_filterMode == QStringLiteral("favorites") && !game.favorite)
+            continue;
+        if (m_filterMode == QStringLiteral("recent") && game.lastPlayed <= 0)
+            continue;
+        if (!m_filterText.isEmpty()
+            && !game.name.contains(m_filterText, Qt::CaseInsensitive)
+            && !game.platform.contains(m_filterText, Qt::CaseInsensitive)
+            && !game.exePath.contains(m_filterText, Qt::CaseInsensitive)
+            && !game.source.contains(m_filterText, Qt::CaseInsensitive)) {
+            continue;
         }
+        m_games.append(game);
     }
+
+    if (m_filterMode == QStringLiteral("recent")) {
+        std::stable_sort(m_games.begin(), m_games.end(),
+                         [](const GameRecord &left, const GameRecord &right) {
+            return left.lastPlayed > right.lastPlayed;
+        });
+    } else if (m_filterMode == QStringLiteral("favorites")) {
+        std::stable_sort(m_games.begin(), m_games.end(),
+                         [](const GameRecord &left, const GameRecord &right) {
+            return left.name.compare(right.name, Qt::CaseInsensitive) < 0;
+        });
+    }
+
     endResetModel();
     emit countChanged();
 }
 
-
 void GameModel::setFavorite(int id, bool favorite)
 {
-    QSqlQuery q(QSqlDatabase::database(QStringLiteral("voidone-main"), false));
-    q.prepare("UPDATE games SET favorite=:favorite WHERE id=:id");
-    q.bindValue(":favorite", favorite ? 1 : 0); q.bindValue(":id", id);
-    if (q.exec()) loadGamesFromDatabase();
-}
+    const QSqlDatabase db = QSqlDatabase::database(QStringLiteral("voidone-main"), false);
+    if (!db.isValid() || !db.isOpen()) {
+        qWarning() << "[VoidOne] Favorite update requested while the database is unavailable.";
+        return;
+    }
 
+    QSqlQuery query(db);
+    query.prepare("UPDATE games SET favorite = :favorite WHERE id = :id");
+    query.bindValue(":favorite", favorite ? 1 : 0);
+    query.bindValue(":id", id);
+    if (!query.exec()) {
+        qWarning() << "[VoidOne] Favorite update failed:" << query.lastError().text();
+        return;
+    }
+    if (query.numRowsAffected() == 0) {
+        qWarning() << "[VoidOne] Favorite update matched no game row for id:" << id;
+        return;
+    }
+
+    for (GameRecord &game : m_allGames) {
+        if (game.id == id) {
+            game.favorite = favorite;
+            break;
+        }
+    }
+
+    // Update the visible role in place instead of resetting the whole model.
+    // This keeps the clicked card stable and avoids losing its interaction mid-click.
+    if (m_filterMode == QStringLiteral("favorites") && !favorite) {
+        rebuildVisibleGames();
+        return;
+    }
+
+    for (int row = 0; row < m_games.size(); ++row) {
+        if (m_games[row].id == id) {
+            m_games[row].favorite = favorite;
+            emit dataChanged(index(row, 0), index(row, 0), {FavoriteRole});
+            return;
+        }
+    }
+}
 void GameModel::hideGame(int id, bool hidden)
 {
-    QSqlQuery q(QSqlDatabase::database());
+    QSqlQuery q(QSqlDatabase::database(QStringLiteral("voidone-main"), false));
     q.prepare("UPDATE games SET hidden=:hidden WHERE id=:id");
     q.bindValue(":hidden", hidden ? 1 : 0); q.bindValue(":id", id);
     if (q.exec()) loadGamesFromDatabase();
 }
 
+bool GameModel::updateGamePath(int id, const QString &newExecutablePath)
+{
+    const QString path = newExecutablePath.trimmed();
+    const QFileInfo info(path);
+    if (!info.isFile() || info.isSymLink()) {
+        qWarning() << "[VoidOne] Refusing invalid replacement executable:" << path;
+        return false;
+    }
+#if defined(Q_OS_WIN)
+    if (!info.fileName().endsWith(QStringLiteral(".exe"), Qt::CaseInsensitive))
+        return false;
+#else
+    if (!info.isExecutable())
+        return false;
+#endif
+    const QString absolutePath = info.absoluteFilePath();
+    const QSqlDatabase db = QSqlDatabase::database(QStringLiteral("voidone-main"), false);
+    if (!db.isValid() || !db.isOpen())
+        return false;
+    QSqlQuery query(db);
+    query.prepare("UPDATE games SET exe_path = :path, working_dir = :dir, icon_path = '' WHERE id = :id");
+    query.bindValue(":path", absolutePath);
+    query.bindValue(":dir", info.absolutePath());
+    query.bindValue(":id", id);
+    if (!query.exec() || query.numRowsAffected() == 0) {
+        qWarning() << "[VoidOne] Failed to update game executable path:" << query.lastError().text();
+        return false;
+    }
+    loadGamesFromDatabase();
+    return true;
+}
 void GameModel::updateLaunchOptions(int id, const QString &args, const QString &workingDir)
 {
-    QSqlQuery q(QSqlDatabase::database());
+    const QSqlDatabase db = QSqlDatabase::database(QStringLiteral("voidone-main"), false);
+    if (!db.isValid() || !db.isOpen()) {
+        qWarning() << "[VoidOne] Cannot update launch options: database is unavailable.";
+        return;
+    }
+    QSqlQuery q(db);
     q.prepare("UPDATE games SET launch_args=:args, working_dir=:dir WHERE id=:id");
     q.bindValue(":args", args); q.bindValue(":dir", workingDir); q.bindValue(":id", id);
-    if (q.exec()) loadGamesFromDatabase();
+    if (!q.exec()) {
+        qWarning() << "[VoidOne] Failed to update launch options:" << q.lastError().text();
+        return;
+    }
+    loadGamesFromDatabase();
 }
 
 QVariantMap GameModel::getGameDetails(int id) const

@@ -87,7 +87,7 @@ set(VOIDONE_VERSION_DISPLAY "${VOIDONE_VERSION_INPUT}")
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/VoidOneVersion.h.in"
                "${VOIDONE_GENERATED_DIR}/VoidOneVersion.h" @ONLY)
 
-find_package(Qt6 6.11.2 REQUIRED COMPONENTS Core Gui Quick Sql Network)
+find_package(Qt6 6.11.2 REQUIRED COMPONENTS Core Gui Quick Sql Network Svg)
 if(VOIDONE_BUILD_TESTS)
     find_package(Qt6 6.11.2 REQUIRED COMPONENTS Test)
 endif()
@@ -144,7 +144,7 @@ target_include_directories(voidone_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
     "${VOIDONE_GENERATED_DIR}"
 )
-target_link_libraries(voidone_core PUBLIC Qt6::Core Qt6::Sql Qt6::Network)
+target_link_libraries(voidone_core PUBLIC Qt6::Core Qt6::Gui Qt6::Sql Qt6::Network)
 target_precompile_headers(voidone_core PRIVATE <QObject> <QString> <QList> <memory> <vector> <string>)
 voidone_apply_compile_policy(voidone_core)
 
@@ -169,12 +169,13 @@ qt_add_qml_module(VoidOne
         src/ui/qml/SaveBackupView.qml
         src/ui/qml/SidebarButton.qml
         src/ui/qml/EnterpriseDialog.qml
-        src/ui/qml/MusicControllerWidget.qml
-        src/ui/qml/SystemTelemetryWidget.qml
         src/ui/qml/AddGameDialog.qml
         src/ui/qml/ActionButton.qml
         src/ui/qml/GameDetailsDialog.qml
+        src/ui/qml/AmbientBackdrop.qml
+        src/ui/qml/AnimatedIcon.qml
     RESOURCES
+        assets/branding/voidone-mark.svg
         assets/ui/icons/home.svg
         assets/ui/icons/library.svg
         assets/ui/icons/activity.svg
@@ -182,10 +183,18 @@ qt_add_qml_module(VoidOne
         assets/ui/icons/add.svg
         assets/ui/icons/folder.svg
         assets/ui/icons/file.svg
+        assets/ui/icons/gamepad.svg
+        assets/ui/icons/play.svg
+        assets/ui/icons/clock.svg
+        assets/ui/icons/shield.svg
+        assets/ui/icons/heart.svg
+        assets/ui/icons/scan.svg
+        assets/ui/icons/sliders.svg
+        assets/ui/icons/spark.svg
 )
-target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick)
+target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick Qt6::Svg)
 if(WIN32)
-    target_link_libraries(VoidOne PRIVATE Dbghelp)
+    target_link_libraries(VoidOne PRIVATE Dbghelp Shell32)
 endif()
 voidone_apply_compile_policy(VoidOne)
 

@@ -9,20 +9,34 @@ import QtQuick.Window
 import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Effects
+import Qt.labs.settings
+import QtQuick.Dialogs as NativeDialogs
 
 Window {
     id: root
 
     width: Screen.desktopAvailableWidth * 0.86
     height: Screen.desktopAvailableHeight * 0.86
-    minimumWidth: 1040
-    minimumHeight: 700
+    minimumWidth: 900
+    minimumHeight: 600
     visible: true
     title: qsTr("VoidOne")
     color: theme.background
 
     property string currentPage: "home"
-    property bool sidebarCompact: false
+    property bool sidebarCompact: uiSettings.compactSidebar
+    property string libraryFilter: uiSettings.libraryFilter
+    readonly property bool narrowLayout: width < 1100
+
+    onSidebarCompactChanged: uiSettings.compactSidebar = sidebarCompact
+    onLibraryFilterChanged: uiSettings.libraryFilter = libraryFilter
+
+    Settings {
+        id: uiSettings
+        category: "ui"
+        property bool compactSidebar: false
+        property string libraryFilter: "all"
+    }
 
     QtObject {
         id: theme
@@ -48,15 +62,40 @@ Window {
         return fallback
     }
 
+    function displayGameName(name, path) {
+        if (name && String(name).trim().length > 0)
+            return String(name).trim()
+        var normalized = String(path || "").replace(/\\/g, "/")
+        var leaf = normalized.substring(normalized.lastIndexOf("/") + 1)
+        return leaf.replace(/\.exe$/i, "") || qsTr("Unknown game")
+    }
+
     function showNotification(message, isError) {
         toast.text = message
         toastAccent.color = isError ? "#ff5f70" : theme.cyan
         toastAnimation.restart()
     }
 
+    function applyPageFilter() {
+        if (typeof searchInput === "undefined" || searchInput === null)
+            return
+        if (typeof gameModel === "undefined" || gameModel === null)
+            return
+        if (currentPage === "activity")
+            gameModel.filterGames(searchInput.text, "recent")
+        else if (currentPage === "library")
+            gameModel.filterGames(searchInput.text, libraryFilter)
+        else
+            gameModel.filterGames(searchInput.text, "all")
+    }
+
+    onCurrentPageChanged: applyPageFilter()
+
     Rectangle {
         anchors.fill: parent
         color: theme.background
+
+        AmbientBackdrop { anchors.fill: parent }
 
         // Ambient platform lighting
         Rectangle {
@@ -131,7 +170,7 @@ Window {
                         }
 
                         Rectangle {
-                            Layout.preferredWidth: 300
+                            Layout.preferredWidth: root.narrowLayout ? 190 : 300
                             Layout.preferredHeight: 38
                             radius: 10
                             color: "#0b1118"
@@ -158,10 +197,7 @@ Window {
                                     background: Item {}
                                     font.pixelSize: 12
                                     selectByMouse: true
-                                    onTextChanged: {
-                                        if (typeof gameModel !== "undefined" && gameModel !== null)
-                                            gameModel.filter(text)
-                                    }
+                                    onTextChanged: root.applyPageFilter()
                                 }
                             }
                         }
@@ -170,7 +206,7 @@ Window {
 
                         Rectangle {
                             Layout.preferredHeight: 36
-                            Layout.preferredWidth: 100
+                            Layout.preferredWidth: 116
                             radius: 10
                             color: "#0c141c"
                             border.color: "#172533"
@@ -183,19 +219,33 @@ Window {
                                     width: 7
                                     height: 7
                                     radius: 4
-                                    color: theme.success
-                                    SequentialAnimation on opacity {
-                                        loops: Animation.Infinite
-                                        NumberAnimation { to: 0.25; duration: 900 }
-                                        NumberAnimation { to: 1; duration: 900 }
-                                    }
+                                    color: theme.cyan
                                 }
                                 Text {
-                                    text: qsTr("LOCAL")
+                                    text: qsTr("LOCAL-FIRST")
                                     color: theme.muted
                                     font.pixelSize: 10
                                     font.bold: true
                                 }
+                            }
+                        }
+
+                        Button {
+                            text: qsTr("☰ Menu")
+                            implicitHeight: 36
+                            onClicked: appMenu.open()
+                            background: Rectangle {
+                                radius: 9
+                                color: parent.hovered ? "#142331" : "#0b1118"
+                                border.color: "#263746"
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: theme.text
+                                font.pixelSize: 11
+                                font.bold: true
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
                             }
                         }
 
@@ -205,11 +255,14 @@ Window {
                             radius: 18
                             color: theme.cyanSoft
                             border.color: theme.cyanLine
-                            Text {
+                            Image {
                                 anchors.centerIn: parent
-                                text: "V"
-                                color: theme.cyan
-                                font.bold: true
+                                width: 22
+                                height: 22
+                                source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
+                                fillMode: Image.PreserveAspectFit
+                                smooth: true
+                                asynchronous: true
                             }
                         }
                     }
@@ -234,15 +287,17 @@ Window {
                         contentWidth: width
                         contentHeight: homeColumn.implicitHeight + 48
                         clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                         ColumnLayout {
                             id: homeColumn
-                            width: parent.width
+                            width: Math.max(0, parent.width - 56)
                             anchors.top: parent.top
-                            anchors.topMargin: 30
-                            anchors.leftMargin: 34
-                            anchors.rightMargin: 34
-                            spacing: 24
+                            anchors.topMargin: 26
+                            anchors.left: parent.left
+                            anchors.leftMargin: 28
+                            spacing: 22
 
                             RowLayout {
                                 Layout.fillWidth: true
@@ -251,15 +306,19 @@ Window {
                                     Layout.fillWidth: true
                                     spacing: 6
                                     Text {
+                                        Layout.fillWidth: true
                                         text: qsTr("Your games. Your hardware. Your rules.")
                                         color: theme.text
-                                        font.pixelSize: 29
+                                        font.pixelSize: root.narrowLayout ? 23 : 29
                                         font.bold: true
+                                        wrapMode: Text.WordWrap
                                     }
                                     Text {
+                                        Layout.fillWidth: true
                                         text: qsTr("A local-first gaming platform that puts your library back in your hands.")
                                         color: theme.muted
                                         font.pixelSize: 13
+                                        wrapMode: Text.WordWrap
                                     }
                                 }
 
@@ -285,8 +344,8 @@ Window {
                             // Hero
                             Rectangle {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 220
-                                radius: 22
+                                Layout.preferredHeight: root.narrowLayout ? 185 : 220
+                                radius: 18
                                 color: "#0d151e"
                                 border.color: "#1b2b3b"
                                 clip: true
@@ -310,10 +369,10 @@ Window {
 
                                 ColumnLayout {
                                     anchors.left: parent.left
-                                    anchors.leftMargin: 68
+                                    anchors.leftMargin: root.narrowLayout ? 28 : 68
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width * 0.58
-                                    spacing: 12
+                                    width: parent.width * (root.narrowLayout ? 0.72 : 0.58)
+                                    spacing: 10
 
                                     Text {
                                         text: qsTr("WELCOME BACK")
@@ -326,7 +385,7 @@ Window {
                                     Text {
                                         text: gameModel && gameModel.count > 0 ? qsTr("Ready to play.") : qsTr("Build your library.")
                                         color: theme.text
-                                        font.pixelSize: 31
+                                        font.pixelSize: root.narrowLayout ? 25 : 31
                                         font.bold: true
                                     }
 
@@ -367,14 +426,17 @@ Window {
                                     }
                                 }
 
-                                Text {
+                                Image {
+                                    visible: !root.narrowLayout
                                     anchors.right: parent.right
-                                    anchors.rightMargin: 42
+                                    anchors.rightMargin: 34
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: "V"
-                                    color: "#00e5ff10"
-                                    font.pixelSize: 150
-                                    font.bold: true
+                                    width: 150
+                                    height: 150
+                                    source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                    opacity: 0.12
+                                    asynchronous: true
                                 }
                             }
 
@@ -390,20 +452,20 @@ Window {
                                 }
                                 StatCard {
                                     Layout.fillWidth: true
-                                    label: qsTr("PLATFORM")
-                                    value: "LOCAL"
+                                    label: qsTr("ACCOUNT")
+                                    value: qsTr("OPTIONAL")
                                     detail: qsTr("no account required")
                                 }
                                 StatCard {
                                     Layout.fillWidth: true
                                     label: qsTr("CONTROL")
-                                    value: "100%"
-                                    detail: qsTr("your library")
+                                    value: qsTr("YOURS")
+                                    detail: qsTr("local-first by design")
                                 }
                             }
 
                             Text {
-                                text: qsTr("RECENTLY ADDED")
+                                text: qsTr("YOUR LIBRARY")
                                 color: theme.muted
                                 font.pixelSize: 10
                                 font.bold: true
@@ -412,9 +474,10 @@ Window {
 
                             GridView {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: Math.max(190, Math.ceil((gameModel ? gameModel.count : 0) / 3) * 190)
+                                property int columns: width < 560 ? 1 : (width < 900 ? 2 : 3)
+                                Layout.preferredHeight: Math.max(190, Math.ceil((gameModel ? gameModel.count : 0) / columns) * 190)
                                 interactive: false
-                                cellWidth: width / 3
+                                cellWidth: width / columns
                                 cellHeight: 180
                                 model: typeof gameModel !== "undefined" ? gameModel : null
 
@@ -422,20 +485,23 @@ Window {
                                     width: GridView.view.cellWidth - 10
                                     height: 168
                                     gameId: model.id
-                                    gameName: model.name
+                                    gameName: root.displayGameName(model.name, model.exePath)
                                     exePath: model.exePath
                                     iconPath: model.iconPath
                                     platform: model.platform
                                     source: model.source
                                     favorite: model.favorite
                                     playCount: model.playCount
+                                    lastPlayed: model.lastPlayed
                                     itemIndex: index
                                     compact: true
                                     onLaunchRequested: function(path) {
-                                        gameModel.launchGame(path)
-                                        root.showNotification(qsTr("Launching game..."))
+                                        if (gameModel.launchGame(path))
+                                            root.showNotification(qsTr("Launch request sent."))
+                                        else
+                                            root.showNotification(qsTr("Could not start game. Check the executable path."), true)
                                     }
-                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
+                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, iconPath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
                                 }
                             }
                         }
@@ -445,7 +511,7 @@ Window {
                     Item {
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 32
+                            anchors.margins: 24
                             spacing: 18
 
                             RowLayout {
@@ -495,33 +561,84 @@ Window {
                                 color: "#14202c"
                             }
 
-                            GridView {
-                                id: gameGrid
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: qsTr("YOUR GAMES")
+                                    color: theme.muted
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    font.letterSpacing: 1.4
+                                }
+
+                                Repeater {
+                                    model: [
+                                        { label: qsTr("All"), value: "all" },
+                                        { label: qsTr("Favorites"), value: "favorites" },
+                                        { label: qsTr("Recently played"), value: "recent" }
+                                    ]
+                                    delegate: Button {
+                                        required property var modelData
+                                        text: modelData.label
+                                        implicitHeight: 32
+                                        onClicked: {
+                                            root.libraryFilter = modelData.value
+                                            root.applyPageFilter()
+                                        }
+                                        background: Rectangle {
+                                            radius: 9
+                                            color: root.libraryFilter === modelData.value ? "#00e5ff16" : (parent.hovered ? "#101c27" : "#0a1118")
+                                            border.color: root.libraryFilter === modelData.value ? "#00e5ff58" : "#1a2a39"
+                                        }
+                                        contentItem: Text {
+                                            text: parent.text
+                                            color: root.libraryFilter === modelData.value ? theme.cyan : theme.muted
+                                            font.pixelSize: 10
+                                            font.bold: root.libraryFilter === modelData.value
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                    }
+                                }
+                            }
+
+                            Item {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
+
+                                GridView {
+                                    id: gameGrid
+                                    anchors.fill: parent
                                 cellWidth: Math.max(240, Math.floor(width / Math.max(1, Math.floor(width / 285))))
                                 cellHeight: 190
                                 clip: true
                                 boundsBehavior: Flickable.StopAtBounds
+                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                                 model: typeof gameModel !== "undefined" ? gameModel : null
 
                                 delegate: GameCard {
                                     width: gameGrid.cellWidth - 12
                                     height: 174
                                     gameId: model.id
-                                    gameName: model.name
+                                    gameName: root.displayGameName(model.name, model.exePath)
                                     exePath: model.exePath
                                     iconPath: model.iconPath
                                     platform: model.platform
                                     source: model.source
                                     favorite: model.favorite
                                     playCount: model.playCount
+                                    lastPlayed: model.lastPlayed
                                     itemIndex: index
                                     onLaunchRequested: function(path) {
-                                        gameModel.launchGame(path)
-                                        root.showNotification(qsTr("Launching game..."))
+                                        if (gameModel.launchGame(path))
+                                            root.showNotification(qsTr("Launch request sent."))
+                                        else
+                                            root.showNotification(qsTr("Could not start game. Check the executable path."), true)
                                     }
-                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
+                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, iconPath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
                                 }
 
                                 footer: Item {
@@ -530,9 +647,9 @@ Window {
                                 }
                             }
 
-                            ColumnLayout {
-                                anchors.centerIn: gameGrid
-                                visible: gameGrid.count === 0
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    visible: gameGrid.count === 0
                                 spacing: 10
 
                                 Text {
@@ -543,46 +660,615 @@ Window {
                                 }
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    text: qsTr("Your library is empty")
+                                    text: searchInput.text.length > 0
+                                          ? qsTr("No games match this search")
+                                          : root.libraryFilter === "favorites"
+                                            ? qsTr("No favorite games yet")
+                                            : root.libraryFilter === "recent"
+                                              ? qsTr("No recently played games")
+                                              : qsTr("Your library is empty")
                                     color: theme.text
                                     font.pixelSize: 18
                                     font.bold: true
                                 }
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    text: qsTr("Add an executable or choose a game folder.")
+                                    text: searchInput.text.length > 0
+                                          ? qsTr("Try another search or clear the search field.")
+                                          : root.libraryFilter === "favorites"
+                                            ? qsTr("Mark games as favorites with the star on each game card.")
+                                            : root.libraryFilter === "recent"
+                                              ? qsTr("Launch a game and it will appear here.")
+                                              : qsTr("Add an executable or choose a game folder.")
                                     color: theme.muted
                                     font.pixelSize: 12
+                                }
+
+                                Button {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    visible: searchInput.text.length === 0
+                                    text: root.libraryFilter === "all" ? qsTr("＋ Add your first game") : qsTr("Show all games")
+                                    onClicked: {
+                                        if (root.libraryFilter !== "all") {
+                                            root.libraryFilter = "all"
+                                            root.applyPageFilter()
+                                        } else {
+                                            addGameDialog.open()
+                                        }
+                                    }
+                                    background: Rectangle {
+                                        radius: 10
+                                        color: theme.cyan
+                                    }
+                                    contentItem: Text {
+                                        text: parent.text
+                                        color: "#041015"
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
                                 }
                             }
                         }
                     }
 
-                    // ACTIVITY
+                    // ACTIVITY — actual launch history from the local game database.
                     Item {
                         ColumnLayout {
-                            anchors.centerIn: parent
-                            spacing: 10
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: qsTr("Activity")
-                                color: theme.text
-                                font.pixelSize: 28
-                                font.bold: true
+                            anchors.fill: parent
+                            anchors.margins: 24
+                            spacing: 16
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 5
+                                Text {
+                                    text: qsTr("Recently played")
+                                    color: theme.text
+                                    font.pixelSize: 28
+                                    font.bold: true
+                                }
+                                Text {
+                                    text: qsTr("Your launch history, stored locally with your game library.")
+                                    color: theme.muted
+                                    font.pixelSize: 12
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
+                                }
                             }
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: qsTr("Play history and platform events are coming next.")
-                                color: theme.muted
-                                font.pixelSize: 12
+
+                            Rectangle { Layout.fillWidth: true; height: 1; color: "#14202c" }
+
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+
+                                GridView {
+                                    id: activityGrid
+                                    anchors.fill: parent
+                                cellWidth: Math.max(240, Math.floor(width / Math.max(1, Math.floor(width / 285))))
+                                cellHeight: 202
+                                clip: true
+                                boundsBehavior: Flickable.StopAtBounds
+                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                                model: typeof gameModel !== "undefined" ? gameModel : null
+                                delegate: GameCard {
+                                    width: activityGrid.cellWidth - 12
+                                    height: 190
+                                    gameId: model.id
+                                    gameName: root.displayGameName(model.name, model.exePath)
+                                    exePath: model.exePath
+                                    iconPath: model.iconPath
+                                    platform: model.platform
+                                    source: model.source
+                                    favorite: model.favorite
+                                    playCount: model.playCount
+                                    lastPlayed: model.lastPlayed
+                                    itemIndex: index
+                                    onLaunchRequested: function(path) {
+                                        if (gameModel.launchGame(path))
+                                            root.showNotification(qsTr("Launch request sent."))
+                                        else
+                                            root.showNotification(qsTr("Could not start game. Check the executable path."), true)
+                                    }
+                                    onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, iconPath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
+                                }
+                            }
+
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    visible: activityGrid.count === 0
+                                spacing: 10
+                                Image {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
+                                    width: 44
+                                    height: 44
+                                    fillMode: Image.PreserveAspectFit
+                                    opacity: 0.75
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: qsTr("No play history yet")
+                                    color: theme.text
+                                    font.pixelSize: 18
+                                    font.bold: true
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.maximumWidth: 360
+                                    text: qsTr("Games appear here after you launch them from VoidOne. No activity is invented or sent to a server.")
+                                    color: theme.muted
+                                    font.pixelSize: 12
+                                    wrapMode: Text.WordWrap
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+                                Button {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: qsTr("Open library")
+                                    onClicked: root.currentPage = "library"
+                                }
+                                }
                             }
                         }
                     }
 
                     // SETTINGS
-                    Item {
-                        SaveBackupView {
-                            anchors.centerIn: parent
+                    Flickable {
+                        id: settingsFlickable
+                        clip: true
+                        contentWidth: width
+                        contentHeight: settingsColumn.implicitHeight + 48
+                        boundsBehavior: Flickable.StopAtBounds
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                        }
+
+                        ColumnLayout {
+                            id: settingsColumn
+                            width: Math.max(0, settingsFlickable.width - 48)
+                            anchors.top: parent.top
+                            anchors.topMargin: 24
+                            anchors.left: parent.left
+                            anchors.leftMargin: 24
+                            spacing: 18
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 5
+                                Text {
+                                    text: qsTr("Settings")
+                                    color: theme.text
+                                    font.pixelSize: 28
+                                    font.bold: true
+                                }
+                                Text {
+                                    text: qsTr("Configure VoidOne's real features and local preferences.")
+                                    color: theme.muted
+                                    font.pixelSize: 12
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
+                                }
+                            }
+
+                            Text {
+                                text: qsTr("INTERFACE")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: navigationRow.implicitHeight + 28
+                                radius: 14
+                                color: theme.surface
+                                border.color: "#1b2b3a"
+
+                                RowLayout {
+                                    id: navigationRow
+                                    anchors.fill: parent
+                                    anchors.margins: 14
+                                    spacing: 14
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 40
+                                        Layout.preferredHeight: 40
+                                        radius: 11
+                                        color: theme.cyanSoft
+                                        border.color: theme.cyanLine
+                                        Image {
+                                            anchors.centerIn: parent
+                                            width: 20
+                                            height: 20
+                                            source: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/settings.svg"
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+                                        Text {
+                                            text: qsTr("Sidebar layout")
+                                            color: theme.text
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            text: root.sidebarCompact
+                                                  ? qsTr("Icon-only navigation is active.")
+                                                  : qsTr("Show navigation labels for easier scanning.")
+                                            color: theme.muted
+                                            font.pixelSize: 11
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+
+                                    Switch {
+                                        checked: root.sidebarCompact
+                                        onToggled: root.sidebarCompact = checked
+                                        indicator: Rectangle {
+                                            implicitWidth: 42
+                                            implicitHeight: 24
+                                            x: parent.leftPadding
+                                            y: parent.height / 2 - height / 2
+                                            radius: 12
+                                            color: root.sidebarCompact ? theme.cyan : "#17232e"
+                                            border.color: root.sidebarCompact ? theme.cyan : "#3a4b5a"
+                                            Rectangle {
+                                                width: 18
+                                                height: 18
+                                                radius: 9
+                                                y: 3
+                                                x: root.sidebarCompact ? parent.width - width - 3 : 3
+                                                color: root.sidebarCompact ? "#041015" : "#8ca0b1"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: qsTr("PREFERENCES")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
+                            }
+
+                            // Language preferences
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: languageRow.implicitHeight + 28
+                                radius: 14
+                                color: theme.surface
+                                border.color: "#1b2b3a"
+
+                                RowLayout {
+                                    id: languageRow
+                                    anchors.fill: parent
+                                    anchors.margins: 14
+                                    spacing: 14
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 40
+                                        Layout.preferredHeight: 40
+                                        radius: 11
+                                        color: theme.cyanSoft
+                                        border.color: theme.cyanLine
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "文"
+                                            color: theme.cyan
+                                            font.pixelSize: 18
+                                            font.bold: true
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+                                        Text {
+                                            text: qsTr("Backup panel language")
+                                            color: theme.text
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            text: trManager.currentLanguage === "fa"
+                                                  ? "فقط برچسب‌های بخش پشتیبان‌گیری به فارسی نمایش داده می‌شوند."
+                                                  : "Changes labels in the backup controls only."
+                                            color: theme.muted
+                                            font.pixelSize: 11
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+
+                                    Button {
+                                        text: trManager.currentLanguage === "en" ? "فارسی" : "English"
+                                        onClicked: trManager.currentLanguage =
+                                                   trManager.currentLanguage === "en" ? "fa" : "en"
+                                        background: Rectangle {
+                                            radius: 9
+                                            color: parent.hovered ? "#142b37" : "#0b1720"
+                                            border.color: theme.cyanLine
+                                        }
+                                        contentItem: Text {
+                                            text: parent.text
+                                            color: theme.cyan
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: qsTr("LOCAL LIBRARY")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
+                            }
+
+                            // Library tools: real Steam scan action, no pretend preferences.
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: libraryRow.implicitHeight + 28
+                                radius: 14
+                                color: theme.surface
+                                border.color: "#1b2b3a"
+
+                                RowLayout {
+                                    id: libraryRow
+                                    anchors.fill: parent
+                                    anchors.margins: 14
+                                    spacing: 14
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 40
+                                        Layout.preferredHeight: 40
+                                        radius: 11
+                                        color: theme.cyanSoft
+                                        border.color: theme.cyanLine
+                                        Image {
+                                            anchors.centerIn: parent
+                                            width: 21
+                                            height: 21
+                                            source: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/library.svg"
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+                                        Text {
+                                            text: qsTr("Game library")
+                                            color: theme.text
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            text: qsTr("Scan detected Steam libraries for installed games.")
+                                            color: theme.muted
+                                            font.pixelSize: 11
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+
+                                    Button {
+                                        text: qsTr("Scan Steam")
+                                        onClicked: {
+                                            steamScanner.startAsyncScan()
+                                            root.showNotification(qsTr("Scanning installed Steam games..."))
+                                        }
+                                        background: Rectangle {
+                                            radius: 9
+                                            color: parent.hovered ? "#142b37" : "#0b1720"
+                                            border.color: "#2a4051"
+                                        }
+                                        contentItem: Text {
+                                            text: parent.text
+                                            color: theme.text
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: qsTr("GAME PATHS")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: pathsColumn.implicitHeight + 28
+                                radius: 14
+                                color: theme.surface
+                                border.color: "#1b2b3a"
+
+                                ColumnLayout {
+                                    id: pathsColumn
+                                    anchors.fill: parent
+                                    anchors.margins: 14
+                                    spacing: 12
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 12
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 3
+                                            Text { text: qsTr("Installed game locations"); color: theme.text; font.pixelSize: 13; font.bold: true }
+                                            Text { text: qsTr("View, change, or remove each game executable path. Removing a game only removes its library entry; it does not uninstall the game."); color: theme.muted; font.pixelSize: 11; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                        }
+                                        Button {
+                                            text: qsTr("＋ Add Game")
+                                            onClicked: addGameDialog.open()
+                                            background: Rectangle { radius: 9; color: parent.hovered ? "#20eaff" : theme.cyan }
+                                            contentItem: Text { text: parent.text; color: "#041015"; font.pixelSize: 11; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                                        }
+                                    }
+
+                                    Rectangle { Layout.fillWidth: true; height: 1; color: "#1b2b3a" }
+
+                                    Repeater {
+                                        model: typeof gameModel !== "undefined" ? gameModel : null
+                                        delegate: Rectangle {
+                                            id: gamePathRow
+                                            required property int index
+                                            property int gameId: model.id
+                                            property string gameTitle: root.displayGameName(model.name, model.exePath)
+                                            property string executablePath: model.exePath || ""
+                                            Layout.fillWidth: true
+                                            implicitHeight: pathRowLayout.implicitHeight + 20
+                                            radius: 10
+                                            color: "#090f16"
+                                            border.color: "#192a39"
+
+                                            RowLayout {
+                                                id: pathRowLayout
+                                                anchors.fill: parent
+                                                anchors.margins: 10
+                                                spacing: 10
+                                                ColumnLayout {
+                                                    Layout.fillWidth: true
+                                                    spacing: 3
+                                                    Text { text: gamePathRow.gameTitle; color: theme.text; font.pixelSize: 12; font.bold: true; elide: Text.ElideRight; Layout.fillWidth: true }
+                                                    Text { text: gamePathRow.executablePath; color: theme.muted; font.pixelSize: 10; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                                                }
+                                                Button {
+                                                    text: qsTr("Change")
+                                                    onClicked: pathFileDialog.open()
+                                                    background: Rectangle { radius: 8; color: parent.hovered ? "#142b37" : "#0b1720"; border.color: theme.cyanLine }
+                                                    contentItem: Text { text: parent.text; color: theme.cyan; font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                                                }
+                                                Button {
+                                                    text: qsTr("Remove")
+                                                    onClicked: {
+                                                        if (gameModel.removeGameById(gamePathRow.gameId)) root.showNotification(qsTr("Game removed from your library."))
+                                                        else root.showNotification(qsTr("Could not remove this library entry."), true)
+                                                    }
+                                                    background: Rectangle { radius: 8; color: parent.hovered ? "#351820" : "#1b1016"; border.color: "#6b2935" }
+                                                    contentItem: Text { text: parent.text; color: "#ff8795"; font.pixelSize: 10; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                                                }
+                                            }
+
+                                            NativeDialogs.FileDialog {
+                                                id: pathFileDialog
+                                                title: qsTr("Choose the new executable for ") + gamePathRow.gameTitle
+                                                fileMode: NativeDialogs.FileDialog.OpenFile
+                                                nameFilters: [qsTr("Windows executables (*.exe)"), qsTr("All files (*)")]
+                                                onAccepted: {
+                                                    var newPath = selectedFile.toLocalFile()
+                                                    if (gameModel.updateGamePath(gamePathRow.gameId, newPath)) root.showNotification(qsTr("Game path updated."))
+                                                    else root.showNotification(qsTr("Could not update the path. Choose a valid executable that is not already in the library."), true)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Text {
+                                        visible: !gameModel || gameModel.count === 0
+                                        text: qsTr("No games in the library yet. Use Add Game to select an executable or scan an installation folder.")
+                                        color: theme.muted
+                                        font.pixelSize: 11
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: qsTr("SAVE MANAGEMENT")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
+                            }
+
+                            SaveBackupView {
+                                Layout.fillWidth: true
+                                Layout.maximumWidth: 900
+                            }
+
+                            Text {
+                                text: qsTr("ABOUT")
+                                color: theme.dim
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.5
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: aboutRow.implicitHeight + 28
+                                radius: 14
+                                color: theme.surface
+                                border.color: "#1b2b3a"
+
+                                RowLayout {
+                                    id: aboutRow
+                                    anchors.fill: parent
+                                    anchors.margins: 14
+                                    spacing: 14
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 40
+                                        Layout.preferredHeight: 40
+                                        radius: 11
+                                        color: theme.cyanSoft
+                                        border.color: theme.cyanLine
+                                        Image {
+                                            anchors.centerIn: parent
+                                            width: 25
+                                            height: 25
+                                            source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
+                                            fillMode: Image.PreserveAspectFit
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+                                        Text {
+                                            text: qsTr("About VoidOne")
+                                            color: theme.text
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            text: qsTr("Local-first. Private by design. Your games stay yours.")
+                                            color: theme.muted
+                                            font.pixelSize: 11
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+
+                                    Text {
+                                        text: "v" + Qt.application.version
+                                        color: theme.dim
+                                        font.pixelSize: 10
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -634,8 +1320,50 @@ Window {
         }
     }
 
+    Menu {
+        id: appMenu
+        title: qsTr("VoidOne Menu")
+        Action { text: qsTr("Home"); onTriggered: root.currentPage = "home" }
+        Action { text: qsTr("Library"); onTriggered: root.currentPage = "library" }
+        Action { text: qsTr("Activity"); onTriggered: root.currentPage = "activity" }
+        MenuSeparator {}
+        Action { text: qsTr("Add Game…"); onTriggered: addGameDialog.open() }
+        Action {
+            text: qsTr("Scan Steam Library")
+            onTriggered: {
+                steamScanner.startAsyncScan()
+                root.showNotification(qsTr("Scanning installed Steam games..."))
+            }
+        }
+        MenuSeparator {}
+        Action { text: qsTr("Manage Game Paths…"); onTriggered: root.currentPage = "settings" }
+        Action { text: qsTr("Settings"); onTriggered: root.currentPage = "settings" }
+    }
+
+    // Keyboard-first navigation for players who prefer to keep their hands on the keyboard.
+    Shortcut {
+        sequence: "Ctrl+K"
+        context: Qt.ApplicationShortcut
+        onActivated: {
+            searchInput.forceActiveFocus()
+            searchInput.selectAll()
+        }
+    }
+    Shortcut { sequence: "Ctrl+1"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "home" }
+    Shortcut { sequence: "Ctrl+2"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "library" }
+    Shortcut { sequence: "Ctrl+3"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "activity" }
+    Shortcut { sequence: "Ctrl+4"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "settings" }
+    Shortcut {
+        sequence: "Ctrl+Shift+A"
+        context: Qt.ApplicationShortcut
+        onActivated: addGameDialog.open()
+    }
+
     GameDetailsDialog {
         id: gameDetails
+        onNotificationRequested: function(message, isError) {
+            root.showNotification(message, isError)
+        }
     }
 
     AddGameDialog {

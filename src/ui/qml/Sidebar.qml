@@ -13,9 +13,9 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.topMargin: 18
-        anchors.bottomMargin: 16
-        spacing: 14
+        anchors.topMargin: 16
+        anchors.bottomMargin: 14
+        spacing: 12
 
         RowLayout {
             Layout.fillWidth: true
@@ -30,12 +30,13 @@ Rectangle {
                 color: "#00e5ff12"
                 border.color: "#00e5ff38"
 
-                Text {
+                Image {
                     anchors.centerIn: parent
-                    text: "V"
-                    color: "#00e5ff"
-                    font.pixelSize: 18
-                    font.bold: true
+                    width: 27
+                    height: 27
+                    source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
                 }
             }
 
@@ -75,7 +76,7 @@ Rectangle {
             SidebarButton {
                 Layout.fillWidth: true
                 compact: root.compact
-                iconSource: "qrc:/qt/qml/VoidOne.App/assets/icons/home.svg"
+                iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/home.svg"
                 voLabel: qsTr("Home")
                 voSelected: root.currentPage === "home"
                 onClicked: root.pageChanged("home")
@@ -84,7 +85,7 @@ Rectangle {
             SidebarButton {
                 Layout.fillWidth: true
                 compact: root.compact
-                iconSource: "qrc:/qt/qml/VoidOne.App/assets/icons/library.svg"
+                iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/library.svg"
                 voLabel: qsTr("Library")
                 voSelected: root.currentPage === "library"
                 onClicked: root.pageChanged("library")
@@ -93,7 +94,7 @@ Rectangle {
             SidebarButton {
                 Layout.fillWidth: true
                 compact: root.compact
-                iconSource: "qrc:/qt/qml/VoidOne.App/assets/icons/activity.svg"
+                iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/activity.svg"
                 voLabel: qsTr("Activity")
                 voSelected: root.currentPage === "activity"
                 onClicked: root.pageChanged("activity")
@@ -113,7 +114,7 @@ Rectangle {
         SidebarButton {
             Layout.fillWidth: true
             compact: root.compact
-            iconSource: "qrc:/qt/qml/VoidOne.App/assets/icons/settings.svg"
+            iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/settings.svg"
             voLabel: qsTr("Settings")
             voSelected: root.currentPage === "settings"
             onClicked: root.pageChanged("settings")
@@ -136,14 +137,16 @@ Rectangle {
                 Rectangle {
                     width: 32
                     height: 32
-                    radius: 16
+                    radius: 11
                     color: "#00e5ff12"
-                    Text {
+                    border.color: "#00e5ff28"
+                    Image {
                         anchors.centerIn: parent
-                        text: "MK"
-                        color: "#00e5ff"
-                        font.pixelSize: 9
-                        font.bold: true
+                        width: 22
+                        height: 22
+                        source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
                     }
                 }
 
@@ -152,13 +155,13 @@ Rectangle {
                     Layout.fillWidth: true
                     spacing: 1
                     Text {
-                        text: qsTr("Local player")
+                        text: qsTr("Local profile")
                         color: "#d9e4ec"
                         font.pixelSize: 10
                         font.bold: true
                     }
                     Text {
-                        text: qsTr("Offline mode")
+                        text: qsTr("Library stays yours")
                         color: "#4e6578"
                         font.pixelSize: 9
                     }

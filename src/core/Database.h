@@ -15,6 +15,7 @@ struct GameRecord {
     QString source;
     QString workingDir;
     QString launchArgs;
+    int steamAppId = 0;
     qint64 playSeconds = 0;
     int playCount = 0;
     qint64 lastPlayed = 0;
