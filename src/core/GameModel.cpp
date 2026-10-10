@@ -540,6 +540,37 @@ void GameModel::hideGame(int id, bool hidden)
     if (q.exec()) loadGamesFromDatabase();
 }
 
+bool GameModel::updateGamePath(int id, const QString &newExecutablePath)
+{
+    const QString path = newExecutablePath.trimmed();
+    const QFileInfo info(path);
+    if (!info.isFile() || info.isSymLink()) {
+        qWarning() << "[VoidOne] Refusing invalid replacement executable:" << path;
+        return false;
+    }
+#if defined(Q_OS_WIN)
+    if (!info.fileName().endsWith(QStringLiteral(".exe"), Qt::CaseInsensitive))
+        return false;
+#else
+    if (!info.isExecutable())
+        return false;
+#endif
+    const QString absolutePath = info.absoluteFilePath();
+    const QSqlDatabase db = QSqlDatabase::database(QStringLiteral("voidone-main"), false);
+    if (!db.isValid() || !db.isOpen())
+        return false;
+    QSqlQuery query(db);
+    query.prepare("UPDATE games SET exe_path = :path, working_dir = :dir, icon_path = '' WHERE id = :id");
+    query.bindValue(":path", absolutePath);
+    query.bindValue(":dir", info.absolutePath());
+    query.bindValue(":id", id);
+    if (!query.exec() || query.numRowsAffected() == 0) {
+        qWarning() << "[VoidOne] Failed to update game executable path:" << query.lastError().text();
+        return false;
+    }
+    loadGamesFromDatabase();
+    return true;
+}
 void GameModel::updateLaunchOptions(int id, const QString &args, const QString &workingDir)
 {
     const QSqlDatabase db = QSqlDatabase::database(QStringLiteral("voidone-main"), false);
