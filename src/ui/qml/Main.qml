@@ -453,8 +453,10 @@ Window {
                                     itemIndex: index
                                     compact: true
                                     onLaunchRequested: function(path) {
-                                        gameModel.launchGame(path)
-                                        root.showNotification(qsTr("Launching game..."))
+                                        if (gameModel.launchGame(path))
+                                            root.showNotification(qsTr("Launch request sent."))
+                                        else
+                                            root.showNotification(qsTr("Could not start game. Check the executable path."), true)
                                     }
                                     onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, iconPath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
                                 }
@@ -585,8 +587,10 @@ Window {
                                     lastPlayed: model.lastPlayed
                                     itemIndex: index
                                     onLaunchRequested: function(path) {
-                                        gameModel.launchGame(path)
-                                        root.showNotification(qsTr("Launching game..."))
+                                        if (gameModel.launchGame(path))
+                                            root.showNotification(qsTr("Launch request sent."))
+                                        else
+                                            root.showNotification(qsTr("Could not start game. Check the executable path."), true)
                                     }
                                     onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, iconPath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
                                 }
@@ -713,8 +717,10 @@ Window {
                                     lastPlayed: model.lastPlayed
                                     itemIndex: index
                                     onLaunchRequested: function(path) {
-                                        gameModel.launchGame(path)
-                                        root.showNotification(qsTr("Launching game..."))
+                                        if (gameModel.launchGame(path))
+                                            root.showNotification(qsTr("Launch request sent."))
+                                        else
+                                            root.showNotification(qsTr("Could not start game. Check the executable path."), true)
                                     }
                                     onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, iconPath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
                                 }
@@ -1158,6 +1164,9 @@ Window {
 
     GameDetailsDialog {
         id: gameDetails
+        onNotificationRequested: function(message, isError) {
+            root.showNotification(message, isError)
+        }
     }
 
     AddGameDialog {
