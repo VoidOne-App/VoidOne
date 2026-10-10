@@ -102,13 +102,15 @@ Dialog {
         }
 
         DropArea {
+            id: gameDropArea
+            property bool dragActive: false
             Layout.fillWidth: true
-            Layout.preferredHeight: 54
+            Layout.preferredHeight: 62
             keys: ["text/uri-list"]
-            onEntered: dragHint.visible = true
-            onExited: dragHint.visible = false
+            onEntered: dragActive = true
+            onExited: dragActive = false
             onDropped: function(drop) {
-                dragHint.visible = false
+                dragActive = false
                 if (drop.urls && drop.urls.length > 0) {
                     var path = drop.urls[0].toLocalFile()
                     if (path.toLowerCase().endsWith(".exe")) {
@@ -127,16 +129,26 @@ Dialog {
             Rectangle {
                 anchors.fill: parent
                 radius: 13
-                color: dragHint.visible ? "#00e5ff10" : "#080c12"
-                border.color: dragHint.visible ? "#00e5ff88" : "#172533"
-                Text {
-                    id: dragHint
+                color: gameDropArea.dragActive ? "#00e5ff14" : "#080c12"
+                border.color: gameDropArea.dragActive ? "#00e5ff88" : "#233545"
+                RowLayout {
                     anchors.centerIn: parent
-                    visible: false
-                    text: qsTr("Drop a game .exe or folder here")
-                    color: "#00e5ff"
-                    font.pixelSize: 11
-                    font.bold: true
+                    spacing: 9
+                    Image {
+                        width: 18
+                        height: 18
+                        source: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/folder.svg"
+                        fillMode: Image.PreserveAspectFit
+                        opacity: 0.8
+                    }
+                    Text {
+                        text: gameDropArea.dragActive
+                              ? qsTr("Release to add this game")
+                              : qsTr("Drop a game .exe or folder here")
+                        color: gameDropArea.dragActive ? "#00e5ff" : "#8296a9"
+                        font.pixelSize: 11
+                        font.bold: gameDropArea.dragActive
+                    }
                 }
             }
         }
