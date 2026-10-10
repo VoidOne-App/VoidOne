@@ -8,6 +8,8 @@
 #include <QSqlQuery>
 #include <QVariantMap>
 #include <QDateTime>
+#include <QDesktopServices>
+#include <QUrl>
 #include <QRegularExpression>
 #include <QCryptographicHash>
 #include <QImage>
@@ -396,15 +398,28 @@ bool GameModel::launchGame(const QString &exePath)
     }
 
     int launchedId = -1;
+    int steamAppId = 0;
+    QString gameSource;
     for (const auto &game : std::as_const(m_allGames)) {
         if (QFileInfo(game.exePath).absoluteFilePath() == absolutePath) {
             launchedId = game.id;
+            steamAppId = game.steamAppId;
+            gameSource = game.source;
             break;
         }
     }
 
     qint64 pid = -1;
-    if (!QProcess::startDetached(absolutePath, arguments, workingDirectory, &pid)) {
+    bool launchAccepted = false;
+    if (steamAppId > 0 && gameSource.compare(QStringLiteral("Steam"), Qt::CaseInsensitive) == 0) {
+        const QUrl steamUrl(QStringLiteral("steam://rungameid/%1").arg(steamAppId));
+        launchAccepted = QDesktopServices::openUrl(steamUrl);
+        if (!launchAccepted)
+            qWarning() << "[VoidOne] Steam protocol launch failed; trying executable directly:" << steamUrl;
+    }
+    if (!launchAccepted)
+        launchAccepted = QProcess::startDetached(absolutePath, arguments, workingDirectory, &pid);
+    if (!launchAccepted) {
         qWarning() << "[VoidOne] Failed to launch game:" << absolutePath;
         return false;
     }
@@ -479,7 +494,13 @@ void GameModel::setFavorite(int id, bool favorite)
     QSqlQuery q(QSqlDatabase::database(QStringLiteral("voidone-main"), false));
     q.prepare("UPDATE games SET favorite=:favorite WHERE id=:id");
     q.bindValue(":favorite", favorite ? 1 : 0); q.bindValue(":id", id);
-    if (q.exec()) loadGamesFromDatabase();
+    if (q.exec()) {
+        if (q.numRowsAffected() == 0)
+            qWarning() << "[VoidOne] Favorite update matched no game row for id:" << id;
+        loadGamesFromDatabase();
+    } else {
+        qWarning() << "[VoidOne] Favorite update failed:" << q.lastError().text();
+    }
 }
 
 void GameModel::hideGame(int id, bool hidden)
