@@ -65,7 +65,14 @@ Dialog {
                 Rectangle {
                     width: 70; height: 70; radius: 17
                     color: "#00e5ff10"; border.color: "#00e5ff32"
-                    Text { anchors.centerIn: parent; text: "V"; color: "#00e5ff"; font.pixelSize: 30; font.bold: true }
+                    Image {
+                        anchors.centerIn: parent
+                        width: 40
+                        height: 40
+                        source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                    }
                 }
 
                 ColumnLayout {
