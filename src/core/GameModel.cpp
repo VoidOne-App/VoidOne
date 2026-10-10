@@ -10,14 +10,17 @@
 #include <QDateTime>
 #include <QRegularExpression>
 #include <QCryptographicHash>
-#include <QIcon>
-#include <QFileIconProvider>
+#include <QImage>
 #include <QStandardPaths>
-#include <QPixmap>
 #include <QDir>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <shellapi.h>
+#endif
 #include <algorithm>
 #include <functional>
 #include <utility>
+#include <cstring>
 
 namespace {
 
@@ -62,16 +65,65 @@ QString extractExecutableIcon(const QString &executablePath)
     if (QFileInfo::exists(iconPath))
         return iconPath;
 
-    QFileIconProvider provider;
-    const QIcon icon = provider.icon(executable);
-    if (icon.isNull())
+#ifdef Q_OS_WIN
+    SHFILEINFOW fileInfo{};
+    const DWORD_PTR result = SHGetFileInfoW(
+        reinterpret_cast<LPCWSTR>(executable.absoluteFilePath().utf16()),
+        0, &fileInfo, sizeof(fileInfo), SHGFI_ICON | SHGFI_LARGEICON);
+    if (result == 0 || fileInfo.hIcon == nullptr)
         return {};
 
-    const QPixmap pixmap = icon.pixmap(96, 96);
-    if (pixmap.isNull() || !pixmap.save(iconPath, "PNG"))
-        return {};
+    constexpr int iconSize = 96;
+    BITMAPINFO bitmapInfo{};
+    bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bitmapInfo.bmiHeader.biWidth = iconSize;
+    bitmapInfo.bmiHeader.biHeight = -iconSize;
+    bitmapInfo.bmiHeader.biPlanes = 1;
+    bitmapInfo.bmiHeader.biBitCount = 32;
+    bitmapInfo.bmiHeader.biCompression = BI_RGB;
 
+    HDC screenDc = GetDC(nullptr);
+    if (screenDc == nullptr) {
+        DestroyIcon(fileInfo.hIcon);
+        return {};
+    }
+
+    void *pixels = nullptr;
+    HBITMAP bitmap = CreateDIBSection(screenDc, &bitmapInfo, DIB_RGB_COLORS,
+                                      &pixels, nullptr, 0);
+    HDC memoryDc = CreateCompatibleDC(screenDc);
+    if (bitmap == nullptr || memoryDc == nullptr || pixels == nullptr) {
+        if (memoryDc != nullptr)
+            DeleteDC(memoryDc);
+        if (bitmap != nullptr)
+            DeleteObject(bitmap);
+        ReleaseDC(nullptr, screenDc);
+        DestroyIcon(fileInfo.hIcon);
+        return {};
+    }
+
+    HGDIOBJ previousObject = SelectObject(memoryDc, bitmap);
+    std::memset(pixels, 0, iconSize * iconSize * 4);
+    const BOOL drawn = DrawIconEx(memoryDc, 0, 0, fileInfo.hIcon,
+                                  iconSize, iconSize, 0, nullptr, DI_NORMAL);
+    QImage image(static_cast<uchar *>(pixels), iconSize, iconSize,
+                 iconSize * 4, QImage::Format_ARGB32);
+    const QImage cachedImage = image.copy();
+
+    SelectObject(memoryDc, previousObject);
+    DeleteDC(memoryDc);
+    DeleteObject(bitmap);
+    ReleaseDC(nullptr, screenDc);
+    DestroyIcon(fileInfo.hIcon);
+
+    if (!drawn || cachedImage.isNull() || !cachedImage.save(iconPath, "PNG"))
+        return {};
     return iconPath;
+#else
+    Q_UNUSED(executable)
+    Q_UNUSED(iconPath)
+    return {};
+#endif
 }
 
 } // namespace
