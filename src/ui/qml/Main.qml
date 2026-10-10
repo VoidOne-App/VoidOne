@@ -604,8 +604,40 @@ Window {
 
                     // SETTINGS
                     Item {
-                        SaveBackupView {
-                            anchors.centerIn: parent
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 24
+                            spacing: 16
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                Text {
+                                    text: qsTr("Settings")
+                                    color: theme.text
+                                    font.pixelSize: 28
+                                    font.bold: true
+                                }
+                                Text {
+                                    text: qsTr("Manage local save backups and automatic backup behavior.")
+                                    color: theme.muted
+                                    font.pixelSize: 12
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 1
+                                color: "#14202c"
+                            }
+
+                            SaveBackupView {
+                                Layout.alignment: Qt.AlignHCenter
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                Layout.maximumWidth: 820
+                                Layout.minimumHeight: 360
+                            }
                         }
                     }
                 }
