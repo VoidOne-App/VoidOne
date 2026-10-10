@@ -201,11 +201,14 @@ Window {
                             radius: 18
                             color: theme.cyanSoft
                             border.color: theme.cyanLine
-                            Text {
+                            Image {
                                 anchors.centerIn: parent
-                                text: "V"
-                                color: theme.cyan
-                                font.bold: true
+                                width: 22
+                                height: 22
+                                source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                                fillMode: Image.PreserveAspectFit
+                                smooth: true
+                                asynchronous: true
                             }
                         }
                     }
@@ -363,15 +366,17 @@ Window {
                                     }
                                 }
 
-                                Text {
+                                Image {
                                     visible: !root.narrowLayout
                                     anchors.right: parent.right
-                                    anchors.rightMargin: 42
+                                    anchors.rightMargin: 34
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: "V"
-                                    color: "#00e5ff10"
-                                    font.pixelSize: 150
-                                    font.bold: true
+                                    width: 150
+                                    height: 150
+                                    source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                                    fillMode: Image.PreserveAspectFit
+                                    opacity: 0.12
+                                    asynchronous: true
                                 }
                             }
 
