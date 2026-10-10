@@ -12,8 +12,8 @@ Rectangle {
     border.color: "#1b2b3a"
     border.width: 1
 
-    property string saveDirPath: ""
-    property string backupDestinationPath: ""
+    property string saveDirPath: saveBackupManager.saveDirPath
+    property string backupDestinationPath: saveBackupManager.backupDestinationPath
     readonly property bool isPersian: trManager.currentLanguage === "fa"
 
     function refreshAutoSaveConfiguration() {
@@ -58,6 +58,10 @@ Rectangle {
         }
         function onMaxBackupsChanged(count) {
             maxBackupsSpinBox.value = count
+        }
+        function onPathsChanged() {
+            root.saveDirPath = saveBackupManager.saveDirPath
+            root.backupDestinationPath = saveBackupManager.backupDestinationPath
         }
     }
 
