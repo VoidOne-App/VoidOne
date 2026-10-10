@@ -61,7 +61,7 @@ Dialog {
                     anchors.centerIn: parent
                     width: 23
                     height: 23
-                    source: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/add.svg"
+                    source: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/add.svg"
                     fillMode: Image.PreserveAspectFit
                 }
             }
@@ -137,7 +137,7 @@ Dialog {
                     Image {
                         width: 18
                         height: 18
-                        source: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/folder.svg"
+                        source: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/folder.svg"
                         fillMode: Image.PreserveAspectFit
                         opacity: 0.8
                     }
@@ -161,7 +161,7 @@ Dialog {
                 Layout.fillWidth: true
                 title: qsTr("Select .exe")
                 subtitle: qsTr("Add one game directly")
-                iconSource: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/file.svg"
+                iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/file.svg"
                 onClicked: exeDialog.open()
             }
 
@@ -169,7 +169,7 @@ Dialog {
                 Layout.fillWidth: true
                 title: qsTr("Select folder")
                 subtitle: qsTr("Let VoidOne find executables")
-                iconSource: "qrc:/qt/qml/VoidOne.App/assets/ui/icons/folder.svg"
+                iconSource: "qrc:/qt/qml/VoidOne/App/assets/ui/icons/folder.svg"
                 onClicked: folderDialog.open()
             }
         }
