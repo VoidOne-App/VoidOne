@@ -35,7 +35,7 @@ Dialog {
 
     function iconUrl(path) {
         if (!path || path.length === 0)
-            return "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+            return "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
         if (path.startsWith("qrc:/") || path.startsWith("file:/"))
             return path
         if (path.startsWith(":/"))
@@ -104,7 +104,7 @@ Dialog {
                         anchors.centerIn: parent
                         width: 40
                         height: 40
-                        source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+                        source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
                         visible: detailsGameIcon.status !== Image.Ready
