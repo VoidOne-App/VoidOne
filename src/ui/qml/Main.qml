@@ -553,9 +553,29 @@ Window {
                                 }
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    text: qsTr("Add an executable or choose a game folder.")
+                                    text: searchInput.text.length > 0
+                                          ? qsTr("Try a different search term.")
+                                          : qsTr("Add an executable or choose a game folder.")
                                     color: theme.muted
                                     font.pixelSize: 12
+                                }
+
+                                Button {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    visible: searchInput.text.length === 0
+                                    text: qsTr("＋ Add your first game")
+                                    onClicked: addGameDialog.open()
+                                    background: Rectangle {
+                                        radius: 10
+                                        color: theme.cyan
+                                    }
+                                    contentItem: Text {
+                                        text: parent.text
+                                        color: "#041015"
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                 }
                             }
                         }
