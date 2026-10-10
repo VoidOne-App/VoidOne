@@ -12,7 +12,6 @@
 #include <QCryptographicHash>
 #include <QImage>
 #include <QStandardPaths>
-#include <QDir>
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <shellapi.h>
