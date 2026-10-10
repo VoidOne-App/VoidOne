@@ -227,6 +227,18 @@ Dialog {
                             text: qsTr("Open Folder")
                             implicitHeight: 40
                             onClicked: Qt.openUrlExternally(dialog.folderUrl(workingDir))
+                            background: Rectangle {
+                                radius: 10
+                                color: parent.hovered ? "#142331" : "#0a1118"
+                                border.color: "#263a4b"
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: "#b9c8d5"
+                                font.pixelSize: 11
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
                         }
                         Item { Layout.fillWidth: true }
                         Button {
@@ -255,9 +267,34 @@ Dialog {
                     anchors.fill: parent; anchors.margins: 24; spacing: 14
                     Text { text: qsTr("COMMAND"); color: "#4d6377"; font.pixelSize: 10; font.bold: true; font.letterSpacing: 1.4 }
                     Text { text: qsTr("Arguments"); color: "#71869a"; font.pixelSize: 11 }
-                    TextField { id: argsField; Layout.fillWidth: true; placeholderText: qsTr("e.g. -windowed -novid"); selectByMouse: true }
+                    TextField {
+                        id: argsField
+                        Layout.fillWidth: true
+                        implicitHeight: 40
+                        placeholderText: qsTr("e.g. -windowed -novid")
+                        selectByMouse: true
+                        color: "#eaf2f8"
+                        placeholderTextColor: "#506277"
+                        background: Rectangle {
+                            radius: 9
+                            color: "#080d13"
+                            border.color: argsField.activeFocus ? "#00e5ff66" : "#172635"
+                        }
+                    }
                     Text { text: qsTr("Working directory"); color: "#71869a"; font.pixelSize: 11 }
-                    TextField { id: dirField; Layout.fillWidth: true; selectByMouse: true }
+                    TextField {
+                        id: dirField
+                        Layout.fillWidth: true
+                        implicitHeight: 40
+                        selectByMouse: true
+                        color: "#eaf2f8"
+                        placeholderTextColor: "#506277"
+                        background: Rectangle {
+                            radius: 9
+                            color: "#080d13"
+                            border.color: dirField.activeFocus ? "#00e5ff66" : "#172635"
+                        }
+                    }
                     Text { Layout.fillWidth: true; text: qsTr("Use this for games that need a custom working directory or startup arguments."); color: "#4e6579"; font.pixelSize: 10; wrapMode: Text.WordWrap }
                     Item { Layout.fillHeight: true }
                     Button {
@@ -291,8 +328,21 @@ Dialog {
                     Item { Layout.fillHeight: true }
                     Button {
                         Layout.alignment: Qt.AlignRight
+                        implicitHeight: 40
                         text: qsTr("Open Folder")
                         onClicked: Qt.openUrlExternally(dialog.folderUrl(workingDir))
+                        background: Rectangle {
+                            radius: 10
+                            color: parent.hovered ? "#142331" : "#0a1118"
+                            border.color: "#263a4b"
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#b9c8d5"
+                            font.pixelSize: 11
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
                     }
                 }
             }
