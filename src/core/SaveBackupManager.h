@@ -10,6 +10,8 @@ class SaveBackupManager : public QObject {
     Q_PROPERTY(bool autoSaveEnabled READ isAutoSaveEnabled WRITE setAutoSaveEnabled NOTIFY autoSaveEnabledChanged)
     Q_PROPERTY(int autoSaveIntervalSeconds READ autoSaveIntervalSeconds WRITE setAutoSaveIntervalSeconds NOTIFY autoSaveIntervalChanged)
     Q_PROPERTY(int maxBackups READ maxBackups WRITE setMaxBackups NOTIFY maxBackupsChanged)
+    Q_PROPERTY(QString saveDirPath READ saveDirPath NOTIFY pathsChanged)
+    Q_PROPERTY(QString backupDestinationPath READ backupDestinationPath NOTIFY pathsChanged)
 
 public:
     explicit SaveBackupManager(QObject *parent = nullptr);
@@ -27,6 +29,9 @@ public:
     int maxBackups() const { return m_maxBackups; }
     void setMaxBackups(int count);
 
+    QString saveDirPath() const { return m_targetSaveDir; }
+    QString backupDestinationPath() const { return m_destinationDir; }
+
     Q_INVOKABLE void configureAutoSave(const QString &saveDirPath, const QString &backupDestinationPath);
 
 signals:
@@ -34,6 +39,7 @@ signals:
     void autoSaveEnabledChanged(bool enabled);
     void autoSaveIntervalChanged(int seconds);
     void maxBackupsChanged(int count);
+    void pathsChanged();
 
 private slots:
     void performAutoSave();
