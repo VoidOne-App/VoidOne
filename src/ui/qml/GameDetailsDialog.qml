@@ -23,6 +23,16 @@ Dialog {
     property bool favorite: false
     signal notificationRequested(string message, bool isError)
 
+    function folderUrl(path) {
+        if (!path || path.length === 0)
+            return ""
+        if (path.startsWith("file://"))
+            return path
+        if (path.startsWith("/"))
+            return "file://" + path
+        return "file:///" + path.replace(/\\/g, "/")
+    }
+
     function iconUrl(path) {
         if (!path || path.length === 0)
             return "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
@@ -104,7 +114,7 @@ Dialog {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 5
-                    Text { text: gameName; color: "#f0f6fa"; font.pixelSize: 25; font.bold: true; elide: Text.ElideRight }
+                    Text { Layout.fillWidth: true; text: gameName; color: "#f0f6fa"; font.pixelSize: 25; font.bold: true; elide: Text.ElideRight }
                     Text { Layout.fillWidth: true; text: platform + "  •  " + source; color: "#71869a"; font.pixelSize: 11; elide: Text.ElideRight }
                     Text { text: playCount + " " + qsTr("launches"); color: "#4e6579"; font.pixelSize: 10 }
                 }
@@ -167,7 +177,7 @@ Dialog {
                         Button {
                             text: qsTr("Open Folder")
                             implicitHeight: 40
-                            onClicked: Qt.openUrlExternally("file:///" + workingDir.replace(/\\/g, "/"))
+                            onClicked: Qt.openUrlExternally(dialog.folderUrl(workingDir))
                         }
                         Item { Layout.fillWidth: true }
                         Button {
@@ -208,7 +218,7 @@ Dialog {
                     Button {
                         Layout.alignment: Qt.AlignRight
                         text: qsTr("Open Folder")
-                        onClicked: Qt.openUrlExternally("file:///" + workingDir.replace(/\\/g, "/"))
+                        onClicked: Qt.openUrlExternally(dialog.folderUrl(workingDir))
                     }
                 }
             }
