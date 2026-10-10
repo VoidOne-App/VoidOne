@@ -1,12 +1,21 @@
 #include "TranslationManager.h"
 
+#include <QSettings>
+
 TranslationManager::TranslationManager(QObject *parent) : QObject(parent) {
     initDictionary();
+
+    QSettings settings;
+    const QString savedLanguage = settings.value(QStringLiteral("ui/backupLanguage"), QStringLiteral("en")).toString();
+    if (savedLanguage == QStringLiteral("fa"))
+        m_currentLanguage = savedLanguage;
 }
 
 void TranslationManager::setCurrentLanguage(const QString &lang) {
     if (m_currentLanguage != lang && (lang == "en" || lang == "fa")) {
         m_currentLanguage = lang;
+        QSettings settings;
+        settings.setValue(QStringLiteral("ui/backupLanguage"), m_currentLanguage);
         emit languageChanged();
     }
 }
