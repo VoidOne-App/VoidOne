@@ -1195,7 +1195,7 @@ Window {
     Shortcut { sequence: "Ctrl+1"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "home" }
     Shortcut { sequence: "Ctrl+2"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "library" }
     Shortcut { sequence: "Ctrl+3"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "activity" }
-    Shortcut { sequence: "Ctrl+,"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "settings" }
+    Shortcut { sequence: "Ctrl+4"; context: Qt.ApplicationShortcut; onActivated: root.currentPage = "settings" }
     Shortcut {
         sequence: "Ctrl+Shift+A"
         context: Qt.ApplicationShortcut
