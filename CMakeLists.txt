@@ -172,6 +172,8 @@ qt_add_qml_module(VoidOne
         src/ui/qml/AddGameDialog.qml
         src/ui/qml/ActionButton.qml
         src/ui/qml/GameDetailsDialog.qml
+        src/ui/qml/AmbientBackdrop.qml
+        src/ui/qml/AnimatedIcon.qml
     RESOURCES
         assets/branding/voidone-mark.svg
         assets/ui/icons/home.svg
@@ -181,6 +183,10 @@ qt_add_qml_module(VoidOne
         assets/ui/icons/add.svg
         assets/ui/icons/folder.svg
         assets/ui/icons/file.svg
+        assets/ui/icons/gamepad.svg
+        assets/ui/icons/play.svg
+        assets/ui/icons/clock.svg
+        assets/ui/icons/shield.svg
 )
 target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick Qt6::Svg)
 if(WIN32)
