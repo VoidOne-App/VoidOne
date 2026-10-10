@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
     qInfo() << "[Bootstrap] QML2_IMPORT_PATH:" << qEnvironmentVariable("QML2_IMPORT_PATH");
 
     QGuiApplication app(argc, argv);
-    app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg")));
+    app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg")));
 
     // AppDataLocation must exist before anything such as QLockFile uses it.
     const QString appDataDir = appDataDirectory();
