@@ -37,7 +37,7 @@ public:
     Q_INVOKABLE bool addNewGame(const QString &name, const QString &exePath, const QString &iconPath);
     Q_INVOKABLE QStringList suggestExecutables(const QString &folderPath) const;
     Q_INVOKABLE bool deleteGame(int id, int index);
-    Q_INVOKABLE void launchGame(const QString &exePath);
+    Q_INVOKABLE bool launchGame(const QString &exePath);
     Q_INVOKABLE void setFavorite(int id, bool favorite);
     Q_INVOKABLE void hideGame(int id, bool hidden);
     Q_INVOKABLE void updateLaunchOptions(int id, const QString &args, const QString &workingDir);
