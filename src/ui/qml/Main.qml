@@ -9,6 +9,7 @@ import QtQuick.Window
 import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Effects
+import Qt.labs.settings
 
 Window {
     id: root
@@ -22,9 +23,19 @@ Window {
     color: theme.background
 
     property string currentPage: "home"
-    property bool sidebarCompact: false
-    property string libraryFilter: "all"
+    property bool sidebarCompact: uiSettings.compactSidebar
+    property string libraryFilter: uiSettings.libraryFilter
     readonly property bool narrowLayout: width < 1100
+
+    onSidebarCompactChanged: uiSettings.compactSidebar = sidebarCompact
+    onLibraryFilterChanged: uiSettings.libraryFilter = libraryFilter
+
+    Settings {
+        id: uiSettings
+        category: "ui"
+        property bool compactSidebar: false
+        property string libraryFilter: "all"
+    }
 
     QtObject {
         id: theme
