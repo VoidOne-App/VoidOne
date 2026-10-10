@@ -313,7 +313,7 @@ QStringList GameModel::suggestExecutables(const QString &folderPath) const
                 candidates.append({score, file.size(), file.absoluteFilePath()});
             }
 
-            if (depth >= 2)
+            if (depth >= 4)
                 return;
 
             const QFileInfoList dirs = dir.entryInfoList(
