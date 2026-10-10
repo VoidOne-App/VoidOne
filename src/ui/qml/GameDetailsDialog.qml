@@ -14,6 +14,7 @@ Dialog {
     property int gameId: -1
     property string gameName: ""
     property string exePath: ""
+    property string iconPath: ""
     property string platform: ""
     property string source: ""
     property string workingDir: ""
@@ -21,8 +22,20 @@ Dialog {
     property int playCount: 0
     property bool favorite: false
 
-    function openFor(id, name, exe, plat, src, dir, args, count, fav) {
-        gameId=id; gameName=name; exePath=exe; platform=plat; source=src; workingDir=dir
+    function iconUrl(path) {
+        if (!path || path.length === 0)
+            return "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
+        if (path.startsWith("qrc:/") || path.startsWith("file:/"))
+            return path
+        if (path.startsWith(":/"))
+            return "qrc" + path
+        if (path.startsWith("/"))
+            return "file://" + path
+        return "file:///" + path.replace(/\\/g, "/")
+    }
+
+    function openFor(id, name, exe, icon, plat, src, dir, args, count, fav) {
+        gameId=id; gameName=name; exePath=exe; iconPath=icon; platform=plat; source=src; workingDir=dir
         launchArgs=args; playCount=count; favorite=fav
         argsField.text=args
         dirField.text=dir
@@ -66,12 +79,24 @@ Dialog {
                     width: 70; height: 70; radius: 17
                     color: "#00e5ff10"; border.color: "#00e5ff32"
                     Image {
+                        id: detailsGameIcon
+                        anchors.centerIn: parent
+                        width: 48
+                        height: 48
+                        source: dialog.iconUrl(dialog.iconPath)
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        smooth: true
+                        visible: status === Image.Ready
+                    }
+                    Image {
                         anchors.centerIn: parent
                         width: 40
                         height: 40
                         source: "qrc:/qt/qml/VoidOne.App/assets/branding/voidone-mark.svg"
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
+                        visible: detailsGameIcon.status !== Image.Ready
                     }
                 }
 
@@ -79,7 +104,7 @@ Dialog {
                     Layout.fillWidth: true
                     spacing: 5
                     Text { text: gameName; color: "#f0f6fa"; font.pixelSize: 25; font.bold: true; elide: Text.ElideRight }
-                    Text { text: platform + "  •  " + source; color: "#71869a"; font.pixelSize: 11 }
+                    Text { Layout.fillWidth: true; text: platform + "  •  " + source; color: "#71869a"; font.pixelSize: 11; elide: Text.ElideRight }
                     Text { text: playCount + " " + qsTr("launches"); color: "#4e6579"; font.pixelSize: 10 }
                 }
 
