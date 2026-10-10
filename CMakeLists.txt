@@ -187,6 +187,10 @@ qt_add_qml_module(VoidOne
         assets/ui/icons/play.svg
         assets/ui/icons/clock.svg
         assets/ui/icons/shield.svg
+        assets/ui/icons/heart.svg
+        assets/ui/icons/scan.svg
+        assets/ui/icons/sliders.svg
+        assets/ui/icons/spark.svg
 )
 target_link_libraries(VoidOne PRIVATE voidone_core Qt6::Gui Qt6::Quick Qt6::Svg)
 if(WIN32)
