@@ -13,11 +13,86 @@ Rectangle {
 
     property string saveDirPath: ""
     property string backupDestinationPath: ""
+    property string pendingBackupPath: ""
 
     function refreshAutoSaveConfiguration() {
         saveBackupManager.configureAutoSave(saveDirPath, backupDestinationPath)
         saveBackupManager.autoSaveIntervalSeconds = intervalSpinBox.value
-        saveBackupManager.autoSaveEnabled = autoSaveSwitch.checked && saveDirPath.length > 0 && backupDestinationPath.length > 0
+
+        var pathsReady = saveDirPath.trim().length > 0 && backupDestinationPath.trim().length > 0
+        saveBackupManager.autoSaveEnabled = autoSaveSwitch.checked && pathsReady
+
+        if (autoSaveSwitch.checked && !pathsReady) {
+            statusText.color = "#f59e0b"
+            statusText.text = trManager.currentLanguage === "fa"
+                ? "وضعیت: برای فعال‌شدن ذخیره خودکار، هر دو مسیر را وارد کنید"
+                : "Status: Enter both paths before auto-save can run"
+        } else if (saveBackupManager.autoSaveEnabled) {
+            statusText.color = "#00ffee"
+            statusText.text = trManager.currentLanguage === "fa"
+                ? "وضعیت: ذخیره خودکار فعال است"
+                : "Status: Auto-save is active"
+        } else {
+            statusText.color = "#00ffee"
+            statusText.text = trManager.currentLanguage === "fa"
+                ? "وضعیت: ذخیره خودکار غیرفعال است"
+                : "Status: Auto-save is disabled"
+        }
+    }
+
+    Dialog {
+        id: restoreConfirmDialog
+        modal: true
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(440, Overlay.overlay ? Overlay.overlay.width - 32 : 440)
+        padding: 18
+        title: trManager.currentLanguage === "fa" ? "تأیید بازگردانی بکاپ" : "Confirm backup restore"
+
+        contentItem: Text {
+            width: parent ? parent.width : 400
+            text: trManager.currentLanguage === "fa"
+                ? "بازگردانی، محتوای پوشهٔ سیو فعلی را جایگزین می‌کند. پیش از ادامه مطمئن شوید که سیوهای فعلی را لازم ندارید."
+                : "Restoring a backup replaces the contents of the selected save folder. Make sure you no longer need the current saves before continuing."
+            color: "#b9c8d5"
+            font.pixelSize: 12
+            wrapMode: Text.WordWrap
+        }
+
+        footer: RowLayout {
+            spacing: 10
+
+            Button {
+                text: trManager.currentLanguage === "fa" ? "لغو" : "Cancel"
+                onClicked: restoreConfirmDialog.reject()
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Button {
+                text: trManager.currentLanguage === "fa" ? "بازگردانی بکاپ" : "Restore backup"
+                onClicked: restoreConfirmDialog.accept()
+                background: Rectangle {
+                    radius: 8
+                    color: "#ff5f70"
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: "#18090c"
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+        }
+
+        onAccepted: {
+            statusText.color = "#00ffee"
+            statusText.text = trManager.currentLanguage === "fa"
+                ? "وضعیت: در حال بازگردانی بکاپ..."
+                : "Status: Restoring backup..."
+            saveBackupManager.restoreBackup(root.pendingBackupPath, root.saveDirPath)
+            root.pendingBackupPath = ""
+        }
     }
 
     Connections {
@@ -94,13 +169,7 @@ Rectangle {
             Switch {
                 id: autoSaveSwitch
                 checked: false
-                onCheckedChanged: {
-                    root.refreshAutoSaveConfiguration()
-                    statusText.color = "#00ffee"
-                    statusText.text = checked
-                        ? (trManager.currentLanguage === "fa" ? "وضعیت: ذخیره خودکار فعال شد" : "Status: Auto-save enabled")
-                        : (trManager.currentLanguage === "fa" ? "وضعیت: ذخیره خودکار غیرفعال شد" : "Status: Auto-save disabled")
-                }
+                onCheckedChanged: root.refreshAutoSaveConfiguration()
                 indicator: Rectangle {
                     implicitWidth: 48
                     implicitHeight: 24
@@ -189,10 +258,16 @@ Rectangle {
 
             Text {
                 id: statusText
-                anchors.centerIn: parent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 10
+                anchors.verticalCenter: parent.verticalCenter
                 text: trManager.currentLanguage === "fa" ? "وضعیت: آماده برای پایش و پشتیبان‌گیری..." : "Status: Ready for backup monitoring..."
                 color: "#00ffee"
                 font.pixelSize: 12
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
             }
         }
 
@@ -267,9 +342,8 @@ Rectangle {
                         return
                     }
 
-                    statusText.text = trManager.currentLanguage === "fa" ? "وضعیت: در حال بازگردانی بکاپ..." : "Status: Restoring backup..."
-                    statusText.color = "#00ffee"
-                    saveBackupManager.restoreBackup(latestPath, root.saveDirPath)
+                    root.pendingBackupPath = latestPath
+                    restoreConfirmDialog.open()
                 }
             }
         }
