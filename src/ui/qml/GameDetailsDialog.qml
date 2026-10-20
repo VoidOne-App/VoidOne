@@ -26,6 +26,7 @@ Dialog {
         launchArgs=args; playCount=count; favorite=fav
         argsField.text=args
         dirField.text=dir
+        tabs.currentIndex = 0
         dialog.open()
     }
 
