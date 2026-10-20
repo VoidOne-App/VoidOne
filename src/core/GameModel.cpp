@@ -46,6 +46,16 @@ int GameModel::rowCount(const QModelIndex &parent) const
     return m_games.size();
 }
 
+int GameModel::totalCount() const
+{
+    int visibleCount = 0;
+    for (const GameRecord &game : std::as_const(m_allGames)) {
+        if (!game.hidden)
+            ++visibleCount;
+    }
+    return visibleCount;
+}
+
 QVariant GameModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_games.size())
@@ -89,11 +99,7 @@ void GameModel::loadGamesFromDatabase()
 {
     beginResetModel();
     m_allGames = Database::getAllGames();
-    m_games.clear();
-    for (const auto &game : std::as_const(m_allGames)) {
-        if (!game.hidden)
-            m_games.append(game);
-    }
+    rebuildFilteredGames();
     endResetModel();
     emit countChanged();
 }
@@ -314,21 +320,29 @@ void GameModel::launchGame(const QString &exePath)
 void GameModel::filter(const QString &searchText)
 {
     const QString needle = searchText.trimmed();
+    if (m_searchText == needle)
+        return;
 
+    m_searchText = needle;
     beginResetModel();
+    rebuildFilteredGames();
+    endResetModel();
+    emit countChanged();
+}
+
+void GameModel::rebuildFilteredGames()
+{
     m_games.clear();
-    for (const auto &game : std::as_const(m_allGames)) {
+    for (const GameRecord &game : std::as_const(m_allGames)) {
         if (game.hidden)
             continue;
-        if (needle.isEmpty()
-            || game.name.contains(needle, Qt::CaseInsensitive)
-            || game.platform.contains(needle, Qt::CaseInsensitive)
-            || game.exePath.contains(needle, Qt::CaseInsensitive)) {
+        if (m_searchText.isEmpty()
+            || game.name.contains(m_searchText, Qt::CaseInsensitive)
+            || game.platform.contains(m_searchText, Qt::CaseInsensitive)
+            || game.exePath.contains(m_searchText, Qt::CaseInsensitive)) {
             m_games.append(game);
         }
     }
-    endResetModel();
-    emit countChanged();
 }
 
 
