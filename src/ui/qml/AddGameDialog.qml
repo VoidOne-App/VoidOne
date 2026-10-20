@@ -18,6 +18,8 @@ Dialog {
     signal notificationRequested(string message, bool isError)
 
     function reset() {
+        scanTimer.stop()
+        scanAnimation.stop()
         selectedFolder = ""
         selectedExecutable = ""
         selectedName = ""
@@ -25,6 +27,19 @@ Dialog {
         scanning = false
         nameField.text = ""
     }
+
+    function startFolderScan(path) {
+        selectedFolder = path
+        selectedExecutable = ""
+        selectedName = ""
+        nameField.text = ""
+        candidates = []
+        scanning = true
+        scanAnimation.restart()
+        scanTimer.restart()
+    }
+
+    onClosed: reset()
 
     background: Rectangle {
         radius: 22
@@ -112,14 +127,16 @@ Dialog {
                 if (drop.urls && drop.urls.length > 0) {
                     var path = drop.urls[0].toLocalFile()
                     if (path.toLowerCase().endsWith(".exe")) {
+                        scanTimer.stop()
+                        scanAnimation.stop()
+                        selectedFolder = ""
+                        candidates = []
+                        scanning = false
                         selectedExecutable = path
                         selectedName = path.split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
                         nameField.text = selectedName
                     } else {
-                        selectedFolder = path
-                        scanning = true
-                        scanAnimation.restart()
-                        scanTimer.restart()
+                        startFolderScan(path)
                     }
                 }
             }
@@ -378,6 +395,10 @@ Dialog {
         nameFilters: ["Windows executable (*.exe)", "All files (*)"]
 
         onAccepted: {
+            scanTimer.stop()
+            scanAnimation.stop()
+            selectedFolder = ""
+            scanning = false
             selectedExecutable = selectedFile.toLocalFile()
             selectedName = selectedExecutable.split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
             nameField.text = selectedName
@@ -390,15 +411,7 @@ Dialog {
         title: qsTr("Choose the game's installation folder")
 
         onAccepted: {
-            selectedFolder = folderDialog.selectedFolder.toLocalFile()
-            scanning = true
-            scanAnimation.restart()
-            scanTimer.restart()
-            if (candidates.length === 1) {
-                selectedExecutable = candidates[0]
-                selectedName = candidates[0].split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
-                nameField.text = selectedName
-            }
+            startFolderScan(folderDialog.selectedFolder.toLocalFile())
         }
     }
 
