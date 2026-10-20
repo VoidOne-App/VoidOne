@@ -37,8 +37,8 @@ Rectangle {
         }
     }
 
-    onSaveDirPathChanged: savePathField.text = saveDirPath
-    onBackupDestinationPathChanged: backupPathField.text = backupDestinationPath
+    onSaveDirPathChanged: { savePathField.text = saveDirPath; refreshAutoSaveConfiguration() }
+    onBackupDestinationPathChanged: { backupPathField.text = backupDestinationPath; refreshAutoSaveConfiguration() }
 
     FolderDialog {
         id: saveFolderDialog
