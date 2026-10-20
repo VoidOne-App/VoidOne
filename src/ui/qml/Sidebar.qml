@@ -121,22 +121,22 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.leftMargin: 16
-            Layout.rightMargin: 16
-            implicitHeight: compact ? 52 : 66
+            Layout.leftMargin: compact ? 8 : 16
+            Layout.rightMargin: compact ? 8 : 16
+            implicitHeight: compact ? 48 : 66
             radius: 13
             color: "#0d151e"
             border.color: "#172635"
 
             RowLayout {
                 anchors.fill: parent
-                anchors.margins: compact ? 8 : 11
-                spacing: 9
+                anchors.margins: compact ? 5 : 11
+                spacing: compact ? 0 : 9
 
                 Rectangle {
-                    width: 32
-                    height: 32
-                    radius: 16
+                    width: compact ? 28 : 32
+                    height: width
+                    radius: width / 2
                     color: "#00e5ff12"
                     Text {
                         anchors.centerIn: parent
