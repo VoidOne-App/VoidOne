@@ -217,7 +217,9 @@ Rectangle {
 
             TextField {
                 Layout.fillWidth: true
-                placeholderText: trManager.currentLanguage === "fa" ? "مثال: /home/user/Game/Saves" : "Example: /home/user/Game/Saves"
+                placeholderText: trManager.currentLanguage === "fa"
+                    ? (Qt.platform.os === "windows" ? "مثال: C:/Games/MyGame/Saves" : "مثال: /home/user/Game/Saves")
+                    : (Qt.platform.os === "windows" ? "Example: C:/Games/MyGame/Saves" : "Example: /home/user/Game/Saves")
                 text: root.saveDirPath
                 color: "#f8fafc"
                 placeholderTextColor: "#64748b"
@@ -235,7 +237,9 @@ Rectangle {
 
             TextField {
                 Layout.fillWidth: true
-                placeholderText: trManager.currentLanguage === "fa" ? "مثال: /home/user/VoidOneBackups" : "Example: /home/user/VoidOneBackups"
+                placeholderText: trManager.currentLanguage === "fa"
+                    ? (Qt.platform.os === "windows" ? "مثال: C:/VoidOneBackups" : "مثال: /home/user/VoidOneBackups")
+                    : (Qt.platform.os === "windows" ? "Example: C:/VoidOneBackups" : "Example: /home/user/VoidOneBackups")
                 text: root.backupDestinationPath
                 color: "#f8fafc"
                 placeholderTextColor: "#64748b"
