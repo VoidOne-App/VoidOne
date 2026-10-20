@@ -262,9 +262,11 @@ Window {
                                         wrapMode: Text.WordWrap
                                     }
                                     Text {
+                                        Layout.fillWidth: true
                                         text: qsTr("A local-first gaming platform that puts your library back in your hands.")
                                         color: theme.muted
                                         font.pixelSize: 13
+                                        wrapMode: Text.WordWrap
                                     }
                                 }
 
@@ -329,10 +331,12 @@ Window {
                                     }
 
                                     Text {
+                                        Layout.fillWidth: true
                                         text: gameModel && gameModel.count > 0 ? qsTr("Ready to play.") : qsTr("Build your library.")
                                         color: theme.text
-                                        font.pixelSize: 31
+                                        font.pixelSize: root.width < 1120 ? 26 : 31
                                         font.bold: true
+                                        wrapMode: Text.WordWrap
                                     }
 
                                     Text {
