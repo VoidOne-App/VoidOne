@@ -39,6 +39,25 @@ bool isBlockedExecutable(const QFileInfo &file)
 
 GameModel::GameModel(QObject *parent) : QAbstractListModel(parent) {}
 
+bool GameModel::isExecutablePath(const QString &path) const
+{
+    const QFileInfo info(path.trimmed());
+    if (!info.isFile() || info.isSymLink())
+        return false;
+
+#if defined(Q_OS_WIN)
+    return info.fileName().endsWith(".exe", Qt::CaseInsensitive);
+#else
+    return info.isExecutable();
+#endif
+}
+
+bool GameModel::isDirectoryPath(const QString &path) const
+{
+    const QFileInfo info(path.trimmed());
+    return info.isDir() && !info.isSymLink();
+}
+
 int GameModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
