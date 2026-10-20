@@ -13,10 +13,11 @@ import QtQuick.Effects
 Window {
     id: root
 
-    width: Screen.desktopAvailableWidth * 0.86
-    height: Screen.desktopAvailableHeight * 0.86
-    minimumWidth: 1040
-    minimumHeight: 700
+    // Stay within the usable desktop area while allowing smaller laptop screens.
+    width: Math.min(Screen.desktopAvailableWidth, Math.max(900, Screen.desktopAvailableWidth * 0.86))
+    height: Math.min(Screen.desktopAvailableHeight, Math.max(620, Screen.desktopAvailableHeight * 0.86))
+    minimumWidth: Math.min(900, Screen.desktopAvailableWidth)
+    minimumHeight: Math.min(620, Screen.desktopAvailableHeight)
     visible: true
     title: qsTr("VoidOne")
     color: theme.background
@@ -85,8 +86,8 @@ Window {
             Sidebar {
                 id: sidebar
                 Layout.fillHeight: true
-                Layout.preferredWidth: root.sidebarCompact ? 78 : 218
-                compact: root.sidebarCompact
+                Layout.preferredWidth: (root.sidebarCompact || root.width < 1120) ? 78 : 218
+                compact: root.sidebarCompact || root.width < 1120
                 currentPage: root.currentPage
                 onPageChanged: function(page) { root.currentPage = page }
             }
@@ -115,6 +116,7 @@ Window {
                         spacing: 14
 
                         ToolButton {
+                            visible: root.width >= 1120
                             text: root.sidebarCompact ? "»" : "«"
                             onClicked: root.sidebarCompact = !root.sidebarCompact
                             background: Rectangle {
@@ -131,7 +133,8 @@ Window {
                         }
 
                         Rectangle {
-                            Layout.preferredWidth: 300
+                            Layout.preferredWidth: Math.min(300, Math.max(180, root.width * 0.24))
+                            Layout.minimumWidth: 180
                             Layout.preferredHeight: 38
                             radius: 10
                             color: "#0b1118"
@@ -237,12 +240,12 @@ Window {
 
                         ColumnLayout {
                             id: homeColumn
-                            width: parent.width
+                            width: Math.max(0, parent.width - 68)
+                            x: 34
                             anchors.top: parent.top
                             anchors.topMargin: 30
-                            anchors.leftMargin: 34
-                            anchors.rightMargin: 34
                             spacing: 24
+                            property int gameColumns: Math.max(1, Math.floor(width / 280))
 
                             RowLayout {
                                 Layout.fillWidth: true
@@ -251,10 +254,12 @@ Window {
                                     Layout.fillWidth: true
                                     spacing: 6
                                     Text {
+                                        Layout.fillWidth: true
                                         text: qsTr("Your games. Your hardware. Your rules.")
                                         color: theme.text
-                                        font.pixelSize: 29
+                                        font.pixelSize: root.width < 1120 ? 23 : 29
                                         font.bold: true
+                                        wrapMode: Text.WordWrap
                                     }
                                     Text {
                                         text: qsTr("A local-first gaming platform that puts your library back in your hands.")
@@ -310,9 +315,9 @@ Window {
 
                                 ColumnLayout {
                                     anchors.left: parent.left
-                                    anchors.leftMargin: 68
+                                    anchors.leftMargin: root.width < 1120 ? 28 : 68
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width * 0.58
+                                    width: parent.width * (root.width < 1120 ? 0.76 : 0.58)
                                     spacing: 12
 
                                     Text {
@@ -371,6 +376,7 @@ Window {
                                     anchors.right: parent.right
                                     anchors.rightMargin: 42
                                     anchors.verticalCenter: parent.verticalCenter
+                                    visible: root.width >= 1120
                                     text: "V"
                                     color: "#00e5ff10"
                                     font.pixelSize: 150
@@ -412,9 +418,9 @@ Window {
 
                             GridView {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: Math.max(190, Math.ceil((gameModel ? gameModel.count : 0) / 3) * 190)
+                                Layout.preferredHeight: Math.max(190, Math.ceil((gameModel ? gameModel.count : 0) / homeColumn.gameColumns) * 190)
                                 interactive: false
-                                cellWidth: width / 3
+                                cellWidth: width / homeColumn.gameColumns
                                 cellHeight: 180
                                 model: typeof gameModel !== "undefined" ? gameModel : null
 
