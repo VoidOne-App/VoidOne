@@ -18,6 +18,8 @@ Dialog {
     signal notificationRequested(string message, bool isError)
 
     function reset() {
+        scanTimer.stop()
+        scanAnimation.stop()
         selectedFolder = ""
         selectedExecutable = ""
         selectedName = ""
@@ -25,6 +27,19 @@ Dialog {
         scanning = false
         nameField.text = ""
     }
+
+    function startFolderScan(path) {
+        selectedFolder = path
+        selectedExecutable = ""
+        selectedName = ""
+        nameField.text = ""
+        candidates = []
+        scanning = true
+        scanAnimation.restart()
+        scanTimer.restart()
+    }
+
+    onClosed: reset()
 
     background: Rectangle {
         radius: 22
@@ -113,21 +128,19 @@ Dialog {
                 dragActive = false
                 if (drop.urls && drop.urls.length > 0) {
                     var path = drop.urls[0].toLocalFile()
-                    if (path.toLowerCase().endsWith(".exe")) {
+                    if (gameModel.isExecutablePath(path)) {
+                        scanTimer.stop()
+                        scanAnimation.stop()
+                        selectedFolder = ""
+                        candidates = []
+                        scanning = false
                         selectedExecutable = path
                         selectedName = path.split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
                         nameField.text = selectedName
-                        selectedFolder = ""
-                        candidates = []
+                    } else if (gameModel.isDirectoryPath(path)) {
+                        startFolderScan(path)
                     } else {
-                        selectedFolder = path
-                        selectedExecutable = ""
-                        selectedName = ""
-                        nameField.text = ""
-                        candidates = []
-                        scanning = true
-                        scanAnimation.restart()
-                        scanTimer.restart()
+                        notificationRequested(qsTr("Drop a valid executable or a game installation folder."), true)
                     }
                 }
             }
@@ -405,9 +418,13 @@ Dialog {
         id: exeDialog
         title: qsTr("Choose a game executable")
         fileMode: NativeDialogs.FileDialog.OpenFile
-        nameFilters: ["Windows executable (*.exe)", "All files (*)"]
+        nameFilters: Qt.platform.os === "windows" ? ["Windows executable (*.exe)", "All files (*)"] : ["Executable files (*)", "All files (*)"]
 
         onAccepted: {
+            scanTimer.stop()
+            scanAnimation.stop()
+            selectedFolder = ""
+            scanning = false
             selectedExecutable = selectedFile.toLocalFile()
             selectedName = selectedExecutable.split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
             nameField.text = selectedName
@@ -420,19 +437,12 @@ Dialog {
         title: qsTr("Choose the game's installation folder")
 
         onAccepted: {
-            selectedFolder = folderDialog.selectedFolder.toLocalFile()
-            selectedExecutable = ""
-            selectedName = ""
-            nameField.text = ""
-            candidates = []
-            if (!selectedFolder.length) {
-                scanning = false
+            var path = folderDialog.selectedFolder.toLocalFile()
+            if (!gameModel.isDirectoryPath(path)) {
                 notificationRequested(qsTr("The selected folder path could not be read. Try choosing the folder again."), true)
-            } else {
-                scanning = true
-                scanAnimation.restart()
-                scanTimer.restart()
+                return
             }
+            startFolderScan(path)
         }
     }
 

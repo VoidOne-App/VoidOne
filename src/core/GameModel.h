@@ -9,6 +9,7 @@ class GameModel : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
+    Q_PROPERTY(int totalCount READ totalCount NOTIFY countChanged)
 
 public:
     enum GameRoles {
@@ -30,11 +31,14 @@ public:
     explicit GameModel(QObject *parent = nullptr);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
+    int totalCount() const;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
     Q_INVOKABLE void loadGamesFromDatabase();
     Q_INVOKABLE bool addNewGame(const QString &name, const QString &exePath, const QString &iconPath);
+    Q_INVOKABLE bool isExecutablePath(const QString &path) const;
+    Q_INVOKABLE bool isDirectoryPath(const QString &path) const;
     Q_INVOKABLE QStringList suggestExecutables(const QString &folderPath) const;
     Q_INVOKABLE bool deleteGame(int id, int index);
     Q_INVOKABLE bool removeGameById(int id);
@@ -50,6 +54,7 @@ public:
 signals:
     void countChanged();
     void gameLaunched(int id);
+    void gameLaunchFailed();
 
 private:
     void rebuildVisibleGames();
