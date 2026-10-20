@@ -126,7 +126,7 @@ Dialog {
                 dragHint.visible = false
                 if (drop.urls && drop.urls.length > 0) {
                     var path = drop.urls[0].toLocalFile()
-                    if (path.toLowerCase().endsWith(".exe")) {
+                    if (gameModel.isExecutablePath(path)) {
                         scanTimer.stop()
                         scanAnimation.stop()
                         selectedFolder = ""
@@ -135,8 +135,10 @@ Dialog {
                         selectedExecutable = path
                         selectedName = path.split("/").pop().split("\\").pop().replace(/\.exe$/i, "")
                         nameField.text = selectedName
-                    } else {
+                    } else if (gameModel.isDirectoryPath(path)) {
                         startFolderScan(path)
+                    } else {
+                        notificationRequested(qsTr("Drop a valid executable or a game installation folder."), true)
                     }
                 }
             }
@@ -392,7 +394,7 @@ Dialog {
         id: exeDialog
         title: qsTr("Choose a game executable")
         fileMode: FileDialog.OpenFile
-        nameFilters: ["Windows executable (*.exe)", "All files (*)"]
+        nameFilters: Qt.platform.os === "windows" ? ["Windows executable (*.exe)", "All files (*)"] : ["Executable files (*)", "All files (*)"]
 
         onAccepted: {
             scanTimer.stop()
