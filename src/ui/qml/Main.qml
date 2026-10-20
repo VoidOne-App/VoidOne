@@ -166,6 +166,26 @@ Window {
                                             gameModel.filter(text)
                                     }
                                 }
+
+                                ToolButton {
+                                    visible: searchInput.text.length > 0
+                                    Layout.preferredWidth: 22
+                                    Layout.preferredHeight: 22
+                                    text: "×"
+                                    ToolTip.text: qsTr("Clear search")
+                                    onClicked: searchInput.clear()
+                                    background: Rectangle {
+                                        radius: 7
+                                        color: parent.hovered ? "#152331" : "transparent"
+                                    }
+                                    contentItem: Text {
+                                        text: parent.text
+                                        color: theme.muted
+                                        font.pixelSize: 16
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
                             }
                         }
 
@@ -445,7 +465,6 @@ Window {
                                     compact: true
                                     onLaunchRequested: function(path) {
                                         gameModel.launchGame(path)
-                                        root.showNotification(qsTr("Launching game..."))
                                     }
                                     onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
                                 }
@@ -531,7 +550,6 @@ Window {
                                     itemIndex: index
                                     onLaunchRequested: function(path) {
                                         gameModel.launchGame(path)
-                                        root.showNotification(qsTr("Launching game..."))
                                     }
                                     onDetailsRequested: gameDetails.openFor(gameId, gameName, exePath, platform, source, model.workingDir, model.launchArgs, playCount, favorite)
                                 }
@@ -687,6 +705,16 @@ Window {
             root.showNotification(qsTr("Steam scan complete: ") + count + qsTr(" games found."))
         }
         function onScanFailed(message) { root.showNotification(message, true) }
+    }
+
+    Connections {
+        target: gameModel
+        function onGameLaunched(id) {
+            root.showNotification(qsTr("Game process started."))
+        }
+        function onGameLaunchFailed() {
+            root.showNotification(qsTr("Could not launch the game. Check its executable path."), true)
+        }
     }
 
     Component.onCompleted: {
