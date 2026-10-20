@@ -49,6 +49,7 @@ public:
 signals:
     void countChanged();
     void gameLaunched(int id);
+    void gameLaunchFailed();
 
 private:
     QVector<GameRecord> m_allGames;
