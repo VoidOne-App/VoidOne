@@ -257,23 +257,27 @@ void GameModel::launchGame(const QString &exePath)
     const QString trimmedPath = exePath.trimmed();
     if (trimmedPath.isEmpty()) {
         qWarning() << "[VoidOne] Refusing to launch an empty game path.";
+        emit gameLaunchFailed();
         return;
     }
 
     const QFileInfo targetInfo(trimmedPath);
     if (!targetInfo.isFile() || targetInfo.isSymLink()) {
         qWarning() << "[VoidOne] Refusing to launch non-file or symlink:" << trimmedPath;
+        emit gameLaunchFailed();
         return;
     }
 
 #if defined(Q_OS_WIN)
     if (!targetInfo.fileName().endsWith(".exe", Qt::CaseInsensitive)) {
         qWarning() << "[VoidOne] Refusing non-executable Windows target:" << trimmedPath;
+        emit gameLaunchFailed();
         return;
     }
 #else
     if (!targetInfo.isExecutable()) {
         qWarning() << "[VoidOne] Refusing non-executable target:" << trimmedPath;
+        emit gameLaunchFailed();
         return;
     }
 #endif
@@ -304,6 +308,7 @@ void GameModel::launchGame(const QString &exePath)
     qint64 pid = -1;
     if (!QProcess::startDetached(absolutePath, arguments, workingDirectory, &pid)) {
         qWarning() << "[VoidOne] Failed to launch game:" << absolutePath;
+        emit gameLaunchFailed();
         return;
     }
 
