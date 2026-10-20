@@ -30,6 +30,23 @@ Dialog {
         dialog.open()
     }
 
+    function openFolder(path) {
+        var normalized = String(path).trim().replace(/\\/g, "/")
+        if (!normalized.length)
+            return
+
+        var fileUrl
+        if (/^[A-Za-z]:\//.test(normalized))
+            fileUrl = "file:///" + encodeURI(normalized)
+        else if (normalized.indexOf("//") === 0)
+            fileUrl = "file:" + encodeURI(normalized)
+        else
+            fileUrl = "file://" + encodeURI(normalized)
+
+        fileUrl = fileUrl.replace(/#/g, "%23").replace(/\?/g, "%3F")
+        Qt.openUrlExternally(fileUrl)
+    }
+
     background: Rectangle {
         radius: 22
         color: "#0b1118"
@@ -128,7 +145,7 @@ Dialog {
                         Button {
                             text: qsTr("Open Folder")
                             implicitHeight: 40
-                            onClicked: Qt.openUrlExternally("file:///" + workingDir.replace(/\\/g, "/"))
+                            onClicked: dialog.openFolder(workingDir)
                         }
                         Item { Layout.fillWidth: true }
                         Button {
@@ -169,7 +186,7 @@ Dialog {
                     Button {
                         Layout.alignment: Qt.AlignRight
                         text: qsTr("Open Folder")
-                        onClicked: Qt.openUrlExternally("file:///" + workingDir.replace(/\\/g, "/"))
+                        onClicked: dialog.openFolder(workingDir)
                     }
                 }
             }
