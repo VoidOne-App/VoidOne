@@ -332,7 +332,7 @@ Window {
 
                                     Text {
                                         Layout.fillWidth: true
-                                        text: gameModel && gameModel.count > 0 ? qsTr("Ready to play.") : qsTr("Build your library.")
+                                        text: gameModel && gameModel.totalCount > 0 ? qsTr("Ready to play.") : qsTr("Build your library.")
                                         color: theme.text
                                         font.pixelSize: root.width < 1120 ? 26 : 31
                                         font.bold: true
@@ -341,9 +341,11 @@ Window {
 
                                     Text {
                                         Layout.fillWidth: true
-                                        text: gameModel && gameModel.count > 0
-                                              ? qsTr("Pick a game and launch it directly from VoidOne.")
-                                              : qsTr("Scan your PC or point VoidOne at a game's folder or executable.")
+                                        text: gameModel && gameModel.count === 0 && gameModel.totalCount > 0 && searchInput.text.trim().length > 0
+                                              ? qsTr("No games match your search. Try a different name or clear the search.")
+                                              : gameModel && gameModel.totalCount > 0
+                                                ? qsTr("Pick a game and launch it directly from VoidOne.")
+                                                : qsTr("Scan your PC or point VoidOne at a game's folder or executable.")
                                         color: theme.muted
                                         font.pixelSize: 13
                                         wrapMode: Text.WordWrap
@@ -395,7 +397,7 @@ Window {
                                 StatCard {
                                     Layout.fillWidth: true
                                     label: qsTr("LIBRARY")
-                                    value: gameModel ? gameModel.count : 0
+                                    value: gameModel ? gameModel.totalCount : 0
                                     detail: qsTr("games ready")
                                 }
                                 StatCard {
@@ -413,7 +415,7 @@ Window {
                             }
 
                             Text {
-                                text: qsTr("RECENTLY ADDED")
+                                text: qsTr("YOUR GAMES")
                                 color: theme.muted
                                 font.pixelSize: 10
                                 font.bold: true
@@ -553,16 +555,36 @@ Window {
                                 }
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    text: qsTr("Your library is empty")
+                                    text: gameModel && gameModel.totalCount > 0 && searchInput.text.trim().length > 0 ? qsTr("No games match your search") : qsTr("Your library is empty")
                                     color: theme.text
                                     font.pixelSize: 18
                                     font.bold: true
                                 }
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    text: qsTr("Add an executable or choose a game folder.")
+                                    text: gameModel && gameModel.totalCount > 0 && searchInput.text.trim().length > 0 ? qsTr("Try another name or clear the search above.") : qsTr("Add an executable or choose a game folder.")
                                     color: theme.muted
                                     font.pixelSize: 12
+                                }
+
+                                Button {
+                                    visible: gameModel && gameModel.totalCount > 0 && searchInput.text.trim().length > 0
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: qsTr("Clear search")
+                                    onClicked: searchInput.text = ""
+                                    background: Rectangle {
+                                        radius: 8
+                                        color: "#11202c"
+                                        border.color: "#263a4c"
+                                    }
+                                    contentItem: Text {
+                                        text: parent.text
+                                        color: theme.cyan
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                 }
                             }
                         }
