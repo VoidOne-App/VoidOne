@@ -72,11 +72,23 @@ Rectangle {
                 border.color: "#00e5ff22"
 
                 Image {
+                    id: gameIcon
                     anchors.centerIn: parent
-                    width: parent.width * 0.48
+                    width: parent.width * 0.68
                     height: width
-                    source: "qrc:/qt/qml/VoidOne.App/assets/icons/library.svg"
+                    source: cardRoot.iconPath.trim().length > 0 ? cardRoot.iconPath : ""
+                    visible: status === Image.Ready
                     fillMode: Image.PreserveAspectFit
+                    asynchronous: true
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: !gameIcon.visible
+                    text: cardRoot.gameName.trim().length > 0 ? cardRoot.gameName.trim().charAt(0).toUpperCase() : "V"
+                    color: "#00e5ff"
+                    font.pixelSize: compact ? 15 : 18
+                    font.bold: true
                 }
             }
 
