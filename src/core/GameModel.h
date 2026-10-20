@@ -9,6 +9,7 @@ class GameModel : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
+    Q_PROPERTY(int totalCount READ totalCount NOTIFY countChanged)
 
 public:
     enum GameRoles {
@@ -30,6 +31,7 @@ public:
     explicit GameModel(QObject *parent = nullptr);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
+    int totalCount() const;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
@@ -51,6 +53,9 @@ signals:
 private:
     QVector<GameRecord> m_allGames;
     QVector<GameRecord> m_games;
+    QString m_searchText;
+
+    void rebuildFilteredGames();
 };
 
 #endif // GAMEMODEL_H
