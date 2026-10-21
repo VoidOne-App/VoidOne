@@ -131,11 +131,40 @@ QString extractExecutableIcon(const QString &executablePath)
 
 GameModel::GameModel(QObject *parent) : QAbstractListModel(parent) {}
 
+bool GameModel::isExecutablePath(const QString &path) const
+{
+    const QFileInfo info(path.trimmed());
+    if (!info.isFile() || info.isSymLink())
+        return false;
+
+#if defined(Q_OS_WIN)
+    return info.fileName().endsWith(".exe", Qt::CaseInsensitive);
+#else
+    return info.isExecutable();
+#endif
+}
+
+bool GameModel::isDirectoryPath(const QString &path) const
+{
+    const QFileInfo info(path.trimmed());
+    return info.isDir() && !info.isSymLink();
+}
+
 int GameModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid())
         return 0;
     return m_games.size();
+}
+
+int GameModel::totalCount() const
+{
+    int visibleCount = 0;
+    for (const GameRecord &game : std::as_const(m_allGames)) {
+        if (!game.hidden)
+            ++visibleCount;
+    }
+    return visibleCount;
 }
 
 QVariant GameModel::data(const QModelIndex &index, int role) const
@@ -368,23 +397,27 @@ bool GameModel::launchGame(const QString &exePath)
     const QString trimmedPath = exePath.trimmed();
     if (trimmedPath.isEmpty()) {
         qWarning() << "[VoidOne] Refusing to launch an empty game path.";
+        emit gameLaunchFailed();
         return false;
     }
 
     const QFileInfo targetInfo(trimmedPath);
     if (!targetInfo.isFile() || targetInfo.isSymLink()) {
         qWarning() << "[VoidOne] Refusing to launch non-file or symlink:" << trimmedPath;
+        emit gameLaunchFailed();
         return false;
     }
 
 #if defined(Q_OS_WIN)
     if (!targetInfo.fileName().endsWith(".exe", Qt::CaseInsensitive)) {
         qWarning() << "[VoidOne] Refusing non-executable Windows target:" << trimmedPath;
+        emit gameLaunchFailed();
         return false;
     }
 #else
     if (!targetInfo.isExecutable()) {
         qWarning() << "[VoidOne] Refusing non-executable target:" << trimmedPath;
+        emit gameLaunchFailed();
         return false;
     }
 #endif
@@ -428,6 +461,7 @@ bool GameModel::launchGame(const QString &exePath)
         launchAccepted = QProcess::startDetached(absolutePath, arguments, workingDirectory, &pid);
     if (!launchAccepted) {
         qWarning() << "[VoidOne] Failed to launch game:" << absolutePath;
+        emit gameLaunchFailed();
         return false;
     }
 

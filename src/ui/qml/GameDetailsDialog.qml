@@ -24,13 +24,21 @@ Dialog {
     signal notificationRequested(string message, bool isError)
 
     function folderUrl(path) {
-        if (!path || path.length === 0)
+        var normalized = String(path || "").trim().replace(/\\/g, "/")
+        if (!normalized.length)
             return ""
-        if (path.startsWith("file://"))
-            return path
-        if (path.startsWith("/"))
-            return "file://" + path
-        return "file:///" + path.replace(/\\/g, "/")
+        if (normalized.startsWith("file://"))
+            return normalized.replace(/#/g, "%23").replace(/\?/g, "%3F")
+
+        var url
+        if (/^[A-Za-z]:\\//.test(normalized))
+            url = "file:///" + encodeURI(normalized)
+        else if (normalized.startsWith("/"))
+            url = "file://" + encodeURI(normalized)
+        else
+            url = "file:///" + encodeURI(normalized)
+
+        return url.replace(/#/g, "%23").replace(/\?/g, "%3F")
     }
 
     function iconUrl(path) {
@@ -50,6 +58,7 @@ Dialog {
         launchArgs=args; playCount=count; favorite=fav
         argsField.text=args
         dirField.text=dir
+        tabs.currentIndex = 0
         dialog.open()
     }
 

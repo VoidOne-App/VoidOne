@@ -21,12 +21,24 @@ Rectangle {
     function refreshAutoSaveConfiguration() {
         saveBackupManager.configureAutoSave(saveDirPath, backupDestinationPath)
         saveBackupManager.autoSaveIntervalSeconds = intervalSpinBox.value
-        saveBackupManager.autoSaveEnabled = autoSaveSwitch.checked
-                && saveDirPath.length > 0 && backupDestinationPath.length > 0
+        var pathsReady = saveDirPath.trim().length > 0 && backupDestinationPath.trim().length > 0
+        saveBackupManager.autoSaveEnabled = autoSaveSwitch.checked && pathsReady
+        if (autoSaveSwitch.checked && !pathsReady) {
+            statusText.color = "#f59e0b"
+            statusText.text = root.isPersian
+                ? "وضعیت: برای فعال‌شدن ذخیره خودکار، هر دو مسیر را وارد کنید"
+                : "Status: Enter both paths before auto-save can run"
+        } else if (saveBackupManager.autoSaveEnabled) {
+            statusText.color = "#00e5ff"
+            statusText.text = root.isPersian ? "وضعیت: ذخیره خودکار فعال است" : "Status: Auto-save is active"
+        } else {
+            statusText.color = "#00e5ff"
+            statusText.text = root.isPersian ? "وضعیت: ذخیره خودکار غیرفعال است" : "Status: Auto-save is disabled"
+        }
     }
 
-    onSaveDirPathChanged: savePathField.text = saveDirPath
-    onBackupDestinationPathChanged: backupPathField.text = backupDestinationPath
+    onSaveDirPathChanged: { savePathField.text = saveDirPath; refreshAutoSaveConfiguration() }
+    onBackupDestinationPathChanged: { backupPathField.text = backupDestinationPath; refreshAutoSaveConfiguration() }
 
     FolderDialog {
         id: saveFolderDialog
@@ -150,7 +162,7 @@ Rectangle {
                 TextField {
                     id: savePathField
                     Layout.fillWidth: true
-                    placeholderText: root.isPersian ? "مسیر پوشهٔ سیو" : "Path to save folder"
+                    placeholderText: root.isPersian ? (Qt.platform.os === "windows" ? "مسیر سیو، مثلاً C:/Games/MyGame/Saves" : "مسیر سیو، مثلاً /home/user/Game/Saves") : (Qt.platform.os === "windows" ? "Save folder, e.g. C:/Games/MyGame/Saves" : "Save folder, e.g. /home/user/Game/Saves")
                     text: root.saveDirPath
                     color: "#edf5fa"
                     placeholderTextColor: "#5f7387"
@@ -205,7 +217,7 @@ Rectangle {
                 TextField {
                     id: backupPathField
                     Layout.fillWidth: true
-                    placeholderText: root.isPersian ? "مسیر ذخیرهٔ بکاپ‌ها" : "Path for backups"
+                    placeholderText: root.isPersian ? (Qt.platform.os === "windows" ? "مسیر بکاپ، مثلاً C:/VoidOneBackups" : "مسیر بکاپ، مثلاً /home/user/VoidOneBackups") : (Qt.platform.os === "windows" ? "Backups, e.g. C:/VoidOneBackups" : "Backups, e.g. /home/user/VoidOneBackups")
                     text: root.backupDestinationPath
                     color: "#edf5fa"
                     placeholderTextColor: "#5f7387"

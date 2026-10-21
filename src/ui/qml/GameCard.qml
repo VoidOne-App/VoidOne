@@ -92,7 +92,16 @@ Rectangle {
                     source: "qrc:/qt/qml/VoidOne/App/assets/branding/voidone-mark.svg"
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
-                    visible: gameIcon.status !== Image.Ready
+                    visible: gameIcon.status !== Image.Ready && cardRoot.gameName.trim().length === 0
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: gameIcon.status !== Image.Ready && cardRoot.gameName.trim().length > 0
+                    text: cardRoot.gameName.trim().charAt(0).toUpperCase()
+                    color: "#00e5ff"
+                    font.pixelSize: cardRoot.compact ? 16 : 22
+                    font.bold: true
                 }
             }
 

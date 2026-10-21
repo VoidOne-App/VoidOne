@@ -15,10 +15,11 @@ import QtQuick.Dialogs as NativeDialogs
 Window {
     id: root
 
-    width: Screen.desktopAvailableWidth * 0.86
-    height: Screen.desktopAvailableHeight * 0.86
-    minimumWidth: 900
-    minimumHeight: 600
+    // Respect smaller laptop displays while retaining the intended desktop size.
+    width: Math.min(Screen.desktopAvailableWidth, Math.max(900, Screen.desktopAvailableWidth * 0.86))
+    height: Math.min(Screen.desktopAvailableHeight, Math.max(600, Screen.desktopAvailableHeight * 0.86))
+    minimumWidth: Math.min(900, Screen.desktopAvailableWidth)
+    minimumHeight: Math.min(600, Screen.desktopAvailableHeight)
     visible: true
     title: qsTr("VoidOne")
     color: theme.background
@@ -198,6 +199,17 @@ Window {
                                     font.pixelSize: 12
                                     selectByMouse: true
                                     onTextChanged: root.applyPageFilter()
+                                }
+
+                                ToolButton {
+                                    visible: searchInput.text.length > 0
+                                    text: "×"
+                                    onClicked: {
+                                        searchInput.clear()
+                                        searchInput.forceActiveFocus()
+                                    }
+                                    ToolTip.visible: hovered
+                                    ToolTip.text: qsTr("Clear search")
                                 }
                             }
                         }
@@ -383,7 +395,7 @@ Window {
                                     }
 
                                     Text {
-                                        text: gameModel && gameModel.count > 0 ? qsTr("Ready to play.") : qsTr("Build your library.")
+                                        text: gameModel && gameModel.totalCount > 0 ? qsTr("Ready to play.") : qsTr("Build your library.")
                                         color: theme.text
                                         font.pixelSize: root.narrowLayout ? 25 : 31
                                         font.bold: true
@@ -391,7 +403,7 @@ Window {
 
                                     Text {
                                         Layout.fillWidth: true
-                                        text: gameModel && gameModel.count > 0
+                                        text: gameModel && gameModel.totalCount > 0
                                               ? qsTr("Pick a game and launch it directly from VoidOne.")
                                               : qsTr("Scan your PC or point VoidOne at a game's folder or executable.")
                                         color: theme.muted
